@@ -3,6 +3,7 @@ import { z } from "zod";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ErpRow } from "@/lib/mongodb/models/ErpRow";
 import { ClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
+import { Owner } from "@/lib/mongodb/models/Owner";
 
 function toPlain<T>(v: any): T {
   return JSON.parse(JSON.stringify(v)) as T;
@@ -10,7 +11,10 @@ function toPlain<T>(v: any): T {
 
 const SEED_APPOINTMENTS: any[] = [];
 
-const appointmentCategoryEnum = z.enum(["call", "whatsapp", "social_media"]).nullable().optional();
+const appointmentCategoryEnum = z
+  .enum(["call", "whatsapp", "social_media", "walk_in", "online", "app", "referral", "other"])
+  .nullable()
+  .optional();
 
 export const listAppointmentsFn = createServerFn({ method: "GET" })
   .handler(tenantScoped(async (): Promise<any[]> => {
@@ -114,6 +118,7 @@ export const createAppointmentFn = createServerFn({ method: "POST" })
       moduleId: "appointments",
       data: payload,
     });
+
     return toPlain(doc.data);
   }));
 

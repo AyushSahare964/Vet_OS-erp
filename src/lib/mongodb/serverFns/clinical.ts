@@ -63,29 +63,26 @@ const AdmitPatientInputZ = z.object({
 });
 
 const PrescriptionLineZ = z.object({
+  id: z.string().optional().nullable(),
   lineType: z.enum(["Vaccine", "Consultation", "Pharmacy", "Procedure", "Diagnostic", "Service", "Food", "Accessory"]),
-  itemCode: z.string().optional(),
-  batchNo: z.string().optional(),
+  itemCode: z.string().optional().nullable(),
+  batchNo: z.string().optional().nullable(),
   name: z.string().min(1),
-  dosageInstructions: z.string().optional(),
+  dosageInstructions: z.string().optional().nullable(),
   quantity: z.number().positive(),
   unitPrice: z.number().min(0),
   discountPercent: z.number().min(0).max(100).default(0),
   // Per-line discount audit fields (REQ-DISC)
-  discountType: z.enum(["percentage", "fixed"]).optional(),
-  discountValue: z.number().min(0).optional(),
-  discountAmount: z.number().min(0).optional(),
-  taxableAmount: z.number().min(0).optional(),
+  discountType: z.enum(["percentage", "fixed"]).optional().nullable(),
+  discountValue: z.number().min(0).optional().nullable(),
+  discountAmount: z.number().min(0).optional().nullable(),
+  taxableAmount: z.number().min(0).optional().nullable(),
   gstRate: z.number().min(0).max(100).default(0),
-  gstApplicable: z.boolean().optional(),
+  gstApplicable: z.boolean().optional().nullable(),
   lineTotal: z.number().min(0),
-  // Provenance tags — savePrescriptionSectionFn's per-section save uses these to find and
-  // replace a section's previously-saved lines. Without them (they were missing from this
-  // schema), Zod silently stripped both fields from every wholesale save, so the section-save
-  // filter could never match the old rows and just kept appending duplicates on top of them.
-  sourceType: z.string().optional(),
-  sourceId: z.string().optional(),
-  rxSection: z.string().optional(),
+  sourceType: z.string().optional().nullable(),
+  sourceId: z.string().optional().nullable(),
+  rxSection: z.string().optional().nullable(),
 });
 
 const SavePrescriptionInputZ = z.object({
@@ -219,7 +216,11 @@ export const admitPatientFn = createServerFn({ method: "POST" })
             weightKg: data.vitals?.weightKg,
             status: "Active",
           },
-          ...(data.allergies && data.allergies.length > 0 ? { $set: { allergies: data.allergies } } : {}),
+          // Use $addToSet so admission-time allergies MERGE into the existing list
+          // rather than overwriting what was already saved during registration.
+          ...(data.allergies && data.allergies.length > 0
+            ? { $addToSet: { allergies: { $each: data.allergies } } }
+            : {}),
         },
         { upsert: true }
       );
@@ -403,16 +404,22 @@ export const savePrescriptionFn = createServerFn({ method: "POST" })
 // new quantity per itemCode so re-saving unchanged items is a no-op, and removing/reducing an
 // item restores stock instead of only ever depleting it.
 async function applyInventoryStockDelta(
-  oldItems: Array<{ itemCode?: string | undefined; quantity?: number | undefined }>,
-  newItems: Array<{ itemCode?: string | undefined; quantity?: number | undefined }>
+  oldItems: Array<{ itemCode?: string | undefined; quantity?: number | undefined; quantityBase?: number | undefined }>,
+  newItems: Array<{ itemCode?: string | undefined; quantity?: number | undefined; quantityBase?: number | undefined }>
 ) {
   const oldMap = new Map<string, number>();
   for (const it of oldItems || []) {
-    if (it.itemCode) oldMap.set(it.itemCode, (oldMap.get(it.itemCode) || 0) + (Number(it.quantity) || 0));
+    if (it.itemCode) {
+      const q = it.quantityBase !== undefined ? (Number(it.quantityBase) || 0) : (Number(it.quantity) || 0);
+      oldMap.set(it.itemCode, (oldMap.get(it.itemCode) || 0) + q);
+    }
   }
   const newMap = new Map<string, number>();
   for (const it of newItems || []) {
-    if (it.itemCode) newMap.set(it.itemCode, (newMap.get(it.itemCode) || 0) + (Number(it.quantity) || 0));
+    if (it.itemCode) {
+      const q = it.quantityBase !== undefined ? (Number(it.quantityBase) || 0) : (Number(it.quantity) || 0);
+      newMap.set(it.itemCode, (newMap.get(it.itemCode) || 0) + q);
+    }
   }
   const allCodes = new Set([...oldMap.keys(), ...newMap.keys()]);
   for (const code of allCodes) {
@@ -668,25 +675,40 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
           visit.prescriptionData.immediateMedicines = items.map((it: any) => ({
             id: it.id,
             itemCode: it.itemCode,
-            medicineName: it.name,
+            medicineName: it.medicineName || it.name,
+            name: it.medicineName || it.name,
+            dose: it.dose !== undefined && it.dose !== null && it.dose !== "" ? it.dose : 1,
             quantity: Number(it.quantity) || 1,
+            quantityBase: it.quantityBase !== undefined ? Number(it.quantityBase) : undefined,
             unit: it.unit || "Tablet",
+            dispensingUnit: it.dispensingUnit || it.unit || "Tablet",
+            baseSalePrice: it.baseSalePrice !== undefined ? Number(it.baseSalePrice) : undefined,
+            packagingHierarchy: it.packagingHierarchy,
+            route: it.route || "Oral",
+            time: it.time || "Immediate",
             dosage: it.dosage || it.dosageInstructions || "",
             instructions: it.instructions || it.dosageInstructions || "",
+            note: it.note || it.remarks || "",
             unitPrice: Number(it.unitPrice) || 0,
+            discountPercent: Number(it.discountPercent) || 0,
           }));
         } else if (data.section === "PRESCRIBED_MED") {
           visit.prescriptionData.prescribedMedicines = items.map((it: any) => ({
             id: it.id,
             itemCode: it.itemCode,
-            medicineName: it.name,
+            medicineName: it.medicineName || it.name,
+            name: it.medicineName || it.name,
+            dose: it.dose !== undefined && it.dose !== null && it.dose !== "" ? it.dose : 1,
             quantity: Number(it.quantity) || 1,
             unit: it.unit || "Tablet",
             dosage: it.dosage || it.dosageInstructions || "",
-            frequency: it.frequency || "As directed",
-            duration: it.duration || "5",
+            frequency: it.frequency || "Twice daily (BID)",
+            duration: it.duration || "5 days",
             route: it.route || "Oral",
+            timing: it.timing || "After Food",
+            time: it.time || "Morning & Night",
             instructions: it.instructions || it.dosageInstructions || "",
+            note: it.note || it.remarks || "",
             unitPrice: 0, // prescribed (take-home) — clinic never charges for this
           }));
         } else if (data.section === "INJECTABLE") {
@@ -744,14 +766,16 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
         if (!isSettled) {
           visit.items = (visit.items || []).filter(
             (l: any) =>
-              !(l.sourceType === "RX_ITEM" && l.rxSection === data.section)
+              !(l.sourceType === "RX_ITEM" && l.rxSection === data.section) &&
+              l.rxSection !== "PRESCRIBED_MED"
           );
 
-          for (const it of items) {
-            const qty = Number(it.quantity) || 1;
-            // Prescribed (take-home) medicine is never billed by the clinic, even if legacy data carries a price
-            const price = data.section === "PRESCRIBED_MED" ? 0 : Number(it.unitPrice) || 0;
-            const disc = Number(it.discountPercent) || 0;
+          // Take-home prescribed medicines are part of the medical Rx sheet, not billed in invoice
+          if (data.section !== "PRESCRIBED_MED") {
+            for (const it of items) {
+              const qty = Number(it.quantity) || 1;
+              const price = Number(it.unitPrice) || 0;
+              const disc = Number(it.discountPercent) || 0;
             const defaultGst =
               data.section === "ANIMAL_FOOD" ||
               data.section === "PRESCRIBED_FOOD" ||
@@ -802,6 +826,7 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
               rxSection: data.section,
             });
           }
+        }
         }
         break;
       }
@@ -1341,6 +1366,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     visit.balanceDue = balanceDue;
     visit.pendingAmount = pendingAmount;
     visit.paymentStatus = paymentStatus;
+    visit.paymentMode = data.paymentMode;
     
     if (data.amountPaid > 0) {
       const existingPayments = visit.payments || [];
@@ -1361,6 +1387,9 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
 
     visit.status = status;
     visit.inventoryDeducted = true;
+    if (balanceDue === 0 || visit.paymentRequestStatus === "pending") {
+      visit.paymentRequestStatus = balanceDue === 0 ? "collected" : "partial";
+    }
     if (data.appointmentToken && !visit.appointmentToken) {
       visit.appointmentToken = data.appointmentToken;
     }
@@ -1566,3 +1595,124 @@ export const getVisitByIdFn = createServerFn({ method: "GET" })
     if (!visit) return null;
     return toPlain<any>(visit);
   }));
+
+// ─── Doctor → Receptionist Payment Handoff ───────────────────────────────────
+
+const RequestPaymentZ = z.object({
+  visitId: z.string().min(1),
+  requestedBy: z.string().optional(),
+  totalAmount: z.number().optional(),
+  pendingAmount: z.number().optional(),
+  subtotal: z.number().optional(),
+  billDiscount: z.number().optional(),
+  taxableAmount: z.number().optional(),
+  gstAmount: z.number().optional(),
+  roundOff: z.number().optional(),
+  items: z.array(z.any()).optional(),
+});
+
+/** Doctor calls this to push the visit into the receptionist's "Pending Collections" queue. */
+export const requestPaymentFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => RequestPaymentZ.parse(raw))
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof RequestPaymentZ> }) => {
+    await connectDB();
+    const updateFields: any = {
+      paymentRequestedAt: new Date().toISOString(),
+      paymentRequestStatus: "pending",
+      status: "Awaiting Payment",
+    };
+    if (data.totalAmount !== undefined) {
+      updateFields.totalAmount = data.totalAmount;
+      updateFields.pendingAmount = data.pendingAmount !== undefined ? data.pendingAmount : data.totalAmount;
+      updateFields.balanceDue = updateFields.pendingAmount;
+    }
+    if (data.subtotal !== undefined) updateFields.subtotal = data.subtotal;
+    if (data.billDiscount !== undefined) updateFields.billDiscount = data.billDiscount;
+    if (data.taxableAmount !== undefined) updateFields.taxableAmount = data.taxableAmount;
+    if (data.gstAmount !== undefined) updateFields.gstAmount = data.gstAmount;
+    if (data.roundOff !== undefined) updateFields.roundOff = data.roundOff;
+    if (data.items !== undefined) updateFields.items = data.items;
+
+    const updated = await ClinicalVisit.findOneAndUpdate(
+      { visitId: data.visitId },
+      { $set: updateFields },
+      { new: true },
+    ).lean();
+    if (!updated) throw new Error(`Visit ${data.visitId} not found`);
+    return toPlain<any>(updated);
+  }));
+
+/** Receptionist polls this to see all visits awaiting payment collection. */
+export const listPaymentRequestsFn = createServerFn({ method: "GET" }).handler(tenantScoped(async () => {
+  await connectDB();
+  const visits = await ClinicalVisit.find({ paymentRequestStatus: "pending" })
+    .sort({ paymentRequestedAt: 1 })
+    .lean();
+  return toPlain<any[]>(visits);
+}));
+
+const CollectReceptionistPaymentZ = z.object({
+  visitId: z.string().min(1),
+  paymentMode: z.enum(["UPI", "Cash", "Card", "NetBanking", "Cheque", "Account Due"]).default("Cash"),
+  amountPaid: z.number().min(0),
+  trxRef: z.string().optional(),
+  notes: z.string().optional(),
+  recordedBy: z.string().optional(),
+  dismiss: z.boolean().optional(),
+});
+
+/** Receptionist records the payment and marks the request as collected / dismissed. */
+export const collectReceptionistPaymentFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => CollectReceptionistPaymentZ.parse(raw))
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof CollectReceptionistPaymentZ> }) => {
+    await connectDB();
+
+    if (data.dismiss) {
+      const dismissed = await ClinicalVisit.findOneAndUpdate(
+        { visitId: data.visitId },
+        { $set: { paymentRequestStatus: "dismissed" } },
+        { new: true },
+      ).lean();
+      return toPlain<any>(dismissed);
+    }
+
+    const visit = await ClinicalVisit.findOne({ visitId: data.visitId }).lean() as any;
+    if (!visit) throw new Error(`Visit ${data.visitId} not found`);
+
+    const newAmountPaid = (visit.amountPaid || 0) + data.amountPaid;
+    const newBalanceDue = Math.max(0, (visit.totalAmount || 0) - newAmountPaid);
+    const newPendingAmount = newBalanceDue;
+    const newPaymentStatus: "Full" | "Partial" | "Unpaid" =
+      newBalanceDue <= 0 ? "Full" : newAmountPaid > 0 ? "Partial" : "Unpaid";
+
+    const paymentRecord = {
+      id: `PAY-${Date.now()}`,
+      paymentId: `PAY-${Date.now()}`,
+      mode: data.paymentMode,
+      amount: data.amountPaid,
+      trxRef: data.trxRef,
+      timestamp: new Date().toISOString(),
+      recordedBy: data.recordedBy || "Receptionist",
+      notes: data.notes,
+    };
+
+    const updated = await ClinicalVisit.findOneAndUpdate(
+      { visitId: data.visitId },
+      {
+        $set: {
+          amountPaid: newAmountPaid,
+          balanceDue: newBalanceDue,
+          pendingAmount: newPendingAmount,
+          paymentStatus: newPaymentStatus,
+          status: newBalanceDue <= 0 ? "Paid" : "Billed",
+          paymentRequestStatus: "collected",
+          paymentMode: data.paymentMode,
+        },
+        $push: { payments: paymentRecord },
+      },
+      { new: true },
+    ).lean();
+
+    return toPlain<any>(updated);
+  }));
+

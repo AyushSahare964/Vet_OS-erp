@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import mongoose from "mongoose";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
+
 import { Owner, type IOwner } from "@/lib/mongodb/models/Owner";
 import { Pet, type IPet } from "@/lib/mongodb/models/Pet";
 import { nextSeq, peekNextSeq } from "./counters";
@@ -50,6 +52,12 @@ const CreateOwnerInputZ = z.object({
   dob: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional().default("Nagpur"),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  occupation: z.string().optional(),
+  relationship: z.string().optional(),
+  billingAddress: z.string().optional(),
+  pin: z.string().optional(),
   idProofType: z.enum(["Aadhaar", "PAN", "Driving License", "Passport", "Other"]).optional(),
   idProofNo: z.string().optional(),
   preferredPaymentMode: z.enum(["UPI", "Cash", "Card", "Credit"]).optional().default("UPI"),
@@ -72,6 +80,13 @@ const PetDraftInputZ = z.object({
   sterilizationStatus: z.enum(["Intact", "Sterilized", "Unknown"]).default("Unknown"),
   bloodGroup: z.string().optional(),
   allergies: z.array(z.string()).optional().default([]),
+  foodAllergies: z.array(z.string()).optional(),
+  otherAllergies: z.array(z.string()).optional(),
+  clinicalAlerts: z.array(z.string()).optional(),
+  tagNumber: z.string().optional(),
+  photoUrl: z.string().optional(),
+  registrationSource: z.enum(["Walk-In", "Appointment", "Reception", "Other"]).optional(),
+  registeredBy: z.string().optional(),
   chronicConditions: z.array(z.string()).optional().default([]),
   dietPreference: z.string().optional(),
   medicalNotes: z.string().optional(),
@@ -119,16 +134,30 @@ export const searchOwnersFn = createServerFn({ method: "GET" })
   .validator((query: unknown) => (typeof query === "string" ? query : ""))
   .handler(tenantScoped(async ({ data: query }: { data: string }) => {
     await ensureCRMSeeded();
-    const filter = query.trim()
-      ? {
-          $or: [
-            { name: { $regex: query.trim(), $options: "i" } },
-            { phone: { $regex: query.trim(), $options: "i" } },
-            { email: { $regex: query.trim(), $options: "i" } },
-            { ownerId: { $regex: query.trim(), $options: "i" } },
-          ],
-        }
-      : {};
+    let filter: any = {};
+    if (query.trim()) {
+      const q = query.trim();
+      const petMatches = await Pet.find({
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { breed: { $regex: q, $options: "i" } },
+          { species: { $regex: q, $options: "i" } },
+          { petId: { $regex: q, $options: "i" } },
+        ],
+      }).select("ownerId").lean();
+
+      const matchedOwnerIdsFromPets = petMatches.map((p: any) => p.ownerId).filter(Boolean);
+
+      filter = {
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { phone: { $regex: q, $options: "i" } },
+          { email: { $regex: q, $options: "i" } },
+          { ownerId: { $regex: q, $options: "i" } },
+          ...(matchedOwnerIdsFromPets.length > 0 ? [{ ownerId: { $in: matchedOwnerIdsFromPets } }] : []),
+        ],
+      };
+    }
 
     const owners = await Owner.find(filter).sort({ createdAt: -1 }).limit(100).lean();
     const ownerIds = owners.map((o: any) => o.ownerId);
@@ -264,8 +293,12 @@ export const updatePetFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => UpdatePetInputZ.parse(data))
   .handler(tenantScoped(async ({ data }: { data: z.infer<typeof UpdatePetInputZ> }) => {
     await connectDB();
+    const isObjectId = mongoose.isValidObjectId(data.petId);
+    const filter = isObjectId
+      ? { $or: [{ petId: data.petId }, { _id: data.petId }] }
+      : { petId: data.petId };
     const updated = await Pet.findOneAndUpdate(
-      { petId: data.petId },
+      filter,
       { $set: data.updates },
       { new: true },
     ).lean();

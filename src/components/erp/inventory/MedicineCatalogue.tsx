@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { useInventory, type Medicine } from "./useInventoryStore";
 import { ProductMasterWizardDialog } from "./ProductMasterWizardDialog";
 import { ItemDetailView } from "./item-detail/ItemDetailView";
+import { stockDisplayLabel } from "@/lib/inventory/packagingUtils";
 
 export function MedicineCatalogue() {
   const {
@@ -304,6 +305,7 @@ export function MedicineCatalogue() {
                   <th className="px-3 py-3">Authoritative Stock</th>
                   <th className="px-3 py-3">Reorder Point</th>
                   <th className="px-3 py-3">Retail Price</th>
+                  <th className="px-3 py-3">MRP</th>
                   <th className="px-3 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -408,7 +410,7 @@ export function MedicineCatalogue() {
                                         : "text-emerald-600 dark:text-emerald-400"
                                     }`}
                                   >
-                                    {currentQty} {med.unit}s
+                                    {stockDisplayLabel(currentQty, med.packagingHierarchy, { showBreakdown: true })}
                                   </span>
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
@@ -431,7 +433,7 @@ export function MedicineCatalogue() {
                         </td>
 
                         <td className="px-3 py-3 font-medium text-foreground">
-                          {med.reorderLevel} {med.unit}s
+                          {med.reorderLevel} {med.packagingHierarchy?.baseUnit ?? med.unit}s
                         </td>
 
                         <td className="px-3 py-3">
@@ -441,6 +443,10 @@ export function MedicineCatalogue() {
                               ₹{med.mrp}
                             </div>
                           )}
+                        </td>
+
+                        <td className="px-3 py-3 font-medium text-foreground">
+                          {med.mrp ? `₹${med.mrp}` : "—"}
                         </td>
 
                         <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
@@ -502,7 +508,7 @@ export function MedicineCatalogue() {
 
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
                       <Pill className="size-8 mx-auto mb-2 opacity-30 text-emerald-500" />
                       No medicines match the selected filters.
                     </td>

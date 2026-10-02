@@ -18,6 +18,24 @@ import { ROLES, type RoleId } from "@/lib/erp/config";
 import { PetShowcase } from "@/components/erp/PetShowcase";
 import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
 import { cn } from "@/lib/utils";
+import { requestPasswordResetFn } from "@/lib/mongodb/serverFns/auth";
+
+const COMMON_EMAIL_DOMAINS = ["@gmail.com", "@realcarepet.com", "@vetos.cloud", "@outlook.com", "@yahoo.com"];
+
+/** Cleans and caps input strictly to a 10-digit mobile number, handling pasted +91, 0, or formatting */
+function clean10DigitPhone(input: string): string {
+  let raw = String(input || "").trim();
+  if (raw.startsWith("+91")) {
+    raw = raw.slice(3);
+  }
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("91") && digits.length > 10) {
+    digits = digits.slice(2);
+  } else if (digits.startsWith("0") && digits.length > 10) {
+    digits = digits.slice(1);
+  }
+  return digits.slice(0, 10);
+}
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -37,7 +55,7 @@ function AuthPage() {
   const { login, register, currentUser, isAuthenticated, isLoadingAuth } = useErp();
   const [seeding, setSeeding] = useState(false);
 
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -45,6 +63,24 @@ function AuthPage() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
+
+  // Forgot-password state
+  const [fpSent, setFpSent] = useState(false);
+  const [fpEmail, setFpEmail] = useState("");
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await requestPasswordResetFn({ data: { email: fpEmail.trim() } });
+      if (res.success) setFpSent(true);
+      else toast.error(res.message);
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Register state
   const [regData, setRegData] = useState<RegisterPayload>({
@@ -60,6 +96,21 @@ function AuthPage() {
   });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreedTerms, setAgreedTerms] = useState(true);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpExpiresAt, setOtpExpiresAt] = useState(0);
+  const [resendAt, setResendAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!otpSent) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [otpSent]);
+  const fmt = (ms: number) => { const sec = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; };
+  const resendIn = resendAt - now;
+  const expiresIn = otpExpiresAt - now;
+  const [verifiedEmail, setVerifiedEmail] = useState("");
+  const emailVerified = !!regData.email.trim() && regData.email.trim().toLowerCase() === verifiedEmail;
 
   const demoStaff = AuthService.getDemoStaffList();
 
@@ -88,7 +139,10 @@ function AuthPage() {
     setLoginPassword(pwd);
     setLoading(true);
     try {
-      const res = await login({ email: staff.email, password: pwd, rememberMe: true });
+      let res = await (login ? login({ email: staff.email, password: pwd, rememberMe: true }) : AuthService.login({ email: staff.email, password: pwd, rememberMe: true }));
+      if (!res.success && res.message?.includes("outside ErpProvider")) {
+        res = await AuthService.login({ email: staff.email, password: pwd, rememberMe: true });
+      }
       if (res.success) {
         toast.success(`Logged in as ${staff.fullName}`);
         navigate({ to: "/" });
@@ -117,11 +171,10 @@ function AuthPage() {
 
     setLoading(true);
     try {
-      const res = await login({
-        email: loginEmail,
-        password: loginPassword,
-        rememberMe,
-      });
+      let res = await (login ? login({ email: loginEmail, password: loginPassword, rememberMe }) : AuthService.login({ email: loginEmail, password: loginPassword, rememberMe }));
+      if (!res.success && res.message?.includes("outside ErpProvider")) {
+        res = await AuthService.login({ email: loginEmail, password: loginPassword, rememberMe });
+      }
 
       if (res.success) {
         toast.success(res.message || "Login successful!");
@@ -142,11 +195,57 @@ function AuthPage() {
     }
   };
 
+  const handleSendOtp = async () => {
+    const email = regData.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Enter a valid work email first.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await AuthService.sendEmailOtp(email, regData.fullName);
+      const t = Date.now();
+      setNow(t);
+      if (res.retryAfterSec) setResendAt(t + res.retryAfterSec * 1000);
+      if (res.success) {
+        toast.success(res.message);
+        setOtpSent(true);
+        setOtp("");
+        setOtpExpiresAt(t + (res.expiresInSec ?? 600) * 1000);
+      } else toast.error(res.message);
+    } catch {
+      toast.error("Could not send the verification code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmOtp = async () => {
+    setLoading(true);
+    try {
+      const res = await AuthService.confirmEmailOtp(regData.email.trim(), otp);
+      if (res.success) {
+        setVerifiedEmail(regData.email.trim().toLowerCase());
+        setOtpSent(false);
+        toast.success("Email verified!");
+      } else toast.error(res.message);
+    } catch {
+      toast.error("Could not verify the code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!regData.fullName.trim() || !regData.email.trim() || !regData.password) {
       toast.error("Please fill in your name, email, and password.");
+      return;
+    }
+
+    if (!emailVerified) {
+      toast.error("Please verify your work email first.");
       return;
     }
 
@@ -162,28 +261,14 @@ function AuthPage() {
 
     setLoading(true);
     try {
-      const res = await register(regData);
+      let res = await (register ? register(regData) : AuthService.register(regData));
+      if (!res.success && res.message?.includes("outside ErpProvider")) {
+        res = await AuthService.register(regData);
+      }
       if (res.success || res.pendingApproval) {
         toast.success("Application submitted! Redirecting to preview...");
         try {
-          sessionStorage.setItem(
-            "vetos.pending_user",
-            JSON.stringify(res.user || {
-              fullName: regData.fullName,
-              email: regData.email,
-              roleId: regData.roleId,
-              roleName: ({
-                doctor: "Doctor / Senior Vet",
-                admin: "Clinic Administrator",
-                reception: "Reception & Front Desk",
-                accounts: "Accounts & Billing Manager",
-                platform: "Platform Systems Administrator",
-              } as Record<string, string>)[regData.roleId] || regData.roleId,
-              department: regData.department,
-              licenseNumber: regData.licenseNumber,
-              qualification: regData.qualification,
-            })
-          );
+          sessionStorage.setItem("vetos.pending_user", JSON.stringify(res.user || { fullName: regData.fullName, email: regData.email, roleId: regData.roleId }));
         } catch { /* ignore */ }
         navigate({ to: "/pending-approval" });
       } else {
@@ -287,11 +372,23 @@ function AuthPage() {
                       <input
                         type="email"
                         required
+                        list="login-email-suggestions"
                         value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
+                        onChange={(e) => setLoginEmail(e.target.value.toLowerCase().replace(/\s/g, ""))}
+                        onBlur={() => {
+                          if (loginEmail && !loginEmail.includes("@")) {
+                            setLoginEmail(`${loginEmail}@gmail.com`);
+                          }
+                        }}
                         placeholder="staff@vetos.cloud"
                         className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                       />
+                      <datalist id="login-email-suggestions">
+                        {COMMON_EMAIL_DOMAINS.map((dom) => {
+                          const username = loginEmail.split("@")[0] || "staff";
+                          return <option key={dom} value={`${username}${dom}`} />;
+                        })}
+                      </datalist>
                     </div>
                   </div>
 
@@ -300,7 +397,7 @@ function AuthPage() {
                       <label className="block text-xs font-semibold text-foreground">Password</label>
                       <button
                         type="button"
-                        onClick={() => toast.info("Admin password: '12345678'  ·  Dev password: 'ayush@123'")}
+                        onClick={() => { setFpEmail(loginEmail); setFpSent(false); setMode("forgot"); }}
                         className="text-[0.7rem] text-primary hover:underline"
                       >
                         Forgot password?
@@ -355,6 +452,59 @@ function AuthPage() {
                 </form>
 
               </div>
+            ) : mode === "forgot" ? (
+              /* TAB: FORGOT PASSWORD (emailed one-time reset link) */
+              <div className="space-y-4 animate-in fade-in duration-150">
+                <div>
+                  <h1 className="text-lg font-bold text-navy">Reset password</h1>
+                  <p className="text-xs text-muted-foreground">
+                    {fpSent
+                      ? `If ${fpEmail} belongs to a staff account, a reset link is on its way. It expires in 30 minutes.`
+                      : "Enter your staff email and we'll send you a secure reset link."}
+                  </p>
+                </div>
+                {!fpSent && (
+                  <form onSubmit={handleForgotSubmit} className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-semibold text-foreground">Email</label>
+                      <input
+                        type="email"
+                        required
+                        list="fp-email-suggestions"
+                        value={fpEmail}
+                        onChange={(e) => setFpEmail(e.target.value.toLowerCase().replace(/\s/g, ""))}
+                        onBlur={() => {
+                          if (fpEmail && !fpEmail.includes("@")) {
+                            setFpEmail(`${fpEmail}@gmail.com`);
+                          }
+                        }}
+                        placeholder="staff@vetos.cloud"
+                        className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      />
+                      <datalist id="fp-email-suggestions">
+                        {COMMON_EMAIL_DOMAINS.map((dom) => {
+                          const username = fpEmail.split("@")[0] || "staff";
+                          return <option key={dom} value={`${username}${dom}`} />;
+                        })}
+                      </datalist>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+                    >
+                      {loading ? "Please wait…" : "Send reset link"}
+                    </button>
+                  </form>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setMode("login"); setFpSent(false); }}
+                  className="w-full text-center text-[0.7rem] text-primary hover:underline"
+                >
+                  Back to sign in
+                </button>
+              </div>
             ) : (
               /* TAB: CREATE OPERATOR PROFILE */
               <div className="space-y-3.5 animate-in fade-in duration-150">
@@ -386,13 +536,93 @@ function AuthPage() {
                     </div>
                     <div className="space-y-0.5">
                       <label className="block text-[0.68rem] font-semibold text-foreground">Work Email *</label>
+                      <div className="flex gap-1">
                       <input
                         type="email"
                         required
+                        list="reg-email-suggestions"
                         value={regData.email}
-                        onChange={(e) => setRegData({ ...regData, email: e.target.value })}
+                        onChange={(e) => {
+                          const formatted = e.target.value.toLowerCase().replace(/\s/g, "");
+                          setRegData({ ...regData, email: formatted });
+                          setOtpSent(false);
+                        }}
+                        onBlur={() => {
+                          if (regData.email && !regData.email.includes("@")) {
+                            setRegData({ ...regData, email: `${regData.email}@gmail.com` });
+                          }
+                        }}
                         placeholder="rajesh@clinic.com"
-                        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
+                        className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
+                      />
+                        {emailVerified ? (
+                          <span className="inline-flex h-8 items-center rounded-lg bg-emerald-50 px-2 text-[0.68rem] font-bold text-emerald-700">✓ Verified</span>
+                        ) : (
+                          <button type="button" onClick={handleSendOtp} disabled={loading || otpSent || !regData.email.trim()} className="h-8 rounded-lg bg-primary px-2.5 text-[0.68rem] font-bold text-primary-foreground disabled:opacity-60">
+                            {otpSent ? "Sent" : "Verify"}
+                          </button>
+                        )}
+                      </div>
+                      <datalist id="reg-email-suggestions">
+                        {COMMON_EMAIL_DOMAINS.map((dom) => {
+                          const prefix = regData.email.split("@")[0] || (regData.fullName ? regData.fullName.toLowerCase().replace(/^dr\.?\s*/i, "").replace(/[^a-z0-9]+/g, ".") : "doctor");
+                          return <option key={dom} value={`${prefix}${dom}`} />;
+                        })}
+                      </datalist>
+                    </div>
+                  </div>
+
+                  {otpSent && !emailVerified && (
+                    <div className="space-y-1.5 rounded-lg border border-sky-200 bg-sky-50 p-2.5">
+                      <p className="text-[0.68rem] text-sky-900">Enter the 6-digit code we emailed to <b>{regData.email}</b></p>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          inputMode="numeric"
+                          autoFocus
+                          maxLength={6}
+                          value={otp}
+                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                          placeholder="••••••"
+                          className="h-8 w-28 rounded-lg border border-input bg-background px-2 text-center text-sm font-mono tracking-[0.35em] outline-none focus:border-primary"
+                        />
+                        <button type="button" onClick={handleConfirmOtp} disabled={loading || otp.length !== 6 || expiresIn <= 0} className="h-8 rounded-lg bg-primary px-3 text-[0.68rem] font-bold text-primary-foreground disabled:opacity-60">
+                          Confirm
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between text-[0.65rem] text-sky-900/80">
+                        <span>{expiresIn > 0 ? `Code expires in ${fmt(expiresIn)}` : "Code expired — request a new one"}</span>
+                        {resendIn > 0 ? (
+                          <span>Resend in {fmt(resendIn)}</span>
+                        ) : (
+                          <button type="button" onClick={handleSendOtp} disabled={loading} className="font-bold text-primary hover:underline disabled:opacity-60">Resend code</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-0.5">
+                      <label className="block text-[0.68rem] font-semibold text-foreground">Phone Number (10 digits)</label>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        value={regData.phone || ""}
+                        onKeyDown={(e) => {
+                          if (
+                            !/[0-9]/.test(e.key) &&
+                            !["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab"].includes(e.key) &&
+                            !e.ctrlKey &&
+                            !e.metaKey
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onChange={(e) => {
+                          const clean = clean10DigitPhone(e.target.value);
+                          setRegData({ ...regData, phone: clean });
+                        }}
+                        placeholder="9876543210"
+                        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary font-mono tracking-wide"
                       />
                     </div>
                   </div>

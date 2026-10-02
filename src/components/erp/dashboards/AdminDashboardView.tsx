@@ -23,6 +23,8 @@ import {
   Syringe,
   Pill,
   RefreshCw,
+  Eye,
+  CheckCircle2,
 } from "lucide-react";
 import { KpiCard } from "@/components/erp/KpiCard";
 import { ModuleFlashcard } from "@/components/erp/Flashcard";
@@ -42,6 +44,7 @@ import { getRowsFn } from "@/lib/mongodb/serverFns/rows";
 import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import type { Kpi } from "@/lib/erp/config";
+import { HubSkeleton } from "@/components/erp/LoadingSkeletons";
 
 interface Props {
   role: any;
@@ -87,13 +90,22 @@ export function AdminDashboardView({
   const [hrmsStaff, setHrmsStaff] = useState<any[]>([]);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [petsList, setPetsList] = useState<any[]>([]);
-  const [loadingFacilities, setLoadingFacilities] = useState(true);
+  // Start false — render the page immediately with empty data, then populate.
+  // This prevents the skeleton from blocking the UI during MongoDB cold-start retries.
+  const [loadingFacilities, setLoadingFacilities] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
-  useEffect(() => {
-    void (async () => {
-      setLoadingFacilities(true);
-      try {
-        const [lab, boarding, swim, inv, appts, hrms, staff, pets] = await Promise.all([
+  const fetchDashboardData = async (cancelled: { current: boolean }) => {
+    setLoadingFacilities(true);
+    setFetchError(false);
+
+    // 12-second hard cap — MongoDB serverSelectionTimeoutMS is 8s, so even
+    // with a retry + connection overhead we never hang the UI longer than this.
+    const hardTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 12_000));
+
+    try {
+      const result = await Promise.race([
+        Promise.all([
           listLabOrdersFn().catch(() => []),
           listBoardingBookingsFn().catch(() => []),
           listSwimSessionsFn().catch(() => []),
@@ -102,21 +114,39 @@ export function AdminDashboardView({
           getRowsFn({ data: { moduleId: "hrms" } }).catch(() => []),
           listApprovedDoctorsFn().catch(() => []),
           listPetsWithOwnersFn().catch(() => []),
-        ]);
-        setLabOrders(lab ?? []);
-        setBoardingList(boarding ?? []);
-        setSwimSessions(swim ?? []);
-        setInventory(inv ?? []);
-        setAppointments(appts ?? []);
-        setHrmsStaff(hrms ?? []);
-        setStaffList(staff ?? []);
-        setPetsList(pets ?? []);
-      } catch (e) {
-        console.warn("Admin dashboard data fetch error:", e);
-      } finally {
-        setLoadingFacilities(false);
+        ]),
+        hardTimeout,
+      ]);
+
+      if (cancelled.current) return;
+
+      if (result === null) {
+        // Timed out — show empty dashboard, offer retry
+        setFetchError(true);
+        return;
       }
-    })();
+
+      const [lab, boarding, swim, inv, appts, hrms, staff, pets] = result;
+      setLabOrders(lab ?? []);
+      setBoardingList(boarding ?? []);
+      setSwimSessions(swim ?? []);
+      setInventory(inv ?? []);
+      setAppointments(appts ?? []);
+      setHrmsStaff(hrms ?? []);
+      setStaffList(staff ?? []);
+      setPetsList(pets ?? []);
+    } catch (e) {
+      console.warn("Admin dashboard data fetch error:", e);
+      if (!cancelled.current) setFetchError(true);
+    } finally {
+      if (!cancelled.current) setLoadingFacilities(false);
+    }
+  };
+
+  useEffect(() => {
+    const cancelled = { current: false };
+    void fetchDashboardData(cancelled);
+    return () => { cancelled.current = true; };
   }, []);
 
   const todayVisits = useMemo(() => visits, [visits]);
@@ -153,9 +183,85 @@ export function AdminDashboardView({
   const outOfStock = inventory.filter(i => getStockStatus(i.currentStock, i.reorderLevel) === "Out of Stock");
   const expiringSoon = inventory.filter(i => i.medicineDetails?.expiryDate && isExpiringSoon(i.medicineDetails.expiryDate));
 
+  const isAwaitingReception = (v: any) =>
+    v.paymentRequestStatus === "pending" || v.status === "Awaiting Payment";
+
+  const isCollectedByReception = (v: any) =>
+    v.paymentRequestStatus === "collected" || (isCompleted(v) && Boolean(v.paymentRequestedAt));
+
   const isCompleted = (v: any) =>
-    v.status === "PAID" || v.status === "Settled" || v.status === "Paid" || v.status === "Completed" || v.status === "Partially Paid" ||
-    (Number(v.totalAmount || 0) > 0 && Number(v.amountPaid || 0) >= Number(v.totalAmount || 0));
+    v.status === "PAID" ||
+    v.status === "Settled" ||
+    v.status === "Paid" ||
+    v.status === "Completed" ||
+    v.paymentRequestStatus === "collected" ||
+    (Number(v.totalAmount || 0) > 0 &&
+      Number(v.balanceDue ?? v.pendingAmount ?? 0) <= 0 &&
+      Number(v.amountPaid || 0) >= Number(v.totalAmount || 0));
+
+  const formatTimeLabel = (t: string) => {
+    if (!t) return "";
+    const clean = t.trim();
+    if (/am|pm/i.test(clean)) return clean;
+    const m = clean.match(/^(\d{1,2}):(\d{2})$/);
+    if (m) {
+      let h = parseInt(m[1], 10);
+      const min = m[2];
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      return `${String(h).padStart(2, "0")}:${min} ${ampm}`;
+    }
+    return clean;
+  };
+
+  const getVisitTime = (v: any) => {
+    // 1. Direct time or slot property on visit
+    if (v.time) return formatTimeLabel(String(v.time));
+    if (v.slot) return formatTimeLabel(String(v.slot));
+    if (v.timeSlot) return formatTimeLabel(String(v.timeSlot));
+
+    // 2. Cross-reference with appointment row by token, petId, or petName + date
+    const vToken = String(v.appointmentToken || "").trim().toLowerCase();
+    const vPetId = String(v.petId || "").trim().toLowerCase();
+    const vPetName = String(v.petName || "").trim().toLowerCase();
+    const vDate = String(v.date || v.createdAt || "").slice(0, 10);
+
+    const matchedAppt = appointments.find((a: any) => {
+      const d = a.data || a;
+      const aToken = String(d.token || "").trim().toLowerCase();
+      if (vToken && aToken && vToken === aToken) return true;
+      if (aToken && v.vitals?.complaint && String(v.vitals.complaint).toLowerCase().includes(aToken)) return true;
+      const aPetId = String(d.petId || "").trim().toLowerCase();
+      const aPetName = String(d.pet || d.petName || "").trim().toLowerCase();
+      const aDate = String(d.appointment_date || d.date || "").slice(0, 10);
+      const petMatch = (vPetId && aPetId && vPetId === aPetId) || (vPetName && aPetName && vPetName === aPetName);
+      const dateMatch = !aDate || !vDate || aDate === vDate;
+      return petMatch && dateMatch;
+    });
+
+    const apptData = matchedAppt?.data || matchedAppt;
+    if (apptData?.time) return formatTimeLabel(String(apptData.time));
+    if (apptData?.slot) return formatTimeLabel(String(apptData.slot));
+    if (apptData?.timeSlot) return formatTimeLabel(String(apptData.timeSlot));
+
+    // 3. Fallback to createdAt timestamp formatted in 12h format
+    const ts = v.createdAt || v.date;
+    if (ts) {
+      try {
+        const parsed = new Date(ts);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toLocaleTimeString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  };
 
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -231,11 +337,40 @@ export function AdminDashboardView({
   ], [appointmentsCount, appointmentsTrend, revTotal, visits, boardingPct, boardingOccupied, boardingTotal, totalLowStock, outOfStock.length, lowStock.length, activeStaffCount, onLeaveStaff]);
 
   const statusBadge = (v: any) => {
-    if (isCompleted(v)) return { label: "Completed", cls: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" };
-    if (v.status === "In Consultation") return { label: "In Consultation", cls: "bg-blue-500/10 text-blue-700 border-blue-500/20" };
-    if (v.prescriptionData?.laboratoryRequired || String(v.status || "").toLowerCase().includes("lab"))
-      return { label: "Lab Ready", cls: "bg-amber-500/10 text-amber-700 border-amber-500/20" };
-    return { label: "Waiting", cls: "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600" };
+    if (isCollectedByReception(v)) {
+      return {
+        label: "Reception Collected ✓",
+        cls: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 font-bold",
+      };
+    }
+    if (isAwaitingReception(v)) {
+      return {
+        label: "Awaiting Payment Collection ⏳",
+        cls: "bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/40 animate-pulse font-extrabold",
+      };
+    }
+    if (isCompleted(v)) {
+      return {
+        label: "Completed",
+        cls: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 font-semibold",
+      };
+    }
+    if (v.status === "In Consultation") {
+      return {
+        label: "In Consultation",
+        cls: "bg-blue-500/10 text-blue-700 border-blue-500/20 font-semibold",
+      };
+    }
+    if (v.prescriptionData?.laboratoryRequired || String(v.status || "").toLowerCase().includes("lab")) {
+      return {
+        label: "Lab Ready",
+        cls: "bg-purple-500/10 text-purple-700 border-purple-500/20 font-semibold",
+      };
+    }
+    return {
+      label: "Waiting",
+      cls: "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600",
+    };
   };
 
   const pharmacySales = useMemo(() => {
@@ -326,6 +461,24 @@ export function AdminDashboardView({
 
   return (
     <div className="space-y-6">
+      {/* ── Connection status banner (non-blocking) ─────────────────────── */}
+      {loadingFacilities && (
+        <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 text-xs text-primary font-medium animate-pulse">
+          <RefreshCw className="size-3.5 animate-spin" />
+          Loading dashboard data from MongoDB Atlas…
+        </div>
+      )}
+      {fetchError && !loadingFacilities && (
+        <div className="flex items-center justify-between rounded-xl border border-warning/30 bg-warning/5 px-4 py-2.5">
+          <p className="text-xs text-warning font-medium">⚠️ Could not load some data (MongoDB cold-start or network issue). Dashboard may show partial data.</p>
+          <button
+            onClick={() => { const c = { current: false }; void fetchDashboardData(c); }}
+            className="ml-4 shrink-0 rounded-lg bg-warning/10 border border-warning/30 px-3 py-1 text-xs font-bold text-warning hover:bg-warning/20 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         <div className="xl:col-span-8 space-y-6">
 
@@ -582,7 +735,7 @@ export function AdminDashboardView({
                 <thead>
                   <tr className="text-left text-muted-foreground border-b border-border/50">
                     <th className="pb-2 font-semibold pr-3 w-8 text-muted-foreground/70">#</th>
-                    <th className="pb-2 font-semibold pr-3">Date</th>
+                    <th className="pb-2 font-semibold pr-3">Date &amp; Time</th>
                     <th className="pb-2 font-semibold pr-3">Patient</th>
                     <th className="pb-2 font-semibold pr-3">Doctor</th>
                     <th className="pb-2 font-semibold pr-3">Complaint</th>
@@ -593,10 +746,24 @@ export function AdminDashboardView({
                 <tbody className="divide-y divide-border/40">
                   {visits.slice(0, 10).map((v, idx) => {
                     const sb = statusBadge(v);
+                    const timeLabel = getVisitTime(v);
                     return (
                       <tr key={v.visitId} className="hover:bg-muted/30 transition-colors">
                         <td className="py-2.5 pr-3 font-mono text-[11px] text-muted-foreground/60">{idx + 1}</td>
-                        <td className="py-2.5 pr-3 font-mono text-muted-foreground whitespace-nowrap">{formatDisplayDate(v.date || v.createdAt) || "—"}</td>
+                        <td className="py-2.5 pr-3 font-mono whitespace-nowrap">
+                          <p className="text-muted-foreground text-xs">{formatDisplayDate(v.date || v.createdAt) || "—"}</p>
+                          {timeLabel ? (
+                            <p className="text-[11px] font-bold text-primary flex items-center gap-1 mt-0.5">
+                              <Clock className="size-3 text-primary/80 shrink-0" />
+                              <span>{timeLabel}</span>
+                            </p>
+                          ) : null}
+                          {v.appointmentToken && (
+                            <span className="text-[9px] font-mono text-muted-foreground block mt-0.5">
+                              Token: {v.appointmentToken}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2.5 pr-3"><p className="font-semibold text-foreground">{v.petName}</p><p className="text-[10px] text-muted-foreground">{v.ownerName}</p></td>
                         <td className="py-2.5 pr-3 max-w-[130px]"><p className="truncate text-foreground">{v.doctorName || "—"}</p></td>
                         <td className="py-2.5 pr-3 max-w-[150px]"><p className="truncate text-muted-foreground">{v.vitals?.complaint || v.diagnosis || "OPD Visit"}</p></td>
@@ -604,8 +771,31 @@ export function AdminDashboardView({
                         <td className="py-2.5 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button size="sm" variant="ghost" onClick={() => onDeleteVisit(v)} className="h-6 px-1.5 text-destructive hover:bg-destructive/10"><Trash2 className="size-3" /></Button>
-                            <Button size="sm" onClick={() => onStartConsultation(v)} className={cn("h-6 px-2 text-[10px] font-semibold gap-1", isCompleted(v) ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-primary text-primary-foreground")}>
-                              {isCompleted(v) ? <><FileText className="size-3" /> View</> : <>Treat <ArrowRight className="size-3" /></>}
+                            <Button
+                              size="sm"
+                              onClick={() => onStartConsultation(v)}
+                              className={cn(
+                                "h-6 px-2.5 text-[10px] font-bold gap-1 shadow-2xs transition-all",
+                                isCompleted(v)
+                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  : isAwaitingReception(v)
+                                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                                  : "bg-primary text-primary-foreground"
+                              )}
+                            >
+                              {isCompleted(v) ? (
+                                <>
+                                  <FileText className="size-3" /> View
+                                </>
+                              ) : isAwaitingReception(v) ? (
+                                <>
+                                  <Eye className="size-3" /> View (Awaiting)
+                                </>
+                              ) : (
+                                <>
+                                  Treat <ArrowRight className="size-3" />
+                                </>
+                              )}
                             </Button>
                           </div>
                         </td>

@@ -206,6 +206,8 @@ export interface IClinicalVisit extends Document {
   clinicalNotes?: string | undefined;
 
   nextVisitDate?: string | undefined;
+  /** ISO time the bill + prescription email went to the owner (prevents duplicate sends on bill edits). */
+  billEmailSentAt?: string | undefined;
   nextVaccineDate?: string | undefined;
   nextDewormingDate?: string | undefined;
 
@@ -246,6 +248,11 @@ export interface IClinicalVisit extends Document {
   inventoryDeducted: boolean;
   accountingPosted: boolean;
   appointmentToken?: string | undefined;
+
+  /** Set by doctor when clicking "Send to Receptionist" – ISO timestamp */
+  paymentRequestedAt?: string | undefined;
+  /** Lifecycle of the doctor → receptionist payment handoff */
+  paymentRequestStatus?: "pending" | "collected" | "dismissed" | undefined;
 
   createdAt: Date;
   updatedAt: Date;
@@ -347,6 +354,7 @@ const ClinicalVisitSchema = new Schema<IClinicalVisit>(
     nextDewormingDate: { type: String },
 
     prescriptionData: { type: Schema.Types.Mixed },
+    billEmailSentAt: { type: String },
 
     items: { type: [PrescriptionLineSchema], default: [] },
 
@@ -382,6 +390,12 @@ const ClinicalVisitSchema = new Schema<IClinicalVisit>(
 
     inventoryDeducted: { type: Boolean, default: false },
     accountingPosted: { type: Boolean, default: false },
+
+    paymentRequestedAt: { type: String },
+    paymentRequestStatus: {
+      type: String,
+      enum: ["pending", "collected", "dismissed"],
+    },
   },
   { timestamps: true },
 );

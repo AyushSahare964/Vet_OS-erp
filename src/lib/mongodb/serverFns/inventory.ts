@@ -13,6 +13,7 @@ import { InventoryItem } from "@/lib/mongodb/models/InventoryItem";
 import { StockBatch } from "@/lib/mongodb/models/StockBatch";
 import { ErpRow } from "@/lib/mongodb/models/ErpRow";
 import { nextSeq, peekNextSeq } from "@/lib/mongodb/serverFns/counters";
+import { todayIST } from "@/lib/utils/dateUtils";
 
 
 // ─── Concrete serializable return types ───────────────────────────────────────
@@ -37,6 +38,9 @@ export interface InventoryItemRow {
     storageCondition?: string;
     schedule?: string;
     controlledSubstance?: boolean;
+    batchNo?: string;
+    expiryDate?: string;
+    manufacturingDate?: string;
   };
   foodDetails?: {
     targetSpecies?: string;
@@ -63,11 +67,23 @@ export interface InventoryItemRow {
     storageCondition?: string;
     schedule?: string;
     controlledSubstance?: boolean;
+    batchNo?: string;
+    expiryDate?: string;
+    manufacturingDate?: string;
   };
   unit: string;
   purchaseUom: string;
   salesUom: string;
   uomConversions: { uom: string; conversionFactor: number }[];
+  packagingHierarchy?: {
+    baseUnit: string;
+    purchaseUnit: string;
+    baseUnitsPerPurchase: number;
+    hasIntermediateUnit: boolean;
+    intermediateUnit?: string;
+    intermediateUnitsPerPurchase?: number;
+    baseUnitsPerIntermediate?: number;
+  } | undefined;
   maintainStock: boolean;
   valuationMethod: string;
   currentStock: number;
@@ -79,6 +95,9 @@ export interface InventoryItemRow {
   batchTracking: boolean;
   serialTracking: boolean;
   allowNegativeStock: boolean;
+  batchNo?: string;
+  expiryDate?: string;
+  manufacturingDate?: string;
   defaultSalePrice: number;
   defaultPurchasePrice: number;
   mrp: number;
@@ -140,6 +159,9 @@ const MedicineDetailsZ = z.object({
   storageCondition: z.string().default(""),
   schedule: z.string().default(""),
   controlledSubstance: z.boolean().default(false),
+  batchNo: z.string().default(""),
+  expiryDate: z.string().default(""),
+  manufacturingDate: z.string().default(""),
 }).partial();
 
 const FoodDetailsZ = z.object({
@@ -169,6 +191,9 @@ const InjectionDetailsZ = z.object({
   storageCondition: z.string().default(""),
   schedule: z.string().default(""),
   controlledSubstance: z.boolean().default(false),
+  batchNo: z.string().default(""),
+  expiryDate: z.string().default(""),
+  manufacturingDate: z.string().default(""),
 }).partial();
 
 const InventoryItemInputZ = z.object({
@@ -194,6 +219,15 @@ const InventoryItemInputZ = z.object({
   purchaseUom:        z.string().default(""),
   salesUom:           z.string().default(""),
   uomConversions:     z.array(UomConversionZ).default([]),
+  packagingHierarchy: z.object({
+    baseUnit:                    z.string(),
+    purchaseUnit:                z.string(),
+    baseUnitsPerPurchase:        z.number().min(1),
+    hasIntermediateUnit:         z.boolean().default(false),
+    intermediateUnit:            z.string().optional(),
+    intermediateUnitsPerPurchase:z.number().optional(),
+    baseUnitsPerIntermediate:    z.number().optional(),
+  }).optional(),
   maintainStock:      z.boolean().default(true),
   valuationMethod:    z.enum(["FEFO", "FIFO", "Moving Average"]).default("FEFO"),
   currentStock:       z.number().min(0).default(0),
@@ -205,6 +239,9 @@ const InventoryItemInputZ = z.object({
   batchTracking:      z.boolean().default(true),
   serialTracking:     z.boolean().default(false),
   allowNegativeStock: z.boolean().default(false),
+  batchNo:            z.string().default(""),
+  expiryDate:         z.string().default(""),
+  manufacturingDate:  z.string().default(""),
 
   // Pricing
   defaultSalePrice:     z.number().min(0),
@@ -374,16 +411,51 @@ export const addItemFn = createServerFn({ method: "POST" })
       itemCode,
     });
 
-    // If initial stock is provided, record OPENING_STOCK transaction in ledger
+    // If initial stock is provided or batch/expiry specified, create authoritative initial StockBatch
     if (data.currentStock && data.currentStock > 0) {
+      const batchCode = await nextSeq("stock_batch", "B", 4);
+      const batchNo = data.batchNo?.trim() || `OPN-${itemCode}`;
+      const expiryDate =
+        data.expiryDate?.trim() ||
+        new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
+
+      await StockBatch.create({
+        batchCode,
+        itemId: String(newItem._id),
+        itemCode,
+        itemName: data.name,
+        batchNo,
+        manufacturingDate: data.manufacturingDate || "",
+        expiryDate,
+        supplierId: data.defaultSupplierId || "",
+        supplierName: data.defaultSupplierName || "",
+        purchaseOrderRef: "OPENING-STOCK",
+        invoiceBillNo: "INITIAL-SETUP",
+        receivedDate: todayIST(),
+        receivedQty: data.currentStock,
+        acceptedQty: data.currentStock,
+        rejectedQty: 0,
+        qty: data.currentStock,
+        purchasePricePerUnit: data.defaultPurchasePrice || 0,
+        landingCost: 0,
+        landingCostPerUnit: 0,
+        gstOnPurchase: data.gstRate || 0,
+        totalValue: data.currentStock * (data.defaultPurchasePrice || 0),
+        storageLocation: data.storageLocation || "",
+        qualityChecked: true,
+        qcInspectorName: "System / Setup",
+        remarks: "Initial opening stock batch",
+        status: "Active",
+      });
+
       await ErpRow.create({
         moduleId: "inventory_ledger",
         data: {
           id: await nextSeq("ledger_entry", "L", 4),
           medicineId: itemCode,
           medicineName: data.name,
-          batchId: `OPN-${itemCode}`,
-          batchNo: "OPENING-STOCK",
+          batchId: batchCode,
+          batchNo: batchNo,
           movementType: "opening_stock",
           quantity: data.currentStock,
           sourceType: "manual_adjustment",
@@ -420,6 +492,19 @@ export const updateItemFn = createServerFn({ method: "POST" })
       { returnDocument: "after" }
     ).lean();
     if (!updated) throw new Error(`Item not found: ${data.itemCode}`);
+
+    // If batchNo or expiryDate changed, sync to opening stock batch if exists
+    if (data.patch.batchNo || data.patch.expiryDate || data.patch.manufacturingDate) {
+      const batchUpdate: Record<string, unknown> = {};
+      if (data.patch.batchNo) batchUpdate["batchNo"] = data.patch.batchNo;
+      if (data.patch.expiryDate) batchUpdate["expiryDate"] = data.patch.expiryDate;
+      if (data.patch.manufacturingDate) batchUpdate["manufacturingDate"] = data.patch.manufacturingDate;
+      await StockBatch.updateMany(
+        { itemCode: data.itemCode, purchaseOrderRef: "OPENING-STOCK" },
+        { $set: batchUpdate }
+      );
+    }
+
     return toPlain(updated) as unknown as InventoryItemRow;
   }));
 

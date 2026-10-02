@@ -18,6 +18,23 @@ export interface UomConversion {
   conversionFactor: number;
 }
 
+export interface PackagingHierarchy {
+  /** Smallest stock-tracking unit (e.g. "Tablet", "ml", "Vial", "Kg", "Piece") */
+  baseUnit: string;
+  /** Unit in which the clinic buys/receives the product (e.g. "Box", "Bottle", "Bag") */
+  purchaseUnit: string;
+  /** Total baseUnits contained in one purchaseUnit (e.g. 100 tablets per box) */
+  baseUnitsPerPurchase: number;
+  /** Whether there is a middle packaging layer (e.g. Strip between Box and Tablet) */
+  hasIntermediateUnit: boolean;
+  /** Middle packaging unit label, e.g. "Strip", "Sachet" */
+  intermediateUnit?: string;
+  /** Number of intermediateUnits per purchaseUnit (e.g. 10 strips per box) */
+  intermediateUnitsPerPurchase?: number;
+  /** Number of baseUnits per intermediateUnit (e.g. 10 tablets per strip) */
+  baseUnitsPerIntermediate?: number;
+}
+
 export type ProductType = "MEDICINE" | "INJECTION" | "FOOD" | "ACCESSORY";
 
 export interface MedicineDetails {
@@ -28,6 +45,9 @@ export interface MedicineDetails {
   storageCondition?: string;
   schedule?: string;
   controlledSubstance?: boolean;
+  batchNo?: string;
+  expiryDate?: string;
+  manufacturingDate?: string;
 }
 
 export interface FoodDetails {
@@ -57,6 +77,9 @@ export interface InjectionDetails {
   storageCondition?: string;
   schedule?: string;
   controlledSubstance?: boolean;
+  batchNo?: string;
+  expiryDate?: string;
+  manufacturingDate?: string;
 }
 
 export interface IInventoryItem {
@@ -84,6 +107,11 @@ export interface IInventoryItem {
   purchaseUom: string;
   salesUom: string;
   uomConversions: UomConversion[];
+  /**
+   * Hierarchical packaging definition: Box → Strip → Tablet etc.
+   * `currentStock` is ALWAYS stored in `packagingHierarchy.baseUnit`.
+   */
+  packagingHierarchy?: PackagingHierarchy;
   maintainStock: boolean;
   valuationMethod: ValuationMethod;
   currentStock: number;
@@ -95,6 +123,9 @@ export interface IInventoryItem {
   batchTracking: boolean;
   serialTracking: boolean;
   allowNegativeStock: boolean;
+  batchNo?: string;
+  expiryDate?: string;
+  manufacturingDate?: string;
 
   // ── Pricing ───────────────────────────────────────────────────────────────
   defaultSalePrice: number;
@@ -153,6 +184,19 @@ const uomConversionSchema = new Schema<UomConversion>(
   { _id: false },
 );
 
+const packagingHierarchySchema = new Schema<PackagingHierarchy>(
+  {
+    baseUnit:                  { type: String, required: true },
+    purchaseUnit:              { type: String, required: true },
+    baseUnitsPerPurchase:      { type: Number, required: true, default: 1, min: 1 },
+    hasIntermediateUnit:       { type: Boolean, default: false },
+    intermediateUnit:          { type: String },
+    intermediateUnitsPerPurchase: { type: Number, min: 1 },
+    baseUnitsPerIntermediate:  { type: Number, min: 1 },
+  },
+  { _id: false },
+);
+
 const medicineDetailsSchema = new Schema<MedicineDetails>(
   {
     composition: { type: String, default: "" },
@@ -162,6 +206,9 @@ const medicineDetailsSchema = new Schema<MedicineDetails>(
     storageCondition: { type: String, default: "" },
     schedule: { type: String, default: "" },
     controlledSubstance: { type: Boolean, default: false },
+    batchNo: { type: String, default: "" },
+    expiryDate: { type: String, default: "" },
+    manufacturingDate: { type: String, default: "" },
   },
   { _id: false },
 );
@@ -200,6 +247,9 @@ const injectionDetailsSchema = new Schema<InjectionDetails>(
     storageCondition: { type: String, default: "" },
     schedule: { type: String, default: "" },
     controlledSubstance: { type: Boolean, default: false },
+    batchNo: { type: String, default: "" },
+    expiryDate: { type: String, default: "" },
+    manufacturingDate: { type: String, default: "" },
   },
   { _id: false },
 );
@@ -238,6 +288,7 @@ const inventoryItemSchema = new Schema<InventoryItemDocument>(
     purchaseUom: { type: String, default: "" },
     salesUom: { type: String, default: "" },
     uomConversions: { type: [uomConversionSchema], default: [] },
+    packagingHierarchy: { type: packagingHierarchySchema, default: undefined },
     maintainStock: { type: Boolean, default: true },
     valuationMethod: { type: String, enum: ["FEFO", "FIFO", "Moving Average"], default: "FEFO" },
     currentStock: { type: Number, default: 0 },
@@ -249,6 +300,9 @@ const inventoryItemSchema = new Schema<InventoryItemDocument>(
     batchTracking: { type: Boolean, default: true },
     serialTracking: { type: Boolean, default: false },
     allowNegativeStock: { type: Boolean, default: false },
+    batchNo: { type: String, default: "" },
+    expiryDate: { type: String, default: "" },
+    manufacturingDate: { type: String, default: "" },
 
     // Pricing
     defaultSalePrice: { type: Number, required: true, default: 0 },

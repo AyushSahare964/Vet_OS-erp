@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
+import { Patient360Profile } from "@/components/erp/crm/Patient360Profile";
 
 interface InventoryAlerts {
   lowStock: any[];
@@ -62,11 +63,12 @@ export function DashboardPatientActivityPanel({
   inventoryAlerts,
 }: DashboardPatientActivityPanelProps) {
   const [pets, setPets] = useState<any[]>([]);
-  const [loadingPets, setLoadingPets] = useState(true);
+  const [loadingPets, setLoadingPets] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [speciesFilter, setSpeciesFilter] = useState<"ALL" | "Canine" | "Feline" | "IN_OPD">("ALL");
   const [activeActivityTab, setActiveActivityTab] = useState<"FEED" | "ALERTS">("FEED");
   const [selectedPetForDetail, setSelectedPetForDetail] = useState<any | null>(null);
+  const [fullProfilePetId, setFullProfilePetId] = useState<string | null>(null);
 
   // Load pets on mount
   useEffect(() => {
@@ -75,9 +77,10 @@ export function DashboardPatientActivityPanel({
 
   const loadPatients = async () => {
     setLoadingPets(true);
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000));
     try {
-      const data = await listPetsWithOwnersFn();
-      setPets(data || []);
+      const result = await Promise.race([listPetsWithOwnersFn(), timeout]);
+      setPets(result || []);
     } catch (err) {
       console.warn("Could not load patients for dashboard right panel:", err);
     } finally {
@@ -114,9 +117,11 @@ export function DashboardPatientActivityPanel({
     const inConsultation = visits.filter((v) => v.status === "In Consultation").length;
     const settled = visits.filter(
       (v) =>
+        v.status === "PAID" ||
         v.status === "Paid" ||
         v.status === "Settled" ||
         v.status === "Completed" ||
+        v.paymentRequestStatus === "collected" ||
         (Number(v.totalAmount || 0) > 0 && Number(v.amountPaid || 0) >= Number(v.totalAmount || 0))
     ).length;
 
@@ -125,21 +130,32 @@ export function DashboardPatientActivityPanel({
 
   // Dynamic Recent Activity stream from visits
   const recentActivities = useMemo(() => {
-    return visits.slice(0, 6).map((v) => {
-      const isCompleted =
+    return visits.slice(0, 8).map((v) => {
+      const isPaidOrSettled =
+        v.status === "PAID" ||
         v.status === "Paid" ||
         v.status === "Settled" ||
         v.status === "Completed" ||
+        v.paymentRequestStatus === "collected" ||
         (Number(v.totalAmount || 0) > 0 && Number(v.amountPaid || 0) >= Number(v.totalAmount || 0));
 
+      const isAwaitingReception = v.paymentRequestStatus === "pending" || v.status === "Awaiting Payment";
+      const isCollectedByReception =
+        v.paymentRequestStatus === "collected" || (isPaidOrSettled && Boolean(v.paymentRequestedAt));
       const isConsulting = v.status === "In Consultation";
 
       let statusColor = "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20";
       let statusLabel = v.status || "Admitted";
 
-      if (isCompleted) {
+      if (isCollectedByReception) {
+        statusColor = "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 font-bold";
+        statusLabel = "Reception Collected ✓";
+      } else if (isAwaitingReception) {
+        statusColor = "bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/40 animate-pulse font-extrabold";
+        statusLabel = "With Receptionist ⏳";
+      } else if (isPaidOrSettled) {
         statusColor = "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20";
-        statusLabel = "Bill Settled";
+        statusLabel = "Bill Settled ✓";
       } else if (isConsulting) {
         statusColor = "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20";
         statusLabel = "In Consultation";
@@ -152,7 +168,9 @@ export function DashboardPatientActivityPanel({
         breed: v.breed || "",
         statusLabel,
         statusColor,
-        isCompleted,
+        isCompleted: isPaidOrSettled || isCollectedByReception,
+        isAwaitingReception,
+        isCollectedByReception,
         totalAmount: v.totalAmount,
         doctorName: v.doctorName || "Doctor",
         date: formatDisplayDate(v.date || v.createdAt) || v.date || "Today",
@@ -415,7 +433,14 @@ export function DashboardPatientActivityPanel({
                 <div
                   key={act.visitId}
                   onClick={() => onStartConsultation(act.rawVisit)}
-                  className="group flex items-start justify-between gap-2 p-2 rounded-xl border border-border/50 bg-card hover:bg-muted/30 hover:border-primary/40 transition-all cursor-pointer shadow-2xs"
+                  className={cn(
+                    "group flex items-start justify-between gap-2 p-2.5 rounded-xl border transition-all cursor-pointer shadow-2xs",
+                    act.isCollectedByReception
+                      ? "border-emerald-400/40 bg-emerald-50/30 dark:bg-emerald-950/15 hover:border-emerald-500 hover:bg-emerald-50/60"
+                      : act.isAwaitingReception
+                      ? "border-amber-400/40 bg-amber-50/30 dark:bg-amber-950/15 hover:border-amber-500 hover:bg-amber-50/60"
+                      : "border-border/50 bg-card hover:bg-muted/30 hover:border-primary/40"
+                  )}
                 >
                   <div className="flex items-start gap-2 min-w-0">
                     <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-xs shrink-0 mt-0.5">
@@ -431,6 +456,17 @@ export function DashboardPatientActivityPanel({
                       <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5">
                         {act.complaint} · {act.doctorName}
                       </p>
+                      {act.isCollectedByReception ? (
+                        <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1 mt-1">
+                          <CheckCircle2 className="size-3 text-emerald-600 shrink-0" />
+                          <span>Collected by Receptionist · Click to View Final Page</span>
+                        </p>
+                      ) : act.isAwaitingReception ? (
+                        <p className="text-[10px] text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1 mt-1">
+                          <Clock className="size-3 text-amber-600 shrink-0 animate-spin" />
+                          <span>With Receptionist · Awaiting Payment Collection</span>
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -438,7 +474,13 @@ export function DashboardPatientActivityPanel({
                     <Badge variant="outline" className={cn("text-[9px] font-bold px-1.5 py-0", act.statusColor)}>
                       {act.statusLabel}
                     </Badge>
-                    <span className="text-[9px] text-muted-foreground font-mono">{act.date}</span>
+                    {act.isCollectedByReception ? (
+                      <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded flex items-center gap-1 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                        <Eye className="size-2.5" /> View Final Page
+                      </span>
+                    ) : (
+                      <span className="text-[9px] text-muted-foreground font-mono">{act.date}</span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -828,10 +870,24 @@ export function DashboardPatientActivityPanel({
               </div>
 
               {/* Modal Actions */}
-              <div className="pt-2 border-t border-border flex items-center justify-between gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setSelectedPetForDetail(null)}>
-                  Close
-                </Button>
+              <div className="pt-2 border-t border-border flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedPetForDetail(null)}>
+                    Close
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const id = selectedPetForDetail?.petId;
+                      setSelectedPetForDetail(null);
+                      if (id) setFullProfilePetId(id);
+                    }}
+                    className="gap-1.5 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10"
+                  >
+                    <Eye className="size-3.5" /> Full 360° Profile
+                  </Button>
+                </div>
                 <Button
                   size="sm"
                   onClick={() => {
@@ -848,6 +904,30 @@ export function DashboardPatientActivityPanel({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Patient 360° Profile Dialog */}
+      <Patient360Profile
+        open={Boolean(fullProfilePetId)}
+        petId={fullProfilePetId}
+        onClose={() => setFullProfilePetId(null)}
+        onStartConsultation={(pet, owner) => {
+          setFullProfilePetId(null);
+          onStartConsultation({
+            petId: pet.petId,
+            petName: pet.name,
+            species: pet.species,
+            breed: pet.breed,
+            gender: pet.gender,
+            ownerId: owner?.ownerId,
+            ownerName: owner?.name,
+            ownerPhone: owner?.phone,
+            vitals: {
+              weightKg: pet.weightKg,
+              complaint: pet.medicalNotes || "OPD Consultation",
+            },
+          });
+        }}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -15,12 +15,21 @@ import { VisitWorkspaceModal } from "@/components/erp/clinical/VisitWorkspaceMod
 import { AdmitPatientPickerModal } from "@/components/erp/clinical/AdmitPatientPickerModal";
 import { listVisitsFn, deleteVisitFn } from "@/lib/mongodb/serverFns/clinical";
 import { toast } from "sonner";
+import { HubSkeleton } from "@/components/erp/LoadingSkeletons";
 
-// Role-specific dashboard views
-import { DoctorDashboardView } from "@/components/erp/dashboards/DoctorDashboardView";
-import { ReceptionistDashboardView } from "@/components/erp/dashboards/ReceptionistDashboardView";
-import { AccountantDashboardView } from "@/components/erp/dashboards/AccountantDashboardView";
-import { AdminDashboardView } from "@/components/erp/dashboards/AdminDashboardView";
+// Role-specific dashboard views — lazy-loaded so they don't block initial paint
+const DoctorDashboardView = lazy(() =>
+  import("@/components/erp/dashboards/DoctorDashboardView").then((m) => ({ default: m.DoctorDashboardView }))
+);
+const ReceptionistDashboardView = lazy(() =>
+  import("@/components/erp/dashboards/ReceptionistDashboardView").then((m) => ({ default: m.ReceptionistDashboardView }))
+);
+const AccountantDashboardView = lazy(() =>
+  import("@/components/erp/dashboards/AccountantDashboardView").then((m) => ({ default: m.AccountantDashboardView }))
+);
+const AdminDashboardView = lazy(() =>
+  import("@/components/erp/dashboards/AdminDashboardView").then((m) => ({ default: m.AdminDashboardView }))
+);
 import { RealCatJumpingWelcome } from "@/components/erp/dashboards/RealCatJumpingWelcome";
 
 export const Route = createFileRoute("/")({
@@ -61,12 +70,18 @@ function Dashboard() {
 
   useEffect(() => {
     void loadVisits();
+    // 30-second poll — frequent enough to stay fresh without hammering the DB
+    const interval = setInterval(() => {
+      void loadVisits();
+    }, 30_000);
+    return () => clearInterval(interval);
   }, [roleId]);
 
   const loadVisits = async () => {
     try {
-      const data = await listVisitsFn();
-      setVisits(data);
+      const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000));
+      const data = await Promise.race([listVisitsFn(), timeout]);
+      if (data !== null) setVisits(data);
     } catch (e) {
       console.error(e);
     }
@@ -197,48 +212,50 @@ function Dashboard() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
           >
-            {roleId === "doctor" && (
-              <DoctorDashboardView
-                role={role}
-                visits={visits}
-                onStartConsultation={handleStartConsultation}
-                onDeleteVisit={handleDeleteVisit}
-                onOpenAdmitPicker={handleOpenAdmitPatientPicker}
-                onOpenRegisterModal={() => {
-                  setRegisterMode("new-all");
-                  setShowRegisterModal(true);
-                }}
-                onAdmitPet={handleAdmitPetDirectly}
-              />
-            )}
+            <Suspense fallback={<HubSkeleton />}>
+              {roleId === "doctor" && (
+                <DoctorDashboardView
+                  role={role}
+                  visits={visits}
+                  onStartConsultation={handleStartConsultation}
+                  onDeleteVisit={handleDeleteVisit}
+                  onOpenAdmitPicker={handleOpenAdmitPatientPicker}
+                  onOpenRegisterModal={() => {
+                    setRegisterMode("new-all");
+                    setShowRegisterModal(true);
+                  }}
+                  onAdmitPet={handleAdmitPetDirectly}
+                />
+              )}
 
-            {roleId === "reception" && (
-              <ReceptionistDashboardView
-                role={role}
-                onOpenConsultation={handleStartConsultation}
-              />
-            )}
+              {roleId === "reception" && (
+                <ReceptionistDashboardView
+                  role={role}
+                  onOpenConsultation={handleStartConsultation}
+                />
+              )}
 
-            {roleId === "accounts" && (
-              <AccountantDashboardView
-                role={role}
-              />
-            )}
+              {roleId === "accounts" && (
+                <AccountantDashboardView
+                  role={role}
+                />
+              )}
 
-            {(roleId === "admin" || roleId === "platform") && (
-              <AdminDashboardView
-                role={role}
-                visits={visits}
-                onStartConsultation={handleStartConsultation}
-                onDeleteVisit={handleDeleteVisit}
-                onOpenAdmitPicker={handleOpenAdmitPatientPicker}
-                onOpenRegisterModal={() => {
-                  setRegisterMode("new-all");
-                  setShowRegisterModal(true);
-                }}
-                onAdmitPet={handleAdmitPetDirectly}
-              />
-            )}
+              {(roleId === "admin" || roleId === "platform") && (
+                <AdminDashboardView
+                  role={role}
+                  visits={visits}
+                  onStartConsultation={handleStartConsultation}
+                  onDeleteVisit={handleDeleteVisit}
+                  onOpenAdmitPicker={handleOpenAdmitPatientPicker}
+                  onOpenRegisterModal={() => {
+                    setRegisterMode("new-all");
+                    setShowRegisterModal(true);
+                  }}
+                  onAdmitPet={handleAdmitPetDirectly}
+                />
+              )}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
 
@@ -300,6 +317,7 @@ function Dashboard() {
             onClose={() => {
               setShowVisitModal(false);
               setSelectedVisit(null);
+              void loadVisits();
             }}
             visit={selectedVisit}
             onVisitFinalized={(updatedVisit) => {

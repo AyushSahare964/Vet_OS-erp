@@ -7,10 +7,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { setCookie, getCookie } from "@tanstack/react-start/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import crypto from "node:crypto";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { User, type ApprovalStatus } from "@/lib/mongodb/models/User";
+import { RegistrationOTP } from "@/lib/mongodb/models/RegistrationOTP";
 import { RefreshToken } from "@/lib/mongodb/models/RefreshToken";
 import { TenantModel } from "@/lib/mongodb/models/Tenant";
+import { PasswordReset } from "@/lib/mongodb/models/PasswordReset";
+import { sendEmail, appUrl } from "@/lib/email/emailjs";
+import { passwordResetEmail, registrationOTPEmail } from "@/lib/email/templates";
+
 import {
   signAccessToken,
   signRefreshToken,
@@ -45,7 +51,7 @@ function toProfile(user: Record<string, any>): UserProfile {
     roleName:       String(user["roleName"]),
     initials:       String(user["initials"]),
     approvalStatus: (user["approvalStatus"] || "approved") as ApprovalStatus,
-    createdAt:      user["createdAt"] instanceof Date
+    createdAt: user["createdAt"] instanceof Date
       ? user["createdAt"].toISOString()
       : String(user["createdAt"]),
   };
@@ -59,6 +65,7 @@ function toProfile(user: Record<string, any>): UserProfile {
   return profile;
 }
 
+
 async function issueTokens(userId: string, email: string, roleId: string, tenantId?: string, tenantSlug?: string) {
   const accessToken = signAccessToken(userId, email, roleId, tenantId, tenantSlug);
   const { token: refreshToken } = signRefreshToken(userId);
@@ -71,8 +78,8 @@ async function issueTokens(userId: string, email: string, roleId: string, tenant
 // ─── loginFn ────────────────────────────────────────────────────────────────
 
 const loginSchema = z.object({
-  email:      z.string().email(),
-  password:   z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(1),
   rememberMe: z.boolean().optional(),
 });
 
@@ -106,7 +113,7 @@ export const loginFn = createServerFn({ method: "POST" })
     if (approvalStatus === "rejected") {
       return {
         success: false,
-        message: user["rejectionReason"] 
+        message: user["rejectionReason"]
           ? `Access request declined: ${user["rejectionReason"]}`
           : "Your account registration was not approved by clinic administration.",
       };
@@ -140,10 +147,10 @@ export const loginFn = createServerFn({ method: "POST" })
 
     setCookie(COOKIE_NAME, refreshToken, {
       httpOnly: true,
-      secure:   process.env["NODE_ENV"] === "production",
+      secure: process.env["NODE_ENV"] === "production",
       sameSite: "lax",
-      path:     "/",
-      expires:  expiresAt,
+      path: "/",
+      expires: expiresAt,
     });
 
     return {
@@ -154,6 +161,63 @@ export const loginFn = createServerFn({ method: "POST" })
     };
   });
 
+// ─── Forgot password (emailed one-time reset link) ──────────────────────────
+
+const RESET_TTL_MIN = 30;
+const RESEND_MS = 60_000;
+const OTP_TTL_MIN = 10;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_MAX_SENDS = 5; // codes per email per hour
+const OTP_SEND_WINDOW_MS = 60 * 60_000;
+const sha = (v: string) => crypto.createHash("sha256").update(v).digest("hex");
+
+export const requestPasswordResetFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => z.object({ email: z.string().email() }).parse(raw))
+  .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+    await connectDB();
+    const email = data.email.toLowerCase().trim();
+    // Same answer whether or not the account exists, so this can't be used to enumerate staff emails.
+    const generic = { success: true, message: "If that email belongs to a staff account, a password reset link has been sent." };
+
+    const user = (await User.findOne({ email }).lean()) as Record<string, any> | null;
+    if (!user || !user["isActive"] || user["approvalStatus"] !== "approved") return generic;
+
+    const existing = await PasswordReset.findOne({ email }).lean();
+    if (existing && Date.now() - new Date(existing.lastSentAt).getTime() < RESEND_MS) return generic; // throttle silently
+
+    const token = crypto.randomBytes(32).toString("hex");
+    await PasswordReset.findOneAndUpdate(
+      { email },
+      { $set: { codeHash: sha(token), expiresAt: new Date(Date.now() + RESET_TTL_MIN * 60_000), attempts: 0, lastSentAt: new Date() } },
+      { upsert: true }
+    );
+    const link = `${appUrl()}/reset-password?token=${token}`;
+    const mail = passwordResetEmail({ name: String(user["fullName"]), email, link, minutes: RESET_TTL_MIN });
+    const sent = await sendEmail({ to: email, toName: String(user["fullName"]), ...mail });
+    if (!sent) return { success: false, message: "Could not send the reset email. Please try again or contact your Clinic Administrator." };
+    return generic;
+  });
+
+export const resetPasswordFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) =>
+    z.object({ token: z.string().regex(/^[a-f0-9]{64}$/), newPassword: z.string().min(8) }).parse(raw)
+  )
+  .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+    await connectDB();
+    const bad = { success: false, message: "This reset link is invalid or has expired. Please request a new one." };
+
+    // Atomic find-and-delete → the link works exactly once.
+    const rec = await PasswordReset.findOneAndDelete({ codeHash: sha(data.token), expiresAt: { $gt: new Date() } });
+    if (!rec) return bad;
+
+    const user = await User.findOne({ email: rec.email });
+    if (!user) return bad;
+    user.passwordHash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
+    await user.save();
+    await RefreshToken.deleteMany({ userId: user._id }); // sign out every existing session
+    return { success: true, message: "Password updated. You can now sign in." };
+  });
+
 // ─── registerFn (Self Registration -> Pending Admin Approval) ───────────────
 
 const registerSchema = z.object({
@@ -161,14 +225,99 @@ const registerSchema = z.object({
   email:         z.string().email(),
   password:      z.string().min(6, "Password must be at least 6 characters"),
   phone:         z.string().optional(),
-  clinicSlug:    z.string().min(1, "Clinic identifier is required"),
+  clinicSlug:    z.string().min(1, "Clinic identifier is required").optional().default("real_care_ngp"),
+  clinicName:    z.string().optional(),
+  branch:        z.string().optional(),
   roleId:        z.enum(["doctor", "admin", "reception", "accounts", "platform"]).default("doctor"),
   licenseNumber: z.string().optional(),
   qualification: z.string().optional(),
   department:    z.string().optional(),
-  specialty:     z.enum(["Canine","Feline","Avian","Exotic","Surgery","General Practice","Administration"]).optional(),
+  specialty:     z.enum(["Canine", "Feline", "Avian", "Exotic", "Surgery", "General Practice", "Administration"]).optional(),
 });
 
+
+export interface OtpSendResult {
+  success: boolean;
+  message: string;
+  /** seconds until the code expires / until another code may be requested */
+  expiresInSec?: number;
+  retryAfterSec?: number;
+}
+
+// Step 1: email a random OTP so the applicant can prove they own the address.
+// Limits: 1 code / 60 s, 5 codes / hour per email; each code lives 10 min with 5 tries.
+export const sendEmailOtpFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => z.object({ email: z.string().email(), name: z.string().optional() }).parse(raw))
+  .handler(async ({ data }): Promise<OtpSendResult> => {
+    await connectDB();
+    const email = data.email.toLowerCase().trim();
+    if (await User.findOne({ email }).lean()) return { success: false, message: "A staff account with this email already exists." };
+
+    const now = Date.now();
+    const rec = await RegistrationOTP.findOne({ email }).lean();
+    const inWindow = !!rec?.windowStartedAt && now - new Date(rec.windowStartedAt).getTime() < OTP_SEND_WINDOW_MS;
+    const sendCount = inWindow ? rec!.sendCount : 0;
+
+    if (rec) {
+      const wait = Math.ceil((RESEND_MS - (now - new Date(rec.lastSentAt).getTime())) / 1000);
+      if (wait > 0) return { success: false, message: `Please wait ${wait}s before requesting another code.`, retryAfterSec: wait };
+    }
+    if (sendCount >= OTP_MAX_SENDS) {
+      const mins = Math.ceil((OTP_SEND_WINDOW_MS - (now - new Date(rec!.windowStartedAt).getTime())) / 60_000);
+      return { success: false, message: `Too many codes requested. Try again in ${mins} min.`, retryAfterSec: mins * 60 };
+    }
+
+    const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+    await RegistrationOTP.findOneAndUpdate(
+      { email },
+      { $set: {
+        otpHash: sha(`${email}:${code}`),
+        registrationData: {},
+        expiresAt: new Date(now + OTP_TTL_MIN * 60_000),
+        attempts: 0, verified: false, lastSentAt: new Date(now),
+        sendCount: sendCount + 1,
+        windowStartedAt: inWindow ? rec!.windowStartedAt : new Date(now),
+      } },
+      { upsert: true }
+    );
+    const mail = registrationOTPEmail({ name: data.name?.trim() || "there", email, code, minutes: OTP_TTL_MIN });
+    if (!(await sendEmail({ to: email, toName: data.name?.trim() || email, ...mail }))) {
+      // A failed send must not start the cooldown or use up one of the hourly sends.
+      await RegistrationOTP.updateOne({ email }, { $set: { lastSentAt: new Date(0), sendCount } });
+      return { success: false, message: "Could not send the verification email. Please try again in a moment." };
+    }
+    const left = OTP_MAX_SENDS - (sendCount + 1);
+    return {
+      success: true,
+      message: `Code sent to ${email}.${left <= 2 ? ` ${left} resend${left === 1 ? "" : "s"} left this hour.` : ""}`,
+      expiresInSec: OTP_TTL_MIN * 60,
+      retryAfterSec: RESEND_MS / 1000,
+    };
+  });
+
+// Step 2: confirm the OTP. Marks the email verified for 30 min so the form can be submitted.
+export const confirmEmailOtpFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => z.object({ email: z.string().email(), code: z.string().regex(/^\d{6}$/) }).parse(raw))
+  .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+    await connectDB();
+    const email = data.email.toLowerCase().trim();
+
+    const rec = await RegistrationOTP.findOne({ email });
+    if (!rec || rec.expiresAt.getTime() < Date.now()) return { success: false, message: "Code expired. Please request a new one." };
+    if (rec.attempts >= OTP_MAX_ATTEMPTS) return { success: false, message: "Too many wrong attempts. Please request a new code." };
+    if (rec.otpHash !== sha(`${email}:${data.code}`)) {
+      rec.attempts += 1;
+      await rec.save();
+      const left = OTP_MAX_ATTEMPTS - rec.attempts;
+      return { success: false, message: left > 0 ? `Incorrect code. ${left} attempt${left === 1 ? "" : "s"} left.` : "Too many wrong attempts. Please request a new code." };
+    }
+    rec.verified = true;
+    rec.expiresAt = new Date(Date.now() + 30 * 60_000);
+    await rec.save();
+    return { success: true, message: "Email verified." };
+  });
+
+// Step 3: create the pending-approval account — only for an email verified in step 2.
 export const registerFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => registerSchema.parse(raw))
   .handler(async ({ data }): Promise<AuthResponse> => {
@@ -183,36 +332,39 @@ export const registerFn = createServerFn({ method: "POST" })
     }
 
     const cleanEmail = data.email.toLowerCase().trim();
-    const existing = await User.findOne({ email: cleanEmail }).lean();
-    if (existing) {
+    if (await User.findOne({ email: cleanEmail }).lean()) {
       return { success: false, message: "A staff account with this email already exists." };
     }
+    const proof = await RegistrationOTP.findOne({ email: cleanEmail, verified: true, expiresAt: { $gt: new Date() } }).lean();
+    if (!proof) return { success: false, message: "Please verify your email address first." };
 
     const passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
-    const roleName     = ROLES[data.roleId as RoleId]?.name ?? "Clinic Staff";
-    const initials     = getInitials(data.fullName);
+    const roleName = ROLES[data.roleId as RoleId]?.name ?? "Clinic Staff";
+    const initials = getInitials(data.fullName);
 
     const createPayload: Record<string, unknown> = {
-      fullName:       data.fullName.trim(),
-      email:          cleanEmail,
+      fullName: data.fullName.trim(),
+      email: cleanEmail,
       passwordHash,
       tenantId:       tenant.tenantId,
       clinicName:     tenant.name,
-      branch:         "MAIN",
+      branch:         data.branch?.trim() || "MAIN",
       roleId:         data.roleId,
+
       roleName,
       initials,
       approvalStatus: "pending",
-      department:     data.department?.trim() || "Clinical Care",
-      specialty:      data.specialty          || "General Practice",
-      isActive:       true,
+      department: data.department?.trim() || "Clinical Care",
+      specialty: data.specialty || "General Practice",
+      isActive: true,
     };
-    if (data.phone?.trim())         createPayload["phone"]         = data.phone.trim();
+    if (data.phone?.trim()) createPayload["phone"] = data.phone.trim();
     if (data.licenseNumber?.trim()) createPayload["licenseNumber"] = data.licenseNumber.trim();
     if (data.qualification?.trim()) createPayload["qualification"] = data.qualification.trim();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const user = await User.create(createPayload) as any;
+    await RegistrationOTP.deleteOne({ email: cleanEmail });
 
     return {
       success: true,
@@ -248,26 +400,26 @@ export const listStaffMembersFn = createServerFn({ method: "GET" })
     // Exclude built-in system / developer accounts from the public staff directory
     const users = await User.find({ isSystemAccount: { $ne: true } }).sort({ createdAt: -1 }).lean();
     return JSON.parse(JSON.stringify(users.map((u) => ({
-      id:              String(u._id),
-      fullName:        u.fullName,
-      email:           u.email,
-      phone:           u.phone,
-      clinicName:      u.clinicName,
-      branch:          u.branch,
-      roleId:          u.roleId,
-      roleName:        u.roleName,
-      initials:        u.initials,
-      licenseNumber:   u.licenseNumber,
-      qualification:   u.qualification,
-      department:      u.department,
-      specialty:       u.specialty,
-      approvalStatus:  u.approvalStatus || "approved",
-      approvedBy:      u.approvedBy,
-      approvedAt:      u.approvedAt ? u.approvedAt.toISOString() : undefined,
+      id: String(u._id),
+      fullName: u.fullName,
+      email: u.email,
+      phone: u.phone,
+      clinicName: u.clinicName,
+      branch: u.branch,
+      roleId: u.roleId,
+      roleName: u.roleName,
+      initials: u.initials,
+      licenseNumber: u.licenseNumber,
+      qualification: u.qualification,
+      department: u.department,
+      specialty: u.specialty,
+      approvalStatus: u.approvalStatus || "approved",
+      approvedBy: u.approvedBy,
+      approvedAt: u.approvedAt ? u.approvedAt.toISOString() : undefined,
       rejectionReason: u.rejectionReason,
-      isActive:        u.isActive,
-      lastLoginAt:     u.lastLoginAt ? u.lastLoginAt.toISOString() : undefined,
-      createdAt:       u.createdAt ? u.createdAt.toISOString() : undefined,
+      isActive: u.isActive,
+      lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : undefined,
+      createdAt: u.createdAt ? u.createdAt.toISOString() : undefined,
     }))));
   }));
 
@@ -275,8 +427,8 @@ export const listStaffMembersFn = createServerFn({ method: "GET" })
 
 export const approveStaffMemberFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({
-    userId:     z.string(),
-    roleId:     z.enum(["doctor", "admin", "reception", "accounts", "platform"]),
+    userId: z.string(),
+    roleId: z.enum(["doctor", "admin", "reception", "accounts", "platform"]),
     department: z.string().optional(),
     approvedBy: z.string().optional(),
   }).parse(raw))
@@ -319,17 +471,17 @@ export const rejectStaffMemberFn = createServerFn({ method: "POST" })
 // ─── createStaffMemberByAdminFn ─────────────────────────────────────────────
 
 const adminCreateSchema = z.object({
-  fullName:      z.string().min(2),
-  email:         z.string().email(),
-  password:      z.string().min(6),
-  phone:         z.string().optional(),
-  clinicName:    z.string().default("Harmony Pet Super-Specialty Hospital"),
-  branch:        z.string().default("Central Hospital · Koramangala"),
-  roleId:        z.enum(["doctor", "admin", "reception", "accounts", "platform"]),
+  fullName: z.string().min(2),
+  email: z.string().email(),
+  password: z.string().min(6),
+  phone: z.string().optional(),
+  clinicName: z.string().default("Harmony Pet Super-Specialty Hospital"),
+  branch: z.string().default("Central Hospital · Koramangala"),
+  roleId: z.enum(["doctor", "admin", "reception", "accounts", "platform"]),
   licenseNumber: z.string().optional(),
   qualification: z.string().optional(),
-  department:    z.string().default("Clinical Care"),
-  specialty:     z.enum(["Canine","Feline","Avian","Exotic","Surgery","General Practice","Administration"]).default("General Practice"),
+  department: z.string().default("Clinical Care"),
+  specialty: z.enum(["Canine", "Feline", "Avian", "Exotic", "Surgery", "General Practice", "Administration"]).default("General Practice"),
 });
 
 export const createStaffMemberByAdminFn = createServerFn({ method: "POST" })
@@ -343,26 +495,26 @@ export const createStaffMemberByAdminFn = createServerFn({ method: "POST" })
     }
 
     const passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
-    const roleName     = ROLES[data.roleId]?.name ?? "Clinic Staff";
-    const initials     = getInitials(data.fullName);
+    const roleName = ROLES[data.roleId]?.name ?? "Clinic Staff";
+    const initials = getInitials(data.fullName);
 
     const createPayload: Record<string, unknown> = {
-      fullName:       data.fullName.trim(),
-      email:          cleanEmail,
+      fullName: data.fullName.trim(),
+      email: cleanEmail,
       passwordHash,
-      clinicName:     data.clinicName || "Harmony Pet Super-Specialty Hospital",
-      branch:         data.branch || "Central Hospital · Koramangala",
-      roleId:         data.roleId,
+      clinicName: data.clinicName || "Harmony Pet Super-Specialty Hospital",
+      branch: data.branch || "Central Hospital · Koramangala",
+      roleId: data.roleId,
       roleName,
       initials,
-      department:     data.department || "Clinical Care",
-      specialty:      data.specialty || "General Practice",
+      department: data.department || "Clinical Care",
+      specialty: data.specialty || "General Practice",
       approvalStatus: "approved",
-      approvedBy:     "Clinic Administrator",
-      approvedAt:     new Date(),
-      isActive:       true,
+      approvedBy: "Clinic Administrator",
+      approvedAt: new Date(),
+      isActive: true,
     };
-    if (data.phone?.trim())         createPayload["phone"]         = data.phone.trim();
+    if (data.phone?.trim()) createPayload["phone"] = data.phone.trim();
     if (data.licenseNumber?.trim()) createPayload["licenseNumber"] = data.licenseNumber.trim();
     if (data.qualification?.trim()) createPayload["qualification"] = data.qualification.trim();
 
@@ -380,19 +532,19 @@ export const createStaffMemberByAdminFn = createServerFn({ method: "POST" })
 // ─── updateStaffMemberFn ───────────────────────────────────────────────────
 
 const updateStaffSchema = z.object({
-  userId:         z.string(),
-  fullName:       z.string().min(2).optional(),
-  email:          z.string().email().optional(),
-  phone:          z.string().optional(),
-  clinicName:     z.string().optional(),
-  branch:         z.string().optional(),
-  roleId:         z.enum(["doctor", "admin", "reception", "accounts", "platform"]).optional(),
-  licenseNumber:  z.string().optional(),
-  qualification:  z.string().optional(),
-  department:     z.string().optional(),
-  specialty:      z.enum(["Canine", "Feline", "Avian", "Exotic", "Surgery", "General Practice", "Administration"]).optional(),
+  userId: z.string(),
+  fullName: z.string().min(2).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  clinicName: z.string().optional(),
+  branch: z.string().optional(),
+  roleId: z.enum(["doctor", "admin", "reception", "accounts", "platform"]).optional(),
+  licenseNumber: z.string().optional(),
+  qualification: z.string().optional(),
+  department: z.string().optional(),
+  specialty: z.enum(["Canine", "Feline", "Avian", "Exotic", "Surgery", "General Practice", "Administration"]).optional(),
   approvalStatus: z.enum(["approved", "pending", "rejected"]).optional(),
-  isActive:       z.boolean().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const updateStaffMemberFn = createServerFn({ method: "POST" })
@@ -496,25 +648,35 @@ export const logoutFn = createServerFn({ method: "POST" })
 
 export const getMeFn = createServerFn({ method: "GET" })
   .handler(async (): Promise<UserProfile | null> => {
-    await connectDB();
-    const rawToken = getCookie(COOKIE_NAME);
-    if (!rawToken) return null;
+    // Enforce a 9 s server-side timeout so a slow Atlas connection never blocks
+    // the client loading spinner past the client-side 10 s race.
+    const timeout = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), 9_000)
+    );
 
-    try {
-      const payload = verifyRefreshToken(rawToken);
-      const stored  = await RefreshToken.findOne({ tokenHash: hashToken(rawToken) }).lean();
-      if (!stored) return null;
+    const work = async (): Promise<UserProfile | null> => {
+      await connectDB();
+      const rawToken = getCookie(COOKIE_NAME);
+      if (!rawToken) return null;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const user = await User.findById(payload.sub).lean() as Record<string, any> | null;
-      if (!user || !user["isActive"] || user["approvalStatus"] === "pending" || user["approvalStatus"] === "rejected") {
+      try {
+        const payload = verifyRefreshToken(rawToken);
+        const stored = await RefreshToken.findOne({ tokenHash: hashToken(rawToken) }).lean();
+        if (!stored) return null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const user = await User.findById(payload.sub).lean() as Record<string, any> | null;
+        if (!user || !user["isActive"] || user["approvalStatus"] === "pending" || user["approvalStatus"] === "rejected") {
+          return null;
+        }
+
+        return toProfile(user);
+      } catch {
         return null;
       }
+    };
 
-      return toProfile(user);
-    } catch {
-      return null;
-    }
+    return Promise.race([work(), timeout]);
   });
 
 // ─── seedDemoUsersFn ─────────────────────────────────────────────────────────
@@ -540,28 +702,29 @@ const SYSTEM_CREDENTIALS = [
     department:      "System Administration",
     specialty:       "Administration" as const,
     approvalStatus:  "approved" as ApprovalStatus,
+
     isSystemAccount: true,   // ← hidden from staff directory
-    isActive:        true,
+    isActive: true,
   },
   {
     // ── Visible admin — approves registrations ────────────────────────────────
     // Shown in the Identity Hub staff list. Can review & approve new registrations.
-    fullName:        "Dr. Makarand Dixit",
-    email:           "makarand.dixit@gmail.com",
-    password:        "12345678",
-    phone:           "+91 87674 84342",
-    clinicName:      "Real Care Small Animal Clinic",
-    branch:          "Nagpur Main Clinic",
-    roleId:          "admin" as RoleId,
-    roleName:        "Clinic Administrator / Medical Director",
-    initials:        "MD",
-    licenseNumber:   "M.S.V.C.-8648",
-    qualification:   "B.V.Sc & AH, M.V.Sc, PGDAW",
-    department:      "Clinical Administration & Surgery",
-    specialty:       "General Practice" as const,
-    approvalStatus:  "approved" as ApprovalStatus,
+    fullName: "Dr. Makarand Dixit",
+    email: "makarand.dixit@gmail.com",
+    password: "12345678",
+    phone: "+91 87674 84342",
+    clinicName: "Real Care Small Animal Clinic",
+    branch: "Nagpur Main Clinic",
+    roleId: "admin" as RoleId,
+    roleName: "Clinic Administrator / Medical Director",
+    initials: "MD",
+    licenseNumber: "M.S.V.C.-8648",
+    qualification: "B.V.Sc & AH, M.V.Sc, PGDAW",
+    department: "Clinical Administration & Surgery",
+    specialty: "General Practice" as const,
+    approvalStatus: "approved" as ApprovalStatus,
     isSystemAccount: false,  // ← visible in staff directory
-    isActive:        true,
+    isActive: true,
   },
 ];
 
@@ -642,6 +805,7 @@ export const listApprovedDoctorsFn = createServerFn({ method: "GET" })
       const doctors = await User.find({
         roleId: { $in: ["doctor", "admin"] },
         approvalStatus: "approved",
+        isSystemAccount: { $ne: true },
         isActive: true,
       })
         .sort({ fullName: 1 })
@@ -659,11 +823,6 @@ export const listApprovedDoctorsFn = createServerFn({ method: "GET" })
       console.warn("[Auth] Could not fetch approved doctors:", err);
     }
 
-    // Default fallback if no custom registered doctors in DB yet
-    return [
-      { id: "doc-1", name: "Dr. Rohit Sharma", specialty: "Chief Veterinary Physician & Surgeon" },
-      { id: "doc-2", name: "Dr. Aisha Nair", specialty: "Feline & Soft Tissue Specialist" },
-      { id: "doc-3", name: "Dr. Ananya Rao", specialty: "Senior Surgeon & Orthopedic Vet" },
-      { id: "doc-4", name: "Dr. Ayush Sahare", specialty: "Consultant Veterinary Physician" },
-    ];
+    return [];
   }));
+

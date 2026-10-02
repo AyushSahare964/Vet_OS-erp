@@ -32,9 +32,11 @@ import {
   Share2,
   Edit,
   Activity,
+  UserCheck,
 } from "lucide-react";
 import { Shell } from "@/components/erp/Shell";
 import { KpiCard } from "@/components/erp/KpiCard";
+import { HubSkeleton } from "@/components/erp/LoadingSkeletons";
 import { StatusPill } from "@/components/erp/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { BookAppointmentModal } from "./BookAppointmentModal";
+import { Patient360Profile } from "@/components/erp/crm/Patient360Profile";
 import { listAppointmentsFn, createAppointmentFn, updateAppointmentStatusFn, deleteAppointmentFn } from "@/lib/mongodb/serverFns/appointments";
 import { getUpcomingFollowUpsFn, admitPatientFn } from "@/lib/mongodb/serverFns/clinical";
 import { cn } from "@/lib/utils";
@@ -96,6 +99,13 @@ function renderCategoryBadge(category?: string | null) {
       </Badge>
     );
   }
+  if (cat === "walk_in" || cat === "walk-in" || cat === "walkin") {
+    return (
+      <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px] font-semibold gap-1">
+        <UserCheck className="size-3" /> Walk-in
+      </Badge>
+    );
+  }
   return (
     <Badge variant="outline" className="text-[10px] font-semibold">
       {category}
@@ -117,6 +127,7 @@ export function AppointmentsQueueHub() {
   const [showBookModal, setShowBookModal] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any | null>(null);
   const [selectedFollowUp, setSelectedFollowUp] = useState<any | null>(null);
+  const [selectedProfilePetId, setSelectedProfilePetId] = useState<string | null>(null);
 
   // Follow-ups
   const [followUps, setFollowUps] = useState<any[]>([]);
@@ -390,6 +401,14 @@ export function AppointmentsQueueHub() {
     toast.success("Appointments CSV exported");
   };
 
+  if (loading && appointments.length === 0) {
+    return (
+      <Shell title="Appointments &amp; Queue">
+        <HubSkeleton withChart />
+      </Shell>
+    );
+  }
+
   return (
     <Shell title="Appointments &amp; Queue">
       <div className="mx-auto max-w-[1500px] space-y-6">
@@ -493,8 +512,27 @@ export function AppointmentsQueueHub() {
                           <div className="flex items-center gap-1.5">
                             <span className="text-base">{fu.species === "Feline" ? "🐱" : fu.species === "Avian" ? "🦜" : "🐶"}</span>
                             <div>
-                              <p className="font-bold text-foreground">{fu.petName}</p>
-                              <p className="text-[10px] font-mono text-muted-foreground">{fu.petId}</p>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedProfilePetId(fu.petId || null)}
+                                className={cn(
+                                  "font-bold text-foreground text-left transition-colors",
+                                  fu.petId ? "hover:text-primary hover:underline cursor-pointer" : ""
+                                )}
+                                title={fu.petId ? "View Patient 360° Profile" : undefined}
+                              >
+                                {fu.petName}
+                              </button>
+                              {fu.petId && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedProfilePetId(fu.petId)}
+                                  className="block text-[10px] font-mono text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                                  title="View Patient 360° Profile"
+                                >
+                                  {fu.petId}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -631,6 +669,7 @@ export function AppointmentsQueueHub() {
                 <SelectItem value="call">Call</SelectItem>
                 <SelectItem value="whatsapp">WhatsApp</SelectItem>
                 <SelectItem value="social_media">Social Media</SelectItem>
+                <SelectItem value="walk_in">Walk-in</SelectItem>
               </SelectContent>
             </Select>
 
@@ -697,11 +736,31 @@ export function AppointmentsQueueHub() {
                         <span className="size-6 rounded-full bg-muted flex items-center justify-center text-xs">
                           {row.species === "Feline" ? "🐱" : row.species === "Avian" ? "🦜" : "🐶"}
                         </span>
-                        <span>{row.pet}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProfilePetId(row.petId || null)}
+                          className={cn(
+                            "text-left transition-colors font-bold",
+                            row.petId ? "text-primary hover:underline cursor-pointer" : "text-foreground"
+                          )}
+                          title={row.petId ? "View Patient 360° Profile" : undefined}
+                        >
+                          {row.pet}
+                        </button>
                         {row.petId && (
-                          <Badge variant="outline" className="font-mono text-[9px] py-0 bg-primary/10 text-primary border-primary/20">
-                            {row.petId}
-                          </Badge>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProfilePetId(row.petId)}
+                            className="cursor-pointer"
+                            title="View Patient 360° Profile"
+                          >
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-[9px] py-0 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors"
+                            >
+                              {row.petId}
+                            </Badge>
+                          </button>
                         )}
                       </div>
                     </td>
@@ -838,6 +897,18 @@ export function AppointmentsQueueHub() {
           initialFollowUp={selectedFollowUp}
           onBooked={handleBookedNew}
           onUpdated={handleUpdatedAppointment}
+        />
+
+        {/* Patient 360° Profile Dialog */}
+        <Patient360Profile
+          open={Boolean(selectedProfilePetId)}
+          petId={selectedProfilePetId}
+          onClose={() => setSelectedProfilePetId(null)}
+          onStartConsultation={() => { /* not used in appointments context */ }}
+          onChanged={() => {
+            void loadAppointments();
+            void loadFollowUps();
+          }}
         />
       </div>
     </Shell>

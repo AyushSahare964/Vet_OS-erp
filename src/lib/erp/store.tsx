@@ -63,17 +63,21 @@ const defaultErpContext: ErpContextValue = {
   clinicBranding: null,
   isAuthenticated: false,
   isLoadingAuth: false,
-  login: async () => ({ success: false, message: "Not available outside ErpProvider" }),
-  register: async () => ({ success: false, message: "Not available outside ErpProvider" }),
-  registerTenant: async () => ({ success: false, message: "Not available outside ErpProvider" }),
-  logout: async () => {},
+  login: async (credentials: LoginCredentials) => AuthService.login(credentials),
+  register: async (payload: RegisterPayload) => AuthService.register(payload),
+  registerTenant: async (payload: RegisterTenantPayload) => AuthService.registerTenant(payload),
+  logout: async () => AuthService.logout(),
   getRows: (moduleId: string) => WORKSPACES[moduleId]?.rows ?? [],
   addRow: async () => {},
   deleteRow: async () => {},
   resetRows: async () => {},
 };
 
-const ErpContext = createContext<ErpContextValue>(defaultErpContext);
+// Preserve context across Vite HMR so hot module reloading does not reset Context identity
+const ErpContext: React.Context<ErpContextValue> =
+  (globalThis as unknown as { __vetos_erp_context?: React.Context<ErpContextValue> }).__vetos_erp_context ||
+  ((globalThis as unknown as { __vetos_erp_context?: React.Context<ErpContextValue> }).__vetos_erp_context =
+    createContext<ErpContextValue>(defaultErpContext));
 
 // ─── ErpProvider ─────────────────────────────────────────────────────────────
 
@@ -94,9 +98,15 @@ export function ErpProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // On mount: re-hydrate session from the httpOnly refresh cookie via server fn
+  // On mount: re-hydrate session from the httpOnly refresh cookie via server fn.
+  // Race against a 10-second timeout so a slow or unavailable MongoDB doesn't
+  // leave the app stuck on the loading spinner indefinitely.
   useEffect(() => {
-    AuthService.getCurrentUserAsync()
+    const timeout = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), 10_000)
+    );
+
+    Promise.race([AuthService.getCurrentUserAsync(), timeout])
       .then((user) => {
         if (user) {
           setCurrentUser(user);
