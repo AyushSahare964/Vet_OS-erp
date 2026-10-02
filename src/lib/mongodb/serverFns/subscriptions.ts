@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { SubscriptionPlanModel } from "@/lib/mongodb/models/SubscriptionPlan";
 import { ClientSubscriptionModel } from "@/lib/mongodb/models/ClientSubscription";
 import { nextSeq } from "@/lib/mongodb/serverFns/counters";
@@ -49,7 +49,7 @@ const CreatePlanInputZ = z.object({
 
 export const createSubscriptionPlanFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => CreatePlanInputZ.parse(raw))
-  .handler(async ({ data }): Promise<SubscriptionPlanRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<SubscriptionPlanRow> => {
     await connectDB();
     const planId = await nextSeq("subscription_plan", "PLN", 4);
     const plan = {
@@ -64,10 +64,10 @@ export const createSubscriptionPlanFn = createServerFn({ method: "POST" })
     };
     await SubscriptionPlanModel.create(plan);
     return toPlain(plan);
-  });
+  }));
 
 export const listSubscriptionPlansFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<SubscriptionPlanRow[]> => {
+  .handler(tenantScoped(async (): Promise<SubscriptionPlanRow[]> => {
     await connectDB();
     const docs = await SubscriptionPlanModel.find({ isActive: true }).sort({ createdAt: -1 }).lean();
     return toPlain(docs.map((d) => ({
@@ -80,7 +80,7 @@ export const listSubscriptionPlansFn = createServerFn({ method: "GET" })
       validityDays: d.validityDays,
       category: d.category,
     })));
-  });
+  }));
 
 const SellSubscriptionInputZ = z.object({
   planId: z.string().min(1),
@@ -93,7 +93,7 @@ const SellSubscriptionInputZ = z.object({
 
 export const sellSubscriptionFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SellSubscriptionInputZ.parse(raw))
-  .handler(async ({ data }): Promise<ClientSubscriptionRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<ClientSubscriptionRow> => {
     await connectDB();
     const plan = await SubscriptionPlanModel.findOne({ planId: data.planId, isActive: true }).lean();
     if (!plan) throw new Error(`Subscription plan ${data.planId} not found`);
@@ -119,10 +119,10 @@ export const sellSubscriptionFn = createServerFn({ method: "POST" })
     };
     await ClientSubscriptionModel.create(sub);
     return toPlain(sub);
-  });
+  }));
 
 export const listClientSubscriptionsFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<ClientSubscriptionRow[]> => {
+  .handler(tenantScoped(async (): Promise<ClientSubscriptionRow[]> => {
     await connectDB();
     const docs = await ClientSubscriptionModel.find({}).sort({ createdAt: -1 }).lean();
     const today = todayIST();
@@ -150,21 +150,21 @@ export const listClientSubscriptionsFn = createServerFn({ method: "GET" })
         totalPaid: d.totalPaid,
       };
     }));
-  });
+  }));
 
 const SubIdInputZ = z.object({ subId: z.string().min(1) });
 
 export const cancelSubscriptionFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SubIdInputZ.parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
     await connectDB();
     await ClientSubscriptionModel.findOneAndUpdate({ subId: data.subId }, { $set: { status: "Cancelled" } });
     return { success: true };
-  });
+  }));
 
 export const renewSubscriptionFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SubIdInputZ.parse(raw))
-  .handler(async ({ data }): Promise<ClientSubscriptionRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<ClientSubscriptionRow> => {
     await connectDB();
     const sub = await ClientSubscriptionModel.findOne({ subId: data.subId });
     if (!sub) throw new Error(`Subscription ${data.subId} not found`);
@@ -182,4 +182,4 @@ export const renewSubscriptionFn = createServerFn({ method: "POST" })
     await sub.save();
 
     return toPlain(sub.toObject());
-  });
+  }));

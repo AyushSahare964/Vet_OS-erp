@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ExpenseModel } from "@/lib/mongodb/models/Expense";
 import { ExpenseCategoryModel, seedExpenseCategories } from "@/lib/mongodb/models/ExpenseCategory";
 import { todayIST, fiscalYearRange } from "@/lib/utils/dateUtils";
@@ -36,7 +36,7 @@ export const listExpensesFn = createServerFn({ method: "GET" })
     nature: z.enum(["BUSINESS", "PERSONAL", "ALL"]).optional(),
     q: z.string().optional(), status: z.enum(["ACTIVE", "VOID", "ALL"]).optional(),
   }).optional().parse(raw))
-  .handler(async ({ data }): Promise<ExpenseRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<ExpenseRow[]> => {
     await connectDB();
     const today = todayIST();
     const from = data?.from ?? today.slice(0, 7) + "-01";
@@ -54,7 +54,7 @@ export const listExpensesFn = createServerFn({ method: "GET" })
     }
     const docs = await ExpenseModel.find(filter).sort({ expenseDate: -1, createdAt: -1 }).lean();
     return docs.map(toRow);
-  });
+  }));
 
 const PaymentLineZ = z.object({
   mode: z.enum(["CASH", "UPI", "CARD", "BANK_TRANSFER", "CHEQUE"]),
@@ -70,7 +70,7 @@ export const createExpenseFn = createServerFn({ method: "POST" })
     description: z.string().optional(), attachmentUrl: z.string().optional(),
     paymentLines: z.array(PaymentLineZ).min(1),
   }).parse(raw))
-  .handler(async ({ data }): Promise<{ ok: boolean; _id: string; voucherNo: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean; _id: string; voucherNo: string }> => {
     await connectDB();
     await seedExpenseCategories();
     const linesTotal = data.paymentLines.reduce((s, l) => s + l.amount, 0);
@@ -114,11 +114,11 @@ export const createExpenseFn = createServerFn({ method: "POST" })
 
     const doc: any = await ExpenseModel.create(docData);
     return { ok: true, _id: String(doc._id), voucherNo };
-  });
+  }));
 
 export const voidExpenseFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ id: z.string(), reason: z.string().min(3) }).parse(raw))
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean }> => {
     await connectDB();
     const doc = await ExpenseModel.findById(data.id);
     if (!doc) throw new Error("Expense not found");
@@ -126,13 +126,13 @@ export const voidExpenseFn = createServerFn({ method: "POST" })
     doc.status = "VOID"; doc.voidReason = data.reason;
     await doc.save();
     return { ok: true };
-  });
+  }));
 
 export interface ExpenseSummary { total: number; byMode: Record<string, number>; byCategory: { categoryName: string; total: number }[]; }
 
 export const getExpenseSummaryFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ from: z.string(), to: z.string() }).optional().parse(raw))
-  .handler(async ({ data }): Promise<ExpenseSummary> => {
+  .handler(tenantScoped(async ({ data }): Promise<ExpenseSummary> => {
     await connectDB();
     const today = todayIST();
     const from = data?.from ?? today.slice(0, 7) + "-01";
@@ -149,4 +149,4 @@ export const getExpenseSummaryFn = createServerFn({ method: "GET" })
       total, byMode,
       byCategory: Object.entries(byCat).map(([categoryName, t]) => ({ categoryName, total: t as number })).sort((a, b) => b.total - a.total),
     };
-  });
+  }));

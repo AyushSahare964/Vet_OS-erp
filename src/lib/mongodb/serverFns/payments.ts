@@ -11,7 +11,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { withTransaction, sessionOpt } from "@/lib/mongodb/txn";
 import { docPayload, docPayloads } from "@/lib/mongodb/docPayload";
 import {
@@ -160,10 +160,10 @@ export const autoAllocateFn = createServerFn({ method: "GET" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<AllocationSuggestion[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<AllocationSuggestion[]> => {
     await connectDB();
     return proposeAllocations(data.partyId, data.amount, data.direction);
-  });
+  }));
 
 /**
  * Oldest bill first — the default every accountant expects, because it is what
@@ -239,7 +239,7 @@ export async function proposeAllocations(
 
 export const createPaymentFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => CreatePaymentZ.parse(raw))
-  .handler(async ({ data }): Promise<PaymentRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<PaymentRow> => {
     await connectDB();
 
     // ── Idempotency: a retried request returns the original receipt ──
@@ -452,7 +452,7 @@ export const createPaymentFn = createServerFn({ method: "POST" })
 
     const saved = await PaymentDocModel.findById(createdId).lean();
     return toRow((saved ?? {}) as unknown as Record<string, unknown>);
-  });
+  }));
 
 /**
  * Move `delta` onto a document's paid amount and re-derive its status.
@@ -535,7 +535,7 @@ export const listPaymentsFn = createServerFn({ method: "GET" })
       })
       .parse(raw ?? {}),
   )
-  .handler(async ({ data }): Promise<PaymentRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<PaymentRow[]> => {
     await connectDB();
 
     const filter: Record<string, unknown> = {};
@@ -566,7 +566,7 @@ export const listPaymentsFn = createServerFn({ method: "GET" })
       .lean();
 
     return docs.map((d) => toRow(d as unknown as Record<string, unknown>));
-  });
+  }));
 
 // ─── Cancel ───────────────────────────────────────────────────────────────────
 
@@ -581,7 +581,7 @@ export const cancelPaymentFn = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<{ ok: boolean; docNumber: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean; docNumber: string }> => {
     await connectDB();
 
     const pay = await PaymentDocModel.findById(data.id).lean();
@@ -657,7 +657,7 @@ export const cancelPaymentFn = createServerFn({ method: "POST" })
     );
 
     return { ok: true, docNumber };
-  });
+  }));
 
 // ─── Cheque / DD clearing (§6.8) ──────────────────────────────────────────────
 
@@ -674,7 +674,7 @@ export const updateClearingStatusFn = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<PaymentRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<PaymentRow> => {
     await connectDB();
 
     const pay = await PaymentDocModel.findById(data.paymentId).lean();
@@ -796,13 +796,13 @@ export const updateClearingStatusFn = createServerFn({ method: "POST" })
 
     const fresh = await PaymentDocModel.findById(data.paymentId).lean();
     return toRow((fresh ?? {}) as unknown as Record<string, unknown>);
-  });
+  }));
 
 // ─── Advances ─────────────────────────────────────────────────────────────────
 
 export const getPartyAdvanceFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ partyId: z.string().min(1) }).parse(raw))
-  .handler(async ({ data }): Promise<{ advance: number; payments: PaymentRow[] }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ advance: number; payments: PaymentRow[] }> => {
     await connectDB();
 
     const docs = await PaymentDocModel.find({
@@ -819,7 +819,7 @@ export const getPartyAdvanceFn = createServerFn({ method: "GET" })
       advance: roundMoney(rows.reduce((s, r) => s + r.unallocatedAmount, 0)),
       payments: rows,
     };
-  });
+  }));
 
 /**
  * Apply an existing advance to a bill without taking new money.
@@ -836,7 +836,7 @@ export const applyAdvanceFn = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<PaymentRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<PaymentRow> => {
     await connectDB();
 
     const pay = await PaymentDocModel.findById(data.paymentId).lean();
@@ -886,4 +886,4 @@ export const applyAdvanceFn = createServerFn({ method: "POST" })
 
     const fresh = await PaymentDocModel.findById(data.paymentId).lean();
     return toRow((fresh ?? {}) as unknown as Record<string, unknown>);
-  });
+  }));

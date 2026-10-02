@@ -27,6 +27,7 @@ import {
   listRemindersFn, createReminderFn, settleReminderFn, snoozeReminderFn, deleteReminderFn,
   type BillingReminderRow,
 } from "@/lib/mongodb/serverFns/reminders";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 export type BillingReminder = BillingReminderRow & { id: string };
 
@@ -37,6 +38,7 @@ interface BillingReminderModalProps {
 }
 
 export function BillingReminderModal({ open, onClose, invoices = [] }: BillingReminderModalProps) {
+  const CLINIC_CONFIG = useClinicBranding();
   const [reminders, setReminders] = useState<BillingReminder[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -161,7 +163,7 @@ export function BillingReminderModal({ open, onClose, invoices = [] }: BillingRe
     const phone = (rem.ownerPhone || "").replace(/[^0-9]/g, "");
     const cleanPhone = phone.startsWith("91") ? phone : `91${phone}`;
     const text = encodeURIComponent(
-      `Dear ${rem.ownerName || "Pet Parent"},\nGreetings from Real Care Small Animal Clinic.\nThis is a polite reminder regarding pending dues of ₹${rem.dueAmount.toLocaleString(
+      `Dear ${rem.ownerName || "Pet Parent"},\nGreetings from ${CLINIC_CONFIG.shortName}.\nThis is a polite reminder regarding pending dues of ₹${rem.dueAmount.toLocaleString(
         "en-IN"
       )} for ${rem.petName || "your pet"}'s care (${rem.invoiceNo || "Invoice"}).\nKindly settle via UPI at your convenience. Thank you!`
     );

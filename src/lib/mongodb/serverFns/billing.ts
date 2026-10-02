@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ClinicalVisit, type IClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
 import { FinanceTransaction } from "@/lib/mongodb/models/FinanceTransaction";
 import { nextSeq } from "./counters";
@@ -60,7 +60,7 @@ export type PartialPaymentInput = z.infer<typeof PartialPaymentInputZ>;
 
 export const listInvoicesFn = createServerFn({ method: "GET" })
   .validator((filter: unknown) => FilterInvoicesInputZ.parse(filter || {}))
-  .handler(async ({ data: filter }: { data: z.infer<typeof FilterInvoicesInputZ> }) => {
+  .handler(tenantScoped(async ({ data: filter }: { data: z.infer<typeof FilterInvoicesInputZ> }) => {
     await ensureBillingSeeded();
 
     const queryObj: any = {};
@@ -83,11 +83,11 @@ export const listInvoicesFn = createServerFn({ method: "GET" })
     }
     const invoices = await ClinicalVisit.find(queryObj).sort({ createdAt: -1, date: -1 }).limit(100).lean();
     return toPlain<any[]>(invoices);
-  });
+  }));
 
 export const recordInvoicePaymentFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => RecordPaymentInputZ.parse(data))
-  .handler(async ({ data }: { data: z.infer<typeof RecordPaymentInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof RecordPaymentInputZ> }) => {
     await connectDB();
 
     if (data.amount <= 0) {
@@ -161,7 +161,7 @@ export const recordInvoicePaymentFn = createServerFn({ method: "POST" })
     }
 
     return toPlain<any>(visit.toObject ? visit.toObject() : visit);
-  });
+  }));
 
 export const recordBillPaymentFn = recordInvoicePaymentFn;
 
@@ -169,7 +169,7 @@ export const getPatientOutstandingBalanceFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) =>
     z.object({ petId: z.string().optional(), ownerId: z.string().optional() }).parse(raw || {})
   )
-  .handler(async ({ data }: { data: { petId?: string | undefined; ownerId?: string | undefined } }) => {
+  .handler(tenantScoped(async ({ data }: { data: { petId?: string | undefined; ownerId?: string | undefined } }) => {
     await connectDB();
     const filter: any = { balanceDue: { $gt: 0 } };
     if (data.petId) filter.petId = data.petId;
@@ -185,21 +185,21 @@ export const getPatientOutstandingBalanceFn = createServerFn({ method: "GET" })
       unpaidBillsCount: bills.length,
       bills: toPlain<any[]>(bills),
     };
-  });
+  }));
 
 export const deleteInvoiceFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ invoiceNo: z.string() }).parse(data))
-  .handler(async ({ data }: { data: { invoiceNo: string } }) => {
+  .handler(tenantScoped(async ({ data }: { data: { invoiceNo: string } }) => {
     await connectDB();
     await ClinicalVisit.findOneAndDelete({ invoiceNo: data.invoiceNo });
     return toPlain<any>({ success: true });
-  });
+  }));
 
 // ─── Outstanding Bills Query ──────────────────────────────────────────────────
 
 export const getOwnerOutstandingBillsFn = createServerFn({ method: "GET" })
   .validator((data: unknown) => z.object({ ownerId: z.string() }).parse(data))
-  .handler(async ({ data }: { data: { ownerId: string } }) => {
+  .handler(tenantScoped(async ({ data }: { data: { ownerId: string } }) => {
     await connectDB();
     const bills = await ClinicalVisit.find({
       ownerId: data.ownerId,
@@ -209,7 +209,7 @@ export const getOwnerOutstandingBillsFn = createServerFn({ method: "GET" })
       .lean();
 
     return toPlain<any[]>(bills);
-  });
+  }));
 
 // ─── Partial & Combined Bill Payment (REQ-PAY-01 .. REQ-PAY-07) ────────────────
 
@@ -222,7 +222,7 @@ export interface InvoiceAllocation {
 
 export const recordPartialPaymentFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => PartialPaymentInputZ.parse(data))
-  .handler(async ({ data }: { data: PartialPaymentInput }) => {
+  .handler(tenantScoped(async ({ data }: { data: PartialPaymentInput }) => {
     await connectDB();
 
     // 1. Idempotency check: look up existing FinanceTransaction by idempotencyKey
@@ -345,4 +345,4 @@ export const recordPartialPaymentFn = createServerFn({ method: "POST" })
       amountReceived: amountRounded,
       message: `Payment of ₹${amountRounded} recorded against ${updatedVisitNos.length} invoice(s).`,
     });
-  });
+  }));

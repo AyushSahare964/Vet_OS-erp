@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IPet extends Document {
   petId: string;
@@ -30,7 +31,7 @@ export interface IPet extends Document {
 
 const PetSchema = new Schema<IPet>(
   {
-    petId: { type: String, required: true, unique: true, index: true },
+    petId: { type: String, required: true, index: true },
     ownerId: { type: String, required: true, index: true },
     name: { type: String, required: true, index: true },
     species: { type: String, required: true, enum: ["Canine", "Feline", "Avian", "Rabbit", "Exotic", "Other"], default: "Canine" },
@@ -56,6 +57,9 @@ const PetSchema = new Schema<IPet>(
   },
   { timestamps: true }
 );
+
+PetSchema.plugin(tenantScopePlugin);
+PetSchema.index({ tenantId: 1, petId: 1 }, { unique: true });
 
 export const Pet = (mongoose.models["Pet"] || mongoose.model<IPet>("Pet", PetSchema)) as mongoose.Model<IPet>;
 

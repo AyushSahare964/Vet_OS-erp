@@ -4,6 +4,7 @@
  */
 
 import mongoose, { Schema, model } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export type MedicineCategory =
   "Medicine" | "Injection" | "Food" | "Accessory" | "Consumable" | "Animal Food" | "Animal Accessories";
@@ -206,7 +207,7 @@ const injectionDetailsSchema = new Schema<InjectionDetails>(
 const inventoryItemSchema = new Schema<InventoryItemDocument>(
   {
     // Identity
-    itemCode: { type: String, required: true, unique: true, index: true },
+    itemCode: { type: String, required: true, index: true },
     productType: {
       type: String,
       enum: ["MEDICINE", "INJECTION", "FOOD", "ACCESSORY"],
@@ -300,6 +301,9 @@ inventoryItemSchema.index({ name: "text", genericName: "text" });
 // dev-server HMR reload of this file does NOT re-register it. After changing any field on the
 // schema above, fully restart `npm run dev`; otherwise writes silently keep using the old shape
 // (fields not in the stale cached schema get dropped, with no error).
+inventoryItemSchema.plugin(tenantScopePlugin);
+inventoryItemSchema.index({ tenantId: 1, itemCode: 1 }, { unique: true });
+
 export const InventoryItem: mongoose.Model<InventoryItemDocument> =
   (mongoose.models["InventoryItem"] as mongoose.Model<InventoryItemDocument>) ??
   model<InventoryItemDocument>("InventoryItem", inventoryItemSchema);

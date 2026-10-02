@@ -7,6 +7,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export type TaxCodeKind = "HSN" | "SAC";
 
@@ -41,7 +42,9 @@ const TaxCodeSchema = new Schema<ITaxCode>(
 );
 
 // One row per code per effective-from date — that IS the rate history.
-TaxCodeSchema.index({ code: 1, effectiveFrom: 1 }, { unique: true });
+TaxCodeSchema.index({ tenantId: 1, code: 1, effectiveFrom: 1 }, { unique: true });
+
+TaxCodeSchema.plugin(tenantScopePlugin);
 
 export const TaxCodeModel =
   (mongoose.models["TaxCode"] as mongoose.Model<ITaxCode>) ??

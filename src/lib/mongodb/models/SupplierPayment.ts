@@ -1,4 +1,5 @@
 ﻿import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface ISupplierPaymentLine {
   mode: "CASH" | "UPI" | "CARD" | "BANK_TRANSFER" | "CHEQUE";
@@ -50,7 +51,7 @@ const AllocationSchema = new Schema<IPaymentAllocation>({
 
 const SupplierPaymentSchema = new Schema<ISupplierPayment>(
   {
-    voucherNo: { type: String, required: true, unique: true },
+    voucherNo: { type: String, required: true, },
     supplierId: { type: String, required: true },
     supplierName: { type: String, required: true },
     paymentDate: { type: String, required: true },
@@ -68,6 +69,9 @@ const SupplierPaymentSchema = new Schema<ISupplierPayment>(
 
 SupplierPaymentSchema.index({ paymentDate: 1 });
 SupplierPaymentSchema.index({ supplierId: 1 });
+
+SupplierPaymentSchema.plugin(tenantScopePlugin);
+SupplierPaymentSchema.index({ tenantId: 1, voucherNo: 1 }, { unique: true });
 
 export const SupplierPaymentModel =
   (mongoose.models["SupplierPayment"] as mongoose.Model<ISupplierPayment>) ??

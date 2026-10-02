@@ -54,6 +54,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { OwnerPetRegistrationModal } from "./OwnerPetRegistrationModal";
+import { useErp } from "@/lib/erp/store";
 import { VisitWorkspaceModal } from "@/components/erp/clinical/VisitWorkspaceModal";
 import {
   listPetsWithOwnersFn,
@@ -68,6 +69,7 @@ import { cn } from "@/lib/utils";
 
 
 export function PetOwnerCrmHub() {
+  const { currentUser, role } = useErp();
   const [activeTab, setActiveTab] = useState<"pets" | "owners">("pets");
   const [pets, setPets] = useState<any[]>([]);
   const [owners, setOwners] = useState<any[]>([]);
@@ -261,7 +263,7 @@ export function PetOwnerCrmHub() {
       ownerId: ownerInfo.ownerId || pet.ownerId,
       ownerName: ownerInfo.name,
       ownerPhone: ownerInfo.phone,
-      doctorName: "Dr. Rohit Sharma",
+      doctorName: currentUser?.fullName || role?.person || "Dr. Rohit Sharma",
       vitals: {
         weightKg: pet.weightKg || 25,
         tempC: 38.5,

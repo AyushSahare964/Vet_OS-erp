@@ -8,6 +8,7 @@
  */
 
 import mongoose, { type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 const Schema = mongoose.Schema;
 
@@ -70,7 +71,7 @@ export interface IParty extends Document {
 
 const PartySchema = new Schema<IParty>(
   {
-    partyId: { type: String, required: true, unique: true, index: true },
+    partyId: { type: String, required: true, index: true },
     partyType: {
       type: String,
       required: true,
@@ -129,6 +130,9 @@ const PartySchema = new Schema<IParty>(
 
 PartySchema.index({ partyType: 1, isActive: 1 });
 PartySchema.index({ displayName: "text", mobile: "text" });
+
+PartySchema.plugin(tenantScopePlugin);
+PartySchema.index({ tenantId: 1, partyId: 1 }, { unique: true });
 
 export const PartyModel =
   (mongoose.models["Party"] as mongoose.Model<IParty>) ??

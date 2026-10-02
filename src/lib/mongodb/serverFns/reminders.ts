@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { BillingReminderModel } from "@/lib/mongodb/models/BillingReminder";
 import { nextSeq } from "@/lib/mongodb/serverFns/counters";
 
@@ -25,7 +25,7 @@ export interface BillingReminderRow {
 }
 
 export const listRemindersFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<BillingReminderRow[]> => {
+  .handler(tenantScoped(async (): Promise<BillingReminderRow[]> => {
     await connectDB();
     const docs = await BillingReminderModel.find({}).sort({ scheduledDate: 1, createdAt: -1 }).lean();
     return toPlain(docs.map((d) => ({
@@ -43,7 +43,7 @@ export const listRemindersFn = createServerFn({ method: "GET" })
       notes: d.notes,
       createdAt: (d.createdAt as Date).toISOString(),
     })));
-  });
+  }));
 
 const CreateReminderInputZ = z.object({
   invoiceNo: z.string().optional(),
@@ -60,7 +60,7 @@ const CreateReminderInputZ = z.object({
 
 export const createReminderFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => CreateReminderInputZ.parse(raw))
-  .handler(async ({ data }): Promise<BillingReminderRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<BillingReminderRow> => {
     await connectDB();
     const reminderId = await nextSeq("billing_reminder", "REM", 4);
     const doc = await BillingReminderModel.create({
@@ -92,35 +92,35 @@ export const createReminderFn = createServerFn({ method: "POST" })
       notes: doc.notes,
       createdAt: (doc.createdAt as Date).toISOString(),
     });
-  });
+  }));
 
 const ReminderIdInputZ = z.object({ reminderId: z.string().min(1) });
 
 export const settleReminderFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => ReminderIdInputZ.parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
     await connectDB();
     await BillingReminderModel.findOneAndUpdate({ reminderId: data.reminderId }, { $set: { status: "Settled" } });
     return { success: true };
-  });
+  }));
 
 const SnoozeReminderInputZ = z.object({ reminderId: z.string().min(1), newDate: z.string().min(1) });
 
 export const snoozeReminderFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SnoozeReminderInputZ.parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
     await connectDB();
     await BillingReminderModel.findOneAndUpdate(
       { reminderId: data.reminderId },
       { $set: { scheduledDate: data.newDate, status: "Pending" } }
     );
     return { success: true };
-  });
+  }));
 
 export const deleteReminderFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => ReminderIdInputZ.parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
     await connectDB();
     await BillingReminderModel.findOneAndDelete({ reminderId: data.reminderId });
     return { success: true };
-  });
+  }));

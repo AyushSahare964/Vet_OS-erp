@@ -21,6 +21,7 @@ import {
   updateStaffMemberFn,
   deleteStaffMemberFn,
 } from "@/lib/mongodb/serverFns/auth";
+import { registerTenantFn } from "@/lib/mongodb/serverFns/platform";
 
 // ─── Shared interfaces ───────────────────────────────────────────────────────
 
@@ -48,8 +49,8 @@ export interface RegisterPayload {
   email: string;
   password: string;
   phone?: string;
-  clinicName: string;
-  branch: string;
+  /** The clinic's tenant slug (e.g. "real_care_ngp") — staff join an existing clinic, they don't create one. */
+  clinicSlug: string;
   roleId: RoleId;
   licenseNumber?: string;
   qualification?: string;
@@ -61,6 +62,37 @@ export interface LoginCredentials {
   email: string;
   password: string;
   rememberMe?: boolean;
+}
+
+export interface RegisterTenantPayload {
+  clinicName: string;
+  legalName?: string;
+  clinicType: string;
+  vetCouncilRegNo?: string;
+  address: string;
+  city: string;
+  state: string;
+  pin: string;
+  phone: string;
+  whatsappNumber?: string;
+  email: string;
+  website?: string;
+  gstin?: string;
+  pan?: string;
+  isCompositionDealer?: boolean;
+  planId: "plan_basic" | "plan_professional" | "plan_enterprise";
+  adminFullName: string;
+  adminEmail: string;
+  adminPassword: string;
+  adminPhone?: string;
+  // Branding
+  tagline?: string;
+  primaryColor?: string;
+  /** Data URI (data:image/...;base64,...) of the uploaded logo, client-resized before send. */
+  logoDataUri?: string;
+  hasBoardingFacility?: boolean;
+  hasSwimmingPool?: boolean;
+  kennelCapacity?: number;
 }
 
 export interface AuthResponse {
@@ -106,6 +138,23 @@ export class AuthService {
    */
   public static async register(data: RegisterPayload): Promise<AuthResponse> {
     const res = await registerFn({ data });
+    return res;
+  }
+
+  /**
+   * Self-service clinic (tenant) registration — provisions a brand new
+   * isolated ERP workspace and immediately signs the founding admin in.
+   */
+  public static async registerTenant(data: RegisterTenantPayload): Promise<AuthResponse> {
+    const res = await registerTenantFn({ data });
+    if (res.success && res.user) {
+      _sessionCache = res.user;
+      try {
+        if (typeof sessionStorage !== "undefined" && res.accessToken) {
+          sessionStorage.setItem("vetos.access_token", res.accessToken);
+        }
+      } catch { /* ignore */ }
+    }
     return res;
   }
 

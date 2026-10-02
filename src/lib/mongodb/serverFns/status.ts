@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 
 export interface MongoStatusRow {
   connected: boolean;
@@ -11,7 +11,7 @@ export interface MongoStatusRow {
 }
 
 export const getMongoStatusFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<MongoStatusRow> => {
+  .handler(tenantScoped(async (): Promise<MongoStatusRow> => {
     const start = Date.now();
     try {
       const conn = await connectDB();
@@ -34,4 +34,4 @@ export const getMongoStatusFn = createServerFn({ method: "GET" })
         error: err instanceof Error ? err.message : "Connection failed",
       };
     }
-  });
+  }));

@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IVaccination extends Document {
   vaccinationId: string;
@@ -14,7 +15,7 @@ export interface IVaccination extends Document {
 
 const VaccinationSchema = new Schema<IVaccination>(
   {
-    vaccinationId: { type: String, required: true, unique: true, index: true },
+    vaccinationId: { type: String, required: true, index: true },
     patientId: { type: String, required: true, index: true },
     visitId: { type: String },
     vaccineType: { type: String, required: true },
@@ -24,5 +25,8 @@ const VaccinationSchema = new Schema<IVaccination>(
   },
   { timestamps: true }
 );
+
+VaccinationSchema.plugin(tenantScopePlugin);
+VaccinationSchema.index({ tenantId: 1, vaccinationId: 1 }, { unique: true });
 
 export const Vaccination = (mongoose.models["Vaccination"] || mongoose.model<IVaccination>("Vaccination", VaccinationSchema)) as mongoose.Model<IVaccination>;

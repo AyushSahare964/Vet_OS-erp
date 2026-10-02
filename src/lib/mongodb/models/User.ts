@@ -3,6 +3,7 @@
  */
 
 import mongoose from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 import type { RoleId } from "@/lib/erp/config";
 
 const { Schema, model } = mongoose;
@@ -70,6 +71,8 @@ const userSchema = new Schema<UserDocument>(
 userSchema.index({ clinicName: 1, branch: 1 });
 userSchema.index({ roleId: 1 });
 userSchema.index({ approvalStatus: 1 });
+
+userSchema.plugin(tenantScopePlugin);
 
 export const User: mongoose.Model<UserDocument> =
   (mongoose.models["User"] as mongoose.Model<UserDocument>) ??

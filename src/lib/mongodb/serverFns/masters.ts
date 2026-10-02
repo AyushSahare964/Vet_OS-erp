@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ExpenseCategoryModel, seedExpenseCategories } from "@/lib/mongodb/models/ExpenseCategory";
 import { PaymentAccountModel, seedPaymentAccounts } from "@/lib/mongodb/models/PaymentAccount";
 
@@ -14,7 +14,7 @@ export interface ExpenseCategoryRow {
   isActive: boolean;
 }
 
-export const listExpenseCategoriesFn = createServerFn({ method: "GET" }).handler(
+export const listExpenseCategoriesFn = createServerFn({ method: "GET" }).handler(tenantScoped(
   async (): Promise<ExpenseCategoryRow[]> => {
     await connectDB();
     await seedExpenseCategories();
@@ -29,9 +29,9 @@ export const listExpenseCategoriesFn = createServerFn({ method: "GET" }).handler
       isActive: d.isActive,
     }));
   },
-);
+));
 
-export const listAllExpenseCategoriesFn = createServerFn({ method: "GET" }).handler(
+export const listAllExpenseCategoriesFn = createServerFn({ method: "GET" }).handler(tenantScoped(
   async (): Promise<ExpenseCategoryRow[]> => {
     await connectDB();
     await seedExpenseCategories();
@@ -44,7 +44,7 @@ export const listAllExpenseCategoriesFn = createServerFn({ method: "GET" }).hand
       isActive: d.isActive,
     }));
   },
-);
+));
 
 export const saveExpenseCategoryFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) =>
@@ -58,7 +58,7 @@ export const saveExpenseCategoryFn = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean }> => {
     await connectDB();
     if (data._id) {
       const updateData: any = {
@@ -78,7 +78,7 @@ export const saveExpenseCategoryFn = createServerFn({ method: "POST" })
       await ExpenseCategoryModel.create(createData);
     }
     return { ok: true };
-  });
+  }));
 
 // ─── Payment Accounts ─────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ export interface PaymentAccountRow {
   isActive: boolean;
 }
 
-export const listPaymentAccountsFn = createServerFn({ method: "GET" }).handler(
+export const listPaymentAccountsFn = createServerFn({ method: "GET" }).handler(tenantScoped(
   async (): Promise<PaymentAccountRow[]> => {
     await connectDB();
     await seedPaymentAccounts();
@@ -105,7 +105,7 @@ export const listPaymentAccountsFn = createServerFn({ method: "GET" }).handler(
       isActive: d.isActive,
     }));
   },
-);
+));
 
 export const savePaymentAccountFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) =>
@@ -119,7 +119,7 @@ export const savePaymentAccountFn = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean }> => {
     await connectDB();
     if (data.type === "BANK" && data.isDefault) {
       // Un-default all other bank accounts
@@ -138,7 +138,7 @@ export const savePaymentAccountFn = createServerFn({ method: "POST" })
       await PaymentAccountModel.create(updateData);
     }
     return { ok: true };
-  });
+  }));
 
 // ─── Suppliers Master ─────────────────────────────────────────────────────────
 
@@ -159,7 +159,7 @@ export interface SupplierMasterRow {
   isActive: boolean;
 }
 
-export const listSuppliersFn = createServerFn({ method: "GET" }).handler(
+export const listSuppliersFn = createServerFn({ method: "GET" }).handler(tenantScoped(
   async (): Promise<SupplierMasterRow[]> => {
     await connectDB();
     await seedSuppliers();
@@ -179,7 +179,7 @@ export const listSuppliersFn = createServerFn({ method: "GET" }).handler(
       isActive: d.isActive,
     }));
   },
-);
+));
 
 export const saveSupplierFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) =>
@@ -209,7 +209,7 @@ export const saveSupplierFn = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<{ ok: boolean; _id: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean; _id: string }> => {
     await connectDB();
     const updateData: any = {
       name: data.name,
@@ -251,4 +251,4 @@ export const saveSupplierFn = createServerFn({ method: "POST" })
     );
 
     return { ok: true, _id: supplierId };
-  });
+  }));

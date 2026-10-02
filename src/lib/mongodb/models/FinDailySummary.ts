@@ -8,6 +8,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IFinDailySummary extends Document {
   branchId: string;
@@ -46,7 +47,9 @@ const FinDailySummarySchema = new Schema<IFinDailySummary>(
   { timestamps: true, collection: "fin_daily_summary" },
 );
 
-FinDailySummarySchema.index({ branchId: 1, date: 1 }, { unique: true });
+FinDailySummarySchema.index({ tenantId: 1, branchId: 1, date: 1 }, { unique: true });
+
+FinDailySummarySchema.plugin(tenantScopePlugin);
 
 export const FinDailySummaryModel =
   (mongoose.models["FinDailySummary"] as mongoose.Model<IFinDailySummary>) ??

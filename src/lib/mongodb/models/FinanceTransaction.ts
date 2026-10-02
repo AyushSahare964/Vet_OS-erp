@@ -8,6 +8,7 @@
  */
 
 import mongoose from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 const { Schema, model } = mongoose;
 
@@ -195,6 +196,8 @@ const financeTransactionSchema = new Schema<FinanceTransactionDocument>(
 );
 
 financeTransactionSchema.index({ type: 1, createdAt: -1 });
+
+financeTransactionSchema.plugin(tenantScopePlugin);
 
 export const FinanceTransaction: mongoose.Model<FinanceTransactionDocument> =
   (mongoose.models[

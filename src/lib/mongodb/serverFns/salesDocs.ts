@@ -13,7 +13,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { withTransaction, sessionOpt } from "@/lib/mongodb/txn";
 import { docPayload, docPayloads } from "@/lib/mongodb/docPayload";
 import {
@@ -334,16 +334,16 @@ async function priceDocument(
 
 export const previewSalesDocFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SalesDocInputZ.parse(raw))
-  .handler(async ({ data }): Promise<{ lines: ISalesLine[]; totals: SalesDocTotals }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ lines: ISalesLine[]; totals: SalesDocTotals }> => {
     await connectDB();
     return priceDocument(data);
-  });
+  }));
 
 // ─── Draft create / update ────────────────────────────────────────────────────
 
 export const createDraftSalesDocFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SalesDocInputZ.parse(raw))
-  .handler(async ({ data }): Promise<SalesDocDetail> => {
+  .handler(tenantScoped(async ({ data }): Promise<SalesDocDetail> => {
     await connectDB();
     const { lines, totals } = await priceDocument(data);
 
@@ -362,11 +362,11 @@ export const createDraftSalesDocFn = createServerFn({ method: "POST" })
     );
 
     return toDetail(created.toObject() as unknown as Record<string, unknown>);
-  });
+  }));
 
 export const updateDraftSalesDocFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SalesDocInputZ.extend({ id: z.string().min(1) }).parse(raw))
-  .handler(async ({ data }): Promise<SalesDocDetail> => {
+  .handler(tenantScoped(async ({ data }): Promise<SalesDocDetail> => {
     await connectDB();
 
     const existing = await SalesDocModel.findById(data.id).lean();
@@ -389,7 +389,7 @@ export const updateDraftSalesDocFn = createServerFn({ method: "POST" })
     if (!updated) throw new Error("Document not found");
 
     return toDetail(updated as unknown as Record<string, unknown>);
-  });
+  }));
 
 // ─── FEFO batch allocation ────────────────────────────────────────────────────
 
@@ -407,10 +407,10 @@ export const allocateFefoFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) =>
     z.object({ itemCode: z.string().min(1), qty: z.number().min(0) }).parse(raw),
   )
-  .handler(async ({ data }): Promise<BatchSuggestion[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<BatchSuggestion[]> => {
     await connectDB();
     return suggestBatches(data.itemCode, data.qty);
-  });
+  }));
 
 /**
  * First-Expiry-First-Out. Expired batches are never offered — selling an
@@ -480,7 +480,7 @@ export interface PostResult {
 
 export const postSalesDocFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => PostInputZ.parse(raw))
-  .handler(async ({ data }): Promise<PostResult> => {
+  .handler(tenantScoped(async ({ data }): Promise<PostResult> => {
     await connectDB();
 
     const doc = await SalesDocModel.findById(data.id).lean();
@@ -684,7 +684,7 @@ export const postSalesDocFn = createServerFn({ method: "POST" })
     });
 
     return result;
-  });
+  }));
 
 /**
  * Write one stock movement per stockable line.
@@ -812,7 +812,7 @@ export const cancelSalesDocFn = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<{ ok: boolean; docNumber: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean; docNumber: string }> => {
     await connectDB();
 
     const doc = await SalesDocModel.findById(data.id).lean();
@@ -910,7 +910,7 @@ export const cancelSalesDocFn = createServerFn({ method: "POST" })
     });
 
     return { ok: true, docNumber };
-  });
+  }));
 
 // ─── Reads ────────────────────────────────────────────────────────────────────
 
@@ -930,7 +930,7 @@ export const listSalesDocsFn = createServerFn({ method: "GET" })
       })
       .parse(raw ?? {}),
   )
-  .handler(async ({ data }): Promise<{ rows: SalesDocRow[]; total: number }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ rows: SalesDocRow[]; total: number }> => {
     await connectDB();
 
     const filter: Record<string, unknown> = {};
@@ -967,26 +967,26 @@ export const listSalesDocsFn = createServerFn({ method: "GET" })
     ]);
 
     return { rows: docs.map((d) => toRow(d as unknown as Record<string, unknown>)), total };
-  });
+  }));
 
 export const getSalesDocFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) =>
     z.object({ id: z.string().optional(), docNumber: z.string().optional() }).parse(raw),
   )
-  .handler(async ({ data }): Promise<SalesDocDetail> => {
+  .handler(tenantScoped(async ({ data }): Promise<SalesDocDetail> => {
     await connectDB();
     const doc = data.id
       ? await SalesDocModel.findById(data.id).lean()
       : await SalesDocModel.findOne({ docNumber: String(data.docNumber ?? "") }).lean();
     if (!doc) throw new Error("Document not found");
     return toDetail(doc as unknown as Record<string, unknown>);
-  });
+  }));
 
 // ─── Quotation → invoice ──────────────────────────────────────────────────────
 
 export const convertQuotationFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ id: z.string().min(1) }).parse(raw))
-  .handler(async ({ data }): Promise<SalesDocDetail> => {
+  .handler(tenantScoped(async ({ data }): Promise<SalesDocDetail> => {
     await connectDB();
 
     const q = await SalesDocModel.findById(data.id).lean();
@@ -1024,7 +1024,7 @@ export const convertQuotationFn = createServerFn({ method: "POST" })
     );
 
     return toDetail(draft.toObject() as unknown as Record<string, unknown>);
-  });
+  }));
 
 // ─── Credit note from an invoice ──────────────────────────────────────────────
 
@@ -1039,7 +1039,7 @@ export const createCreditNoteFn = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<SalesDocDetail> => {
+  .handler(tenantScoped(async ({ data }): Promise<SalesDocDetail> => {
     await connectDB();
 
     const inv = await SalesDocModel.findById(data.sourceInvoiceId).lean();
@@ -1109,7 +1109,7 @@ export const createCreditNoteFn = createServerFn({ method: "POST" })
     );
 
     return toDetail(created.toObject() as unknown as Record<string, unknown>);
-  });
+  }));
 
 // ─── Print payload ────────────────────────────────────────────────────────────
 
@@ -1133,7 +1133,7 @@ export interface InvoicePrintPayload {
 
 export const getInvoicePrintPayloadFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ id: z.string().min(1) }).parse(raw))
-  .handler(async ({ data }): Promise<InvoicePrintPayload> => {
+  .handler(tenantScoped(async ({ data }): Promise<InvoicePrintPayload> => {
     await connectDB();
 
     const doc = await SalesDocModel.findById(data.id).lean();
@@ -1194,7 +1194,7 @@ export const getInvoicePrintPayloadFn = createServerFn({ method: "GET" })
         ),
       })),
     };
-  });
+  }));
 
 const ONES = [
   "",

@@ -4,6 +4,7 @@
  */
 
 import mongoose, { Schema, model } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface ICounter {
   _id: string; // counter name e.g. "inventory_item"
@@ -17,6 +18,8 @@ const counterSchema = new Schema<ICounter>(
   },
   { collection: "counters", versionKey: false }
 );
+
+counterSchema.plugin(tenantScopePlugin);
 
 export const Counter: mongoose.Model<ICounter> =
   (mongoose.models["Counter"] as mongoose.Model<ICounter>) ??

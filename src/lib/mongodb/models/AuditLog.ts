@@ -7,6 +7,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export type AuditAction =
   | "CREATE"
@@ -69,6 +70,8 @@ const AuditLogSchema = new Schema<IAuditLog>(
 
 AuditLogSchema.index({ entity: 1, entityId: 1, at: -1 });
 AuditLogSchema.index({ at: -1 });
+
+AuditLogSchema.plugin(tenantScopePlugin);
 
 export const AuditLogModel =
   (mongoose.models["AuditLog"] as mongoose.Model<IAuditLog>) ??

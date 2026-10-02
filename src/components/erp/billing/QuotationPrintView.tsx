@@ -2,7 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, FileText, Download } from "lucide-react";
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
-import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 interface Props {
   quotation: any;
@@ -16,6 +16,7 @@ interface Props {
  * on its own live data-entry form instead of a document like this.
  */
 export function QuotationPrintView({ quotation, open, onClose }: Props) {
+  const CLINIC_CONFIG = useClinicBranding();
   const isGst = quotation?.quotationType === "GST" || quotation?.quotationType === undefined;
 
   const handlePrint = () => {
@@ -56,7 +57,7 @@ export function QuotationPrintView({ quotation, open, onClose }: Props) {
                 <h1 className="text-xl font-black tracking-tight text-blue-900">{CLINIC_CONFIG.fullName}</h1>
                 <p className="text-[11px] font-semibold text-blue-800">{CLINIC_CONFIG.subName}</p>
                 <p className="text-xs text-gray-700 font-semibold mt-0.5">{CLINIC_CONFIG.doctorName}</p>
-                <p className="text-xs text-gray-600">Phone: {CLINIC_CONFIG.phone} · {CLINIC_CONFIG.website}</p>
+                <p className="text-xs text-gray-600">Phone: {[CLINIC_CONFIG.phone, CLINIC_CONFIG.website].filter(Boolean).join(" · ")}</p>
                 {isGst && CLINIC_CONFIG.gstin && <p className="text-xs font-mono font-bold text-gray-800">GSTIN: {CLINIC_CONFIG.gstin}</p>}
                 <p className="text-xs text-gray-600">{CLINIC_CONFIG.addressLine2}</p>
               </div>
@@ -156,7 +157,7 @@ export function QuotationPrintView({ quotation, open, onClose }: Props) {
               <p>• Prices are subject to change after the validity period.</p>
             </div>
             <div className="text-right">
-              <p className="font-bold text-gray-700">For Real Care Small Animal Clinic</p>
+              <p className="font-bold text-gray-700">For {CLINIC_CONFIG.fullName}</p>
               <p className="pt-6 text-gray-400">Authorized Signatory</p>
             </div>
           </div>

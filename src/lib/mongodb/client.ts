@@ -1,5 +1,9 @@
 import dns from "node:dns";
 import * as mongooseModule from "mongoose";
+import { getCookie } from "@tanstack/react-start/server";
+import { verifyRefreshToken } from "./tokens";
+import { runWithTenant, type TenantContext } from "./tenantContext";
+import { User } from "./models/User";
 
 // Only configure custom DNS servers on Windows local dev to resolve local ISP issues
 if (typeof process !== "undefined" && process.platform === "win32" && typeof dns.setServers === "function") {
@@ -50,6 +54,62 @@ function getMongoUri(): string {
   raw = raw.trim().replace(/^["']|["']$/g, "").trim();
 
   return raw || DEFAULT_URI;
+}
+
+/**
+ * Resolves the current request's tenant from its session cookie. Returns
+ * undefined for no cookie / invalid token / user not found — that's
+ * required, not a bug: loginFn's initial "find this user by email" lookup
+ * happens before we know the tenant, and offline scripts (migrations) have
+ * no cookie at all, so both must run unscoped.
+ */
+async function resolveCurrentTenant(): Promise<TenantContext | undefined> {
+  let rawToken: string | undefined;
+  try {
+    rawToken = getCookie("vetos_refresh");
+  } catch {
+    return undefined; // not inside a server request (e.g. a migration script)
+  }
+  if (!rawToken) return undefined;
+
+  try {
+    const payload = verifyRefreshToken(rawToken);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const user = await User.findById(payload.sub).select("tenantId roleId").lean() as any;
+    if (user?.tenantId) {
+      return { tenantId: String(user.tenantId), userId: payload.sub, roleId: String(user.roleId ?? "") };
+    }
+    return undefined;
+  } catch {
+    return undefined; // invalid/expired refresh token
+  }
+}
+
+/**
+ * Wraps a server function handler so every Mongoose query it (or anything
+ * it calls) makes is transparently scoped to the requesting user's tenant.
+ *
+ * Why this exists instead of just calling enterWith() inside connectDB():
+ * AsyncLocalStorage.enterWith() sets the store for "the rest of the current
+ * execution," but in this TanStack Start / Nitro dev setup that guarantee
+ * does not survive the return from connectDB() back into the handler's own
+ * subsequent awaits — confirmed by direct instrumentation (same storage
+ * instance, enterWith called, the very next read already sees undefined).
+ * storage.run(ctx, fn), where the actual query awaits happen *inside* fn,
+ * reliably works because the whole continuation starts inside run()'s
+ * synchronous window rather than crossing back out of it first.
+ */
+export function tenantScoped<Args extends unknown[], Ret>(
+  fn: (...args: Args) => Promise<Ret>,
+): (...args: Args) => Promise<Ret> {
+  return async (...args: Args): Promise<Ret> => {
+    await connectDB();
+    const ctx = await resolveCurrentTenant();
+    if (ctx) {
+      return runWithTenant(ctx, () => fn(...args));
+    }
+    return fn(...args);
+  };
 }
 
 export async function connectDB(): Promise<typeof mongoose> {

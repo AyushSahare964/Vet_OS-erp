@@ -8,7 +8,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { InventoryItem } from "@/lib/mongodb/models/InventoryItem";
 import { StockBatch } from "@/lib/mongodb/models/StockBatch";
 import { ErpRow } from "@/lib/mongodb/models/ErpRow";
@@ -311,7 +311,7 @@ export const getItemsFn = createServerFn({ method: "GET" })
       search: z.string().optional(),
     }).optional().parse(raw)
   )
-  .handler(async ({ data }): Promise<InventoryItemRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<InventoryItemRow[]> => {
     await connectDB();
 
     const query: Record<string, unknown> = {};
@@ -345,7 +345,7 @@ export const getItemsFn = createServerFn({ method: "GET" })
 
     const docs = await InventoryItem.find(query).sort({ itemCode: 1 }).lean();
     return toPlain(docs) as unknown as InventoryItemRow[];
-  });
+  }));
 
 // ─── peekItemCodeFn ───────────────────────────────────────────────────────────
 
@@ -355,17 +355,17 @@ export const peekItemCodeFn = createServerFn({ method: "GET" })
       type: z.enum(["MEDICINE", "INJECTION", "FOOD", "ACCESSORY"]).optional(),
     }).optional().parse(raw)
   )
-  .handler(async ({ data }): Promise<string> => {
+  .handler(tenantScoped(async ({ data }): Promise<string> => {
     await connectDB();
     const prefix = productTypePrefix(data?.type);
     return peekNextSeq("inventory_item_" + prefix, prefix, 4);
-  });
+  }));
 
 // ─── addItemFn ────────────────────────────────────────────────────────────────
 
 export const addItemFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => InventoryItemInputZ.parse(raw))
-  .handler(async ({ data }): Promise<InventoryItemRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<InventoryItemRow> => {
     await connectDB();
     const prefix = productTypePrefix(data.productType);
     const itemCode = await nextSeq("inventory_item_" + prefix, prefix, 4);
@@ -397,7 +397,7 @@ export const addItemFn = createServerFn({ method: "POST" })
     }
 
     return toPlain(newItem.toObject()) as unknown as InventoryItemRow;
-  });
+  }));
 
 // ─── updateItemFn ─────────────────────────────────────────────────────────────
 
@@ -408,7 +408,7 @@ export const updateItemFn = createServerFn({ method: "POST" })
       patch: InventoryItemInputZ.partial(),
     }).parse(raw)
   )
-  .handler(async ({ data }): Promise<InventoryItemRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<InventoryItemRow> => {
     await connectDB();
     // Enforce immutability: productType cannot be modified post-creation (§3.1, §4.1, §5)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -421,7 +421,7 @@ export const updateItemFn = createServerFn({ method: "POST" })
     ).lean();
     if (!updated) throw new Error(`Item not found: ${data.itemCode}`);
     return toPlain(updated) as unknown as InventoryItemRow;
-  });
+  }));
 
 // ─── toggleItemStatusFn ───────────────────────────────────────────────────────
 
@@ -432,31 +432,31 @@ export const toggleItemStatusFn = createServerFn({ method: "POST" })
       status: z.enum(["Active", "Inactive"]),
     }).parse(raw)
   )
-  .handler(async ({ data }): Promise<{ success: boolean; status: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean; status: string }> => {
     await connectDB();
     await InventoryItem.findOneAndUpdate({ itemCode: data.itemCode }, { status: data.status });
     return { success: true, status: data.status };
-  });
+  }));
 
 // ─── deactivateItemFn ─────────────────────────────────────────────────────────
 
 export const deactivateItemFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ itemCode: z.string() }).parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
     await connectDB();
     await InventoryItem.findOneAndUpdate({ itemCode: data.itemCode }, { status: "Inactive" });
     return { success: true };
-  });
+  }));
 
 // ─── deleteItemFn ─────────────────────────────────────────────────────────────
 
 export const deleteItemFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ itemCode: z.string().min(1) }).parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
     await connectDB();
     await InventoryItem.findOneAndDelete({ itemCode: data.itemCode });
     return { success: true };
-  });
+  }));
 
 // ─── setItemStockFn ───────────────────────────────────────────────────────────
 // Direct, manual stock-quantity override for the catalogue's inline "set stock" control.
@@ -471,7 +471,7 @@ export const setItemStockFn = createServerFn({ method: "POST" })
       actor: z.string().optional(),
     }).parse(raw)
   )
-  .handler(async ({ data }): Promise<InventoryItemRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<InventoryItemRow> => {
     await connectDB();
     const item = await InventoryItem.findOne({ itemCode: data.itemCode });
     if (!item) throw new Error(`Item not found: ${data.itemCode}`);
@@ -502,13 +502,13 @@ export const setItemStockFn = createServerFn({ method: "POST" })
     }
 
     return toPlain(item.toObject ? item.toObject() : item) as unknown as InventoryItemRow;
-  });
+  }));
 
 // ─── addStockFn ───────────────────────────────────────────────────────────────
 
 export const addStockFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => StockBatchInputZ.parse(raw))
-  .handler(async ({ data }): Promise<StockBatchRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<StockBatchRow> => {
     await connectDB();
 
     const batchCode = await nextSeq("stock_batch", "B", 4);
@@ -549,13 +549,13 @@ export const addStockFn = createServerFn({ method: "POST" })
     });
 
     return toPlain(batch.toObject()) as unknown as StockBatchRow;
-  });
+  }));
 
 // ─── adjustStockFn ────────────────────────────────────────────────────────────
 
 export const adjustStockFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => StockAdjustmentInputZ.parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean; newQty: number; referenceNo: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean; newQty: number; referenceNo: string }> => {
     await connectDB();
 
     const isIn = data.movementType === "adjustment_in" || data.movementType === "transfer";
@@ -636,19 +636,19 @@ export const adjustStockFn = createServerFn({ method: "POST" })
     });
 
     return { success: true, newQty: newStock, referenceNo: adjRef };
-  });
+  }));
 
 // ─── getBatchesFn ─────────────────────────────────────────────────────────────
 
 export const getBatchesFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ itemCode: z.string() }).parse(raw))
-  .handler(async ({ data }): Promise<StockBatchRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<StockBatchRow[]> => {
     await connectDB();
     const docs = await StockBatch.find({ itemCode: data.itemCode, status: { $ne: "Rejected" } })
       .sort({ expiryDate: 1 })
       .lean();
     return toPlain(docs) as unknown as StockBatchRow[];
-  });
+  }));
 
 // ─── getLedgerFn ──────────────────────────────────────────────────────────────
 
@@ -659,10 +659,10 @@ export const getLedgerFn = createServerFn({ method: "GET" })
       limit: z.number().int().min(1).max(500).default(100),
     }).parse(raw)
   )
-  .handler(async ({ data }): Promise<LedgerEntryRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<LedgerEntryRow[]> => {
     await connectDB();
     const filter: Record<string, unknown> = { moduleId: "inventory_ledger" };
     if (data.itemCode) filter["data.medicineId"] = data.itemCode;
     const docs = await ErpRow.find(filter).sort({ createdAt: -1 }).limit(data.limit).lean();
     return toPlain(docs.map((d) => d.data)) as unknown as LedgerEntryRow[];
-  });
+  }));

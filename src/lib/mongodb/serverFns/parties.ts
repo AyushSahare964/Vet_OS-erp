@@ -9,7 +9,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { PartyModel } from "@/lib/mongodb/models/Party";
 import { Owner } from "@/lib/mongodb/models/Owner";
 import {
@@ -264,7 +264,7 @@ export const listPartiesFn = createServerFn({ method: "GET" })
       })
       .parse(raw ?? {}),
   )
-  .handler(async ({ data }): Promise<PartyRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<PartyRow[]> => {
     await connectDB();
 
     const filter: Record<string, unknown> = {};
@@ -291,7 +291,7 @@ export const listPartiesFn = createServerFn({ method: "GET" })
 
     const balances = await computeBalances(rows.map((p) => p.partyId));
     return rows.map((p) => ({ ...p, balance: balances.get(p.partyId) ?? 0 }));
-  });
+  }));
 
 export const searchPartiesFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) =>
@@ -303,7 +303,7 @@ export const searchPartiesFn = createServerFn({ method: "GET" })
       })
       .parse(raw ?? {}),
   )
-  .handler(async ({ data }): Promise<PartyPickerRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<PartyPickerRow[]> => {
     await connectDB();
     const q = data.q.trim();
     // Type-ahead starts at 2 characters — one character matches nearly every
@@ -340,24 +340,24 @@ export const searchPartiesFn = createServerFn({ method: "GET" })
         ownerId: r.ownerId,
       };
     });
-  });
+  }));
 
 export const getPartyFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ partyId: z.string().min(1) }).parse(raw))
-  .handler(async ({ data }): Promise<PartyRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<PartyRow> => {
     await connectDB();
     const doc = await PartyModel.findOne({ partyId: data.partyId }).lean();
     if (!doc) throw new Error(`Party ${data.partyId} not found`);
     const row = toRow(doc as unknown as Record<string, unknown>);
     row.balance = await computePartyBalance(data.partyId);
     return row;
-  });
+  }));
 
 // ─── Write ────────────────────────────────────────────────────────────────────
 
 export const savePartyFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SavePartyInputZ.parse(raw))
-  .handler(async ({ data }): Promise<PartyRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<PartyRow> => {
     await connectDB();
 
     const errors = validateParty(data);
@@ -426,7 +426,7 @@ export const savePartyFn = createServerFn({ method: "POST" })
     }
 
     return toRow(created.toObject() as unknown as Record<string, unknown>);
-  });
+  }));
 
 /**
  * Opening balance is a ledger row like any other, not a special column.
@@ -468,7 +468,7 @@ export const getPartyLedgerFn = createServerFn({ method: "GET" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }): Promise<PartyLedgerResult> => {
+  .handler(tenantScoped(async ({ data }): Promise<PartyLedgerResult> => {
     await connectDB();
 
     const filter: Record<string, unknown> = { partyId: data.partyId };
@@ -521,16 +521,16 @@ export const getPartyLedgerFn = createServerFn({ method: "GET" })
       entries,
       nextCursor: docs.length === data.limit ? String(docs[docs.length - 1]?._id ?? "") : null,
     };
-  });
+  }));
 
 // ─── Outstanding + ageing ─────────────────────────────────────────────────────
 
 export const getPartyOutstandingFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ partyId: z.string().min(1) }).parse(raw))
-  .handler(async ({ data }): Promise<PartyOutstandingResult> => {
+  .handler(tenantScoped(async ({ data }): Promise<PartyOutstandingResult> => {
     await connectDB();
     return computeOutstanding(data.partyId);
-  });
+  }));
 
 export async function computeOutstanding(partyId: string): Promise<PartyOutstandingResult> {
   const party = await PartyModel.findOne({ partyId }).lean();
@@ -583,10 +583,10 @@ export const checkCreditFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) =>
     z.object({ partyId: z.string().min(1), amount: z.number().min(0) }).parse(raw),
   )
-  .handler(async ({ data }): Promise<CreditCheckResult> => {
+  .handler(tenantScoped(async ({ data }): Promise<CreditCheckResult> => {
     await connectDB();
     return evaluateCredit(data.partyId, data.amount);
-  });
+  }));
 
 /**
  * Shared by the UI pre-check and the posting transaction. Posting re-runs this
@@ -685,7 +685,7 @@ export const setPartyActiveFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) =>
     z.object({ partyId: z.string().min(1), isActive: z.boolean() }).parse(raw),
   )
-  .handler(async ({ data }): Promise<PartyRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<PartyRow> => {
     await connectDB();
     const updated = await PartyModel.findOneAndUpdate(
       { partyId: data.partyId },
@@ -694,7 +694,7 @@ export const setPartyActiveFn = createServerFn({ method: "POST" })
     ).lean();
     if (!updated) throw new Error(`Party ${data.partyId} not found`);
     return toRow(updated as unknown as Record<string, unknown>);
-  });
+  }));
 
 // ─── Keep-in-sync helpers (called from crm.ts / masters.ts) ───────────────────
 //

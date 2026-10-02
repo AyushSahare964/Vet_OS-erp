@@ -5,6 +5,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IOrgBranch extends Document {
   code: string;
@@ -33,7 +34,7 @@ export interface IOrgBranch extends Document {
 
 const OrgBranchSchema = new Schema<IOrgBranch>(
   {
-    code: { type: String, required: true, unique: true, trim: true, uppercase: true },
+    code: { type: String, required: true, trim: true, uppercase: true },
     name: { type: String, required: true, trim: true },
     legalName: { type: String, default: "" },
     gstin: { type: String, default: "", uppercase: true, trim: true },
@@ -52,6 +53,9 @@ const OrgBranchSchema = new Schema<IOrgBranch>(
   },
   { timestamps: true, collection: "org_branches" },
 );
+
+OrgBranchSchema.plugin(tenantScopePlugin);
+OrgBranchSchema.index({ tenantId: 1, code: 1 }, { unique: true });
 
 export const OrgBranchModel =
   (mongoose.models["OrgBranch"] as mongoose.Model<IOrgBranch>) ??

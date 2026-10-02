@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { Owner } from "@/lib/mongodb/models/Owner";
 import { Pet } from "@/lib/mongodb/models/Pet";
 import { ClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
@@ -221,7 +221,7 @@ function resolveDateRange(range: string, customStart?: string, customEnd?: strin
 
 export const getCentralAnalyticsFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => analyticsQuerySchema.parse(raw))
-  .handler(async ({ data }): Promise<AnalyticsResponse> => {
+  .handler(tenantScoped(async ({ data }): Promise<AnalyticsResponse> => {
     await connectDB();
 
     const { start, end, label: dateRangeLabel } = resolveDateRange(
@@ -919,4 +919,4 @@ export const getCentralAnalyticsFn = createServerFn({ method: "POST" })
       },
       insights,
     });
-  });
+  }));

@@ -2,7 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, FlaskConical, FileCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
 
@@ -14,6 +14,7 @@ interface Props {
 }
 
 export function LabReportPrintModal({ open, onClose, order, onEditResults }: Props) {
+  const CLINIC_CONFIG = useClinicBranding();
   if (!order) return null;
 
   const handlePrint = () => {

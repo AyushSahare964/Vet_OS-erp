@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Shell } from "@/components/erp/Shell";
 import { listInvoicesFn } from "@/lib/mongodb/serverFns/billing";
 import { InventoryProvider } from "@/components/erp/inventory/useInventoryStore";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 // One-Page Dashboard Component & Right Rail
 import { BillingDeskDashboard } from "./BillingDeskDashboard";
@@ -22,6 +23,7 @@ import { DailySummaryModal } from "./DailySummaryModal";
 import { StockSummaryModal } from "./StockSummaryModal";
 
 function PatientBillingHubInner() {
+  const CLINIC_CONFIG = useClinicBranding();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -114,7 +116,7 @@ function PatientBillingHubInner() {
   }, []);
 
   return (
-    <Shell title="Billing Desk — Real Care Small Animal Clinic">
+    <Shell title={`Billing Desk — ${CLINIC_CONFIG.fullName}`}>
       <div className="flex gap-4 items-start mx-auto max-w-[1720px]">
         {/* ── Main Scrolling Dashboard Area ── */}
         <div className="flex-1 min-w-0">

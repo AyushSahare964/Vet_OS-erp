@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IFoodPurchase extends Document {
   purchaseId: string;
@@ -15,7 +16,7 @@ export interface IFoodPurchase extends Document {
 
 const FoodPurchaseSchema = new Schema<IFoodPurchase>(
   {
-    purchaseId: { type: String, required: true, unique: true, index: true },
+    purchaseId: { type: String, required: true, index: true },
     patientId: { type: String, required: true, index: true },
     visitId: { type: String },
     itemId: { type: String, required: true },
@@ -26,5 +27,8 @@ const FoodPurchaseSchema = new Schema<IFoodPurchase>(
   },
   { timestamps: true }
 );
+
+FoodPurchaseSchema.plugin(tenantScopePlugin);
+FoodPurchaseSchema.index({ tenantId: 1, purchaseId: 1 }, { unique: true });
 
 export const FoodPurchase = (mongoose.models["FoodPurchase"] || mongoose.model<IFoodPurchase>("FoodPurchase", FoodPurchaseSchema)) as mongoose.Model<IFoodPurchase>;

@@ -11,6 +11,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 import { roundMoney } from "@/lib/utils/moneyUtils";
 
 export type PaymentDirection = "IN" | "OUT";
@@ -151,16 +152,18 @@ const PaymentDocSchema = new Schema<IPaymentDoc>(
 );
 
 PaymentDocSchema.index(
-  { direction: 1, docNumber: 1 },
+  { tenantId: 1, direction: 1, docNumber: 1 },
   { unique: true, partialFilterExpression: { docNumber: { $gt: "" } } },
 );
 // Sparse-unique: the retry guard. Blank keys never collide.
 PaymentDocSchema.index(
-  { idempotencyKey: 1 },
+  { tenantId: 1, idempotencyKey: 1 },
   { unique: true, partialFilterExpression: { idempotencyKey: { $gt: "" } } },
 );
 PaymentDocSchema.index({ partyId: 1, docDate: -1 });
 PaymentDocSchema.index({ "splits.clearingStatus": 1 });
+
+PaymentDocSchema.plugin(tenantScopePlugin);
 
 export const PaymentDocModel =
   (mongoose.models["PaymentDoc"] as mongoose.Model<IPaymentDoc>) ??

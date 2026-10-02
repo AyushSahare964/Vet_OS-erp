@@ -25,6 +25,7 @@ import { BillingHub } from "@/components/erp/billing/BillingHub";
 import { FoodNutritionHub } from "@/components/erp/nutrition/FoodNutritionHub";
 import { ClinicalReportsHub } from "@/components/erp/reports/ClinicalReportsHub";
 import { IdentityAccessHub } from "@/components/erp/identity/IdentityAccessHub";
+import { PlatformTenantsHub } from "@/components/erp/platform/PlatformTenantsHub";
 import { KpiCard } from "@/components/erp/KpiCard";
 
 
@@ -208,6 +209,11 @@ function ModulePage() {
     moduleId === "roles"
   ) {
     return <IdentityAccessHub />;
+  }
+
+  // ── Platform module → real cross-tenant admin dashboard ──
+  if (moduleId === "tenants" || moduleId === "platform-tenants") {
+    return <PlatformTenantsHub />;
   }
 
 

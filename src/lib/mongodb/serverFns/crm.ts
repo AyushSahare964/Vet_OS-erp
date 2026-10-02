@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { Owner, type IOwner } from "@/lib/mongodb/models/Owner";
 import { Pet, type IPet } from "@/lib/mongodb/models/Pet";
 import { nextSeq, peekNextSeq } from "./counters";
@@ -105,19 +105,19 @@ const UpdateOwnerInputZ = z.object({
 
 // ─── Server Functions ─────────────────────────────────────────────────────────
 
-export const peekNextOwnerIdFn = createServerFn({ method: "GET" }).handler(async () => {
+export const peekNextOwnerIdFn = createServerFn({ method: "GET" }).handler(tenantScoped(async () => {
   await ensureCRMSeeded();
   return peekNextSeq("owner", "OWN", 4, maxOwnerSeq);
-});
+}));
 
-export const peekNextPetIdFn = createServerFn({ method: "GET" }).handler(async () => {
+export const peekNextPetIdFn = createServerFn({ method: "GET" }).handler(tenantScoped(async () => {
   await ensureCRMSeeded();
   return peekNextSeq("pet", "PET", 4, maxPetSeq);
-});
+}));
 
 export const searchOwnersFn = createServerFn({ method: "GET" })
   .validator((query: unknown) => (typeof query === "string" ? query : ""))
-  .handler(async ({ data: query }: { data: string }) => {
+  .handler(tenantScoped(async ({ data: query }: { data: string }) => {
     await ensureCRMSeeded();
     const filter = query.trim()
       ? {
@@ -140,9 +140,9 @@ export const searchOwnersFn = createServerFn({ method: "GET" })
     }));
 
     return toPlain<any[]>(result);
-  });
+  }));
 
-export const listOwnersWithPetsFn = createServerFn({ method: "GET" }).handler(async () => {
+export const listOwnersWithPetsFn = createServerFn({ method: "GET" }).handler(tenantScoped(async () => {
   try {
     await ensureCRMSeeded();
     const owners = await Owner.find({}).sort({ createdAt: -1 }).limit(200).lean();
@@ -163,9 +163,9 @@ export const listOwnersWithPetsFn = createServerFn({ method: "GET" }).handler(as
     }));
     return toPlain<any[]>(result);
   }
-});
+}));
 
-export const listPetsWithOwnersFn = createServerFn({ method: "GET" }).handler(async () => {
+export const listPetsWithOwnersFn = createServerFn({ method: "GET" }).handler(tenantScoped(async () => {
   try {
     await ensureCRMSeeded();
     const pets = await Pet.find({}).sort({ createdAt: -1 }).limit(200).lean();
@@ -196,11 +196,11 @@ export const listPetsWithOwnersFn = createServerFn({ method: "GET" }).handler(as
     }));
     return toPlain<any[]>(result);
   }
-});
+}));
 
 export const createOwnerFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => CreateOwnerInputZ.parse(data))
-  .handler(async ({ data }: { data: z.infer<typeof CreateOwnerInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof CreateOwnerInputZ> }) => {
     await connectDB();
     const ownerId = await nextSeq("owner", "OWN", 4, maxOwnerSeq);
     const docPayload: any = { ...data, ownerId };
@@ -211,29 +211,29 @@ export const createOwnerFn = createServerFn({ method: "POST" })
       console.error("[CRM] syncPartyForOwner failed for", ownerId, err),
     );
     return toPlain<any>(newOwner.toObject ? newOwner.toObject() : newOwner);
-  });
+  }));
 
 export const createPetFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => CreatePetInputZ.parse(data))
-  .handler(async ({ data }: { data: z.infer<typeof CreatePetInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof CreatePetInputZ> }) => {
     await connectDB();
     const petId = await nextSeq("pet", "PET", 4, maxPetSeq);
     const docPayload: any = { ...data, petId };
     const newPet = await Pet.create(docPayload);
     return toPlain<any>(newPet.toObject ? newPet.toObject() : newPet);
-  });
+  }));
 
 export const getPetFn = createServerFn({ method: "GET" })
   .validator((data: unknown) => z.object({ petId: z.string() }).parse(data))
-  .handler(async ({ data }: { data: { petId: string } }) => {
+  .handler(tenantScoped(async ({ data }: { data: { petId: string } }) => {
     await connectDB();
     const pet = await Pet.findOne({ petId: data.petId }).lean();
     return toPlain<any>(pet);
-  });
+  }));
 
 export const createOwnerWithMultiplePetsFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => CreateOwnerWithMultiplePetsInputZ.parse(data))
-  .handler(async ({ data }: { data: z.infer<typeof CreateOwnerWithMultiplePetsInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof CreateOwnerWithMultiplePetsInputZ> }) => {
     await connectDB();
     // 1. Create owner with auto-generated ID
     const ownerId = await nextSeq("owner", "OWN", 4, maxOwnerSeq);
@@ -258,11 +258,11 @@ export const createOwnerWithMultiplePetsFn = createServerFn({ method: "POST" })
       owner: ownerDoc.toObject ? ownerDoc.toObject() : ownerDoc,
       pets: createdPets,
     });
-  });
+  }));
 
 export const updatePetFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => UpdatePetInputZ.parse(data))
-  .handler(async ({ data }: { data: z.infer<typeof UpdatePetInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof UpdatePetInputZ> }) => {
     await connectDB();
     const updated = await Pet.findOneAndUpdate(
       { petId: data.petId },
@@ -270,11 +270,11 @@ export const updatePetFn = createServerFn({ method: "POST" })
       { new: true },
     ).lean();
     return toPlain<any>(updated);
-  });
+  }));
 
 export const updateOwnerFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => UpdateOwnerInputZ.parse(data))
-  .handler(async ({ data }: { data: z.infer<typeof UpdateOwnerInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof UpdateOwnerInputZ> }) => {
     await connectDB();
     const updated = await Owner.findOneAndUpdate(
       { ownerId: data.ownerId },
@@ -306,21 +306,21 @@ export const updateOwnerFn = createServerFn({ method: "POST" })
       }).catch((err) => console.error("[CRM] syncPartyForOwner failed for", u.ownerId, err));
     }
     return toPlain<any>(updated);
-  });
+  }));
 
 export const deletePetFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ petId: z.string() }).parse(data))
-  .handler(async ({ data }: { data: { petId: string } }) => {
+  .handler(tenantScoped(async ({ data }: { data: { petId: string } }) => {
     await connectDB();
     await Pet.deleteOne({ petId: data.petId });
     return { success: true };
-  });
+  }));
 
 export const deleteOwnerFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ ownerId: z.string() }).parse(data))
-  .handler(async ({ data }: { data: { ownerId: string } }) => {
+  .handler(tenantScoped(async ({ data }: { data: { ownerId: string } }) => {
     await connectDB();
     await Owner.deleteOne({ ownerId: data.ownerId });
     await Pet.deleteMany({ ownerId: data.ownerId });
     return { success: true };
-  });
+  }));

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { PurchaseBillModel, type IPurchaseBill } from "@/lib/mongodb/models/PurchaseBill";
 import { SupplierModel } from "@/lib/mongodb/models/Supplier";
 import { SupplierPaymentModel } from "@/lib/mongodb/models/SupplierPayment";
@@ -113,7 +113,7 @@ export const listPurchaseBillsFn = createServerFn({ method: "GET" })
       q: z.string().optional(),
     }).optional().parse(raw)
   )
-  .handler(async ({ data }): Promise<PurchaseBillRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<PurchaseBillRow[]> => {
     await connectDB();
     const today = todayIST();
     const from = data?.from ?? today.slice(0, 7) + "-01";
@@ -129,15 +129,15 @@ export const listPurchaseBillsFn = createServerFn({ method: "GET" })
     }
     const docs = await PurchaseBillModel.find(filter).sort({ billDate: -1, createdAt: -1 }).lean();
     return docs.map(toBillRow);
-  });
+  }));
 
 export const getPurchaseBillFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ id: z.string() }).parse(raw))
-  .handler(async ({ data }): Promise<PurchaseBillRow | null> => {
+  .handler(tenantScoped(async ({ data }): Promise<PurchaseBillRow | null> => {
     await connectDB();
     const doc = await PurchaseBillModel.findById(data.id).lean();
     return doc ? toBillRow(doc) : null;
-  });
+  }));
 
 const ItemInputZ = z.object({
   lineNo: z.number(),
@@ -194,7 +194,7 @@ export const createPurchaseBillFn = createServerFn({ method: "POST" })
       paymentLines: z.array(PaymentLineInputZ).optional(),
     }).parse(raw)
   )
-  .handler(async ({ data }): Promise<{ ok: boolean; _id: string; internalRef: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean; _id: string; internalRef: string }> => {
     await connectDB();
     const supplier = await SupplierModel.findById(data.supplierId).lean();
     const supplierName = supplier?.name ?? data.supplierName ?? "Unknown Supplier";
@@ -304,11 +304,11 @@ export const createPurchaseBillFn = createServerFn({ method: "POST" })
     }
 
     return { ok: true, _id: billId, internalRef };
-  });
+  }));
 
 export const voidPurchaseBillFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ id: z.string(), reason: z.string().min(3) }).parse(raw))
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean }> => {
     await connectDB();
     const bill = await PurchaseBillModel.findById(data.id);
     if (!bill) throw new Error("Purchase bill not found");
@@ -324,7 +324,7 @@ export const voidPurchaseBillFn = createServerFn({ method: "POST" })
     );
 
     return { ok: true };
-  });
+  }));
 
 export const markPurchaseBillPaidFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) =>
@@ -334,7 +334,7 @@ export const markPurchaseBillPaidFn = createServerFn({ method: "POST" })
       paymentDate: z.string().optional(),
     }).parse(raw)
   )
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean }> => {
     await connectDB();
     const bill = await PurchaseBillModel.findById(data.id);
     if (!bill) throw new Error("Purchase bill not found");
@@ -382,11 +382,11 @@ export const markPurchaseBillPaidFn = createServerFn({ method: "POST" })
     });
 
     return { ok: true };
-  });
+  }));
 
 export const deletePurchaseBillFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ id: z.string() }).parse(raw))
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean }> => {
     await connectDB();
     const bill = await PurchaseBillModel.findById(data.id);
     if (!bill) throw new Error("Purchase bill not found");
@@ -407,4 +407,4 @@ export const deletePurchaseBillFn = createServerFn({ method: "POST" })
     await PurchaseBillModel.findByIdAndDelete(data.id);
 
     return { ok: true };
-  });
+  }));

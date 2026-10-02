@@ -6,6 +6,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IUom extends Document {
   code: string;
@@ -20,7 +21,7 @@ export interface IUom extends Document {
 
 const UomSchema = new Schema<IUom>(
   {
-    code: { type: String, required: true, unique: true, trim: true, uppercase: true },
+    code: { type: String, required: true, trim: true, uppercase: true },
     name: { type: String, required: true, trim: true },
     decimals: { type: Number, default: 0, min: 0, max: 3 },
     sortOrder: { type: Number, default: 0 },
@@ -28,6 +29,9 @@ const UomSchema = new Schema<IUom>(
   },
   { timestamps: true, collection: "uoms" },
 );
+
+UomSchema.plugin(tenantScopePlugin);
+UomSchema.index({ tenantId: 1, code: 1 }, { unique: true });
 
 export const UomModel =
   (mongoose.models["Uom"] as mongoose.Model<IUom>) ?? mongoose.model<IUom>("Uom", UomSchema);
@@ -52,7 +56,9 @@ const UomConversionSchema = new Schema<IUomConversion>(
   { timestamps: true, collection: "uom_conversions" },
 );
 
-UomConversionSchema.index({ itemCode: 1, fromUom: 1, toUom: 1 }, { unique: true });
+UomConversionSchema.index({ tenantId: 1, itemCode: 1, fromUom: 1, toUom: 1 }, { unique: true });
+
+UomConversionSchema.plugin(tenantScopePlugin);
 
 export const UomConversionModel =
   (mongoose.models["UomConversion"] as mongoose.Model<IUomConversion>) ??

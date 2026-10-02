@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IQuotationItem {
   id: string;
@@ -47,7 +48,7 @@ export interface IQuotation extends Document {
 
 const QuotationSchema = new Schema<IQuotation>(
   {
-    quotationNo: { type: String, required: true, unique: true },
+    quotationNo: { type: String, required: true, },
     quotationType: { type: String, default: "GST" },
     date: { type: String, required: true },
     validUntil: { type: String, required: true },
@@ -94,6 +95,9 @@ const QuotationSchema = new Schema<IQuotation>(
   },
   { timestamps: true }
 );
+
+QuotationSchema.plugin(tenantScopePlugin);
+QuotationSchema.index({ tenantId: 1, quotationNo: 1 }, { unique: true });
 
 export const Quotation =
   (mongoose.models["Quotation"] as mongoose.Model<IQuotation>) ||

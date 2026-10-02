@@ -5,7 +5,7 @@ import { Printer, Download, Stethoscope, Pill, Syringe, Utensils, AlertCircle, S
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
 import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
-import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 interface Props {
   visit: any;
@@ -14,6 +14,7 @@ interface Props {
 }
 
 export function PrescriptionPrintView({ visit, open, onClose }: Props) {
+  const CLINIC_CONFIG = useClinicBranding();
   // Load approved doctors (role: doctor | admin) from DB to resolve the correct doctor on the Rx
   const [doctorsList, setDoctorsList] = useState<Array<{ id: string; name: string; specialty?: string }>>([]);
   useEffect(() => {
@@ -529,7 +530,7 @@ export function PrescriptionPrintView({ visit, open, onClose }: Props) {
             <div className="pt-3 mt-4 border-t border-dashed border-slate-200 flex items-center justify-between text-[9px] text-slate-400 font-mono">
               <div className="flex items-center gap-1.5">
                 <span className="inline-block size-1.5 rounded-full bg-emerald-500"></span>
-                <span>Real Care VetOS · Electronically Generated &amp; Signed Clinical Prescription</span>
+                <span>{CLINIC_CONFIG.fullName} · Electronically Generated &amp; Signed Clinical Prescription</span>
               </div>
               <div>
                 <span>Generated: {new Date().toLocaleDateString("en-GB")} at {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })} IST</span>

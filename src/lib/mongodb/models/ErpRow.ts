@@ -3,6 +3,7 @@
  */
 
 import mongoose, { Schema, model } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IErpRow {
   moduleId: string;
@@ -26,6 +27,8 @@ const erpRowSchema = new Schema<ErpRowDocument>(
 );
 
 erpRowSchema.index({ moduleId: 1, createdAt: -1 });
+
+erpRowSchema.plugin(tenantScopePlugin);
 
 export const ErpRow: mongoose.Model<ErpRowDocument> =
   (mongoose.models["ErpRow"] as mongoose.Model<ErpRowDocument>) ??

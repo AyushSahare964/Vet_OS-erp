@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Shell } from "@/components/erp/Shell";
 import { useErp } from "@/lib/erp/store";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { ROLES, ROLE_ORDER } from "@/lib/erp/config";
 import { cn } from "@/lib/utils";
 import { OwnerPetRegistrationModal } from "@/components/erp/crm/OwnerPetRegistrationModal";
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/")({
 
 function Dashboard() {
   const { role, roleId, currentUser } = useErp();
+  const clinicBrand = useClinicBranding();
   const activeDoctorName =
     currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role.person || "Dr. Rohit Sharma");
 
@@ -149,7 +151,7 @@ function Dashboard() {
             <RealCatJumpingWelcome
               personName={currentUser?.fullName || role.person}
               greetingSubtitle={role.greeting}
-              branchName="Nagpur · Real Care Small Animal Clinic"
+              branchName={[clinicBrand.addressLine2.split(",")[0]?.trim(), clinicBrand.fullName].filter(Boolean).join(" · ")}
               onRefresh={loadVisits}
             />
           </motion.div>

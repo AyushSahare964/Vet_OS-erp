@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface ISupplier extends Document {
   name: string;
@@ -55,6 +56,8 @@ const SupplierSchema = new Schema<ISupplier>(
 
 SupplierSchema.index({ name: 1 });
 SupplierSchema.index({ isActive: 1 });
+
+SupplierSchema.plugin(tenantScopePlugin);
 
 export const SupplierModel =
   (mongoose.models["Supplier"] as mongoose.Model<ISupplier>) ??

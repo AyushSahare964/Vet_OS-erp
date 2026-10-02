@@ -12,6 +12,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 import { roundMoney } from "@/lib/utils/moneyUtils";
 
 export type LedgerSourceKind =
@@ -70,6 +71,8 @@ const PartyLedgerSchema = new Schema<IPartyLedger>(
 
 // Supports both the ledger report (keyset paged) and the outstanding rollup.
 PartyLedgerSchema.index({ partyId: 1, entryDate: 1, _id: 1 });
+
+PartyLedgerSchema.plugin(tenantScopePlugin);
 
 export const PartyLedgerModel =
   (mongoose.models["PartyLedger"] as mongoose.Model<IPartyLedger>) ??

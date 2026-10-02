@@ -14,6 +14,7 @@ import {
   type UserProfile,
   type LoginCredentials,
   type RegisterPayload,
+  type RegisterTenantPayload,
   type AuthResponse,
 } from "./auth";
 import {
@@ -22,6 +23,15 @@ import {
   deleteRowFn,
   resetRowsFn,
 } from "@/lib/mongodb/serverFns/rows";
+import { getClinicConfigFn } from "@/lib/mongodb/serverFns/clinicConfig";
+
+export interface ClinicBranding {
+  clinicName: string;
+  tagline?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  doctorName?: string;
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -32,10 +42,12 @@ interface ErpContextValue {
   setRoleId: (r: RoleId) => void;
   role: RoleConfig;
   currentUser: UserProfile | null;
+  clinicBranding: ClinicBranding | null;
   isAuthenticated: boolean;
   isLoadingAuth: boolean;
   login: (credentials: LoginCredentials) => Promise<AuthResponse>;
   register: (payload: RegisterPayload) => Promise<AuthResponse>;
+  registerTenant: (payload: RegisterTenantPayload) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   getRows: (moduleId: string) => Row[];
   addRow: (moduleId: string, row: Row) => Promise<void>;
@@ -48,10 +60,12 @@ const defaultErpContext: ErpContextValue = {
   setRoleId: () => {},
   role: ROLES.admin,
   currentUser: null,
+  clinicBranding: null,
   isAuthenticated: false,
   isLoadingAuth: false,
   login: async () => ({ success: false, message: "Not available outside ErpProvider" }),
   register: async () => ({ success: false, message: "Not available outside ErpProvider" }),
+  registerTenant: async () => ({ success: false, message: "Not available outside ErpProvider" }),
   logout: async () => {},
   getRows: (moduleId: string) => WORKSPACES[moduleId]?.rows ?? [],
   addRow: async () => {},
@@ -66,9 +80,19 @@ const ErpContext = createContext<ErpContextValue>(defaultErpContext);
 export function ErpProvider({ children }: { children: ReactNode }) {
   const [roleId, setRoleIdState] = useState<RoleId>("doctor");
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [clinicBranding, setClinicBranding] = useState<ClinicBranding | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   // Row cache: moduleId → Row[]
   const [rowCache, setRowCache] = useState<RowStore>({});
+
+  const loadClinicBranding = useCallback(async () => {
+    try {
+      const config = await getClinicConfigFn();
+      setClinicBranding(config as ClinicBranding | null);
+    } catch {
+      setClinicBranding(null);
+    }
+  }, []);
 
   // On mount: re-hydrate session from the httpOnly refresh cookie via server fn
   useEffect(() => {
@@ -77,11 +101,12 @@ export function ErpProvider({ children }: { children: ReactNode }) {
         if (user) {
           setCurrentUser(user);
           setRoleIdState(user.roleId);
+          void loadClinicBranding();
         }
       })
       .catch(() => { /* network error — stay logged out */ })
       .finally(() => setIsLoadingAuth(false));
-  }, []);
+  }, [loadClinicBranding]);
 
   // ─── Role ───────────────────────────────────────────────────────────────
 
@@ -96,9 +121,10 @@ export function ErpProvider({ children }: { children: ReactNode }) {
     if (res.success && res.user) {
       setCurrentUser(res.user);
       setRoleIdState(res.user.roleId);
+      void loadClinicBranding();
     }
     return res;
-  }, []);
+  }, [loadClinicBranding]);
 
   const register = useCallback(async (payload: RegisterPayload): Promise<AuthResponse> => {
     const res = await AuthService.register(payload);
@@ -109,10 +135,21 @@ export function ErpProvider({ children }: { children: ReactNode }) {
     return res;
   }, []);
 
+  const registerTenant = useCallback(async (payload: RegisterTenantPayload): Promise<AuthResponse> => {
+    const res = await AuthService.registerTenant(payload);
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
+      setRoleIdState(res.user.roleId);
+      void loadClinicBranding();
+    }
+    return res;
+  }, [loadClinicBranding]);
+
 
   const logout = useCallback(async (): Promise<void> => {
     await AuthService.logout();
     setCurrentUser(null);
+    setClinicBranding(null);
     setRowCache({});
   }, [setRowCache]);
 
@@ -192,17 +229,19 @@ export function ErpProvider({ children }: { children: ReactNode }) {
       setRoleId,
       role:            activeRoleConfig,
       currentUser,
+      clinicBranding,
       isAuthenticated: Boolean(currentUser),
       isLoadingAuth,
       login,
       register,
+      registerTenant,
       logout,
       getRows,
       addRow,
       deleteRow,
       resetRows,
     }),
-    [roleId, setRoleId, activeRoleConfig, currentUser, isLoadingAuth, login, register, logout, getRows, addRow, deleteRow, resetRows]
+    [roleId, setRoleId, activeRoleConfig, currentUser, clinicBranding, isLoadingAuth, login, register, registerTenant, logout, getRows, addRow, deleteRow, resetRows]
   );
 
   return <ErpContext.Provider value={value}>{children}</ErpContext.Provider>;

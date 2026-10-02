@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, Receipt, CheckCircle2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
-import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,8 @@ interface Props {
 }
 
 export function InvoicePrintView({ visit, open, onClose }: Props) {
+  const CLINIC_CONFIG = useClinicBranding();
+
   const handlePrint = () => {
     const cleanInvoiceNo = visit?.invoiceNo?.replace(/[\/\\]/g, "_") || "TaxInvoice";
     printOrSaveDocumentAsPdf("invoice-printable-area", `Invoice_${cleanInvoiceNo}`);
@@ -97,7 +99,7 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
                 <p className="text-[11px] font-semibold text-blue-800">{CLINIC_CONFIG.subName}</p>
                 <p className="text-xs text-gray-700 font-semibold mt-0.5">{CLINIC_CONFIG.doctorName}</p>
                 <p className="text-[10px] text-gray-500">{CLINIC_CONFIG.doctorQualifications}</p>
-                <p className="text-xs text-gray-600">Phone: {CLINIC_CONFIG.phone} · {CLINIC_CONFIG.website}</p>
+                <p className="text-xs text-gray-600">Phone: {[CLINIC_CONFIG.phone, CLINIC_CONFIG.website].filter(Boolean).join(" · ")}</p>
                 {isGst && CLINIC_CONFIG.gstin && <p className="text-xs font-mono font-bold text-gray-800">GSTIN: {CLINIC_CONFIG.gstin}</p>}
                 <p className="text-xs text-gray-600">{CLINIC_CONFIG.addressLine2}</p>
               </div>
@@ -281,7 +283,7 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
               <p>• This is a computer-generated tax invoice.</p>
             </div>
             <div className="text-right">
-              <p className="font-bold text-gray-700">For Real Care Small Animal Clinic</p>
+              <p className="font-bold text-gray-700">For {CLINIC_CONFIG.fullName}</p>
               <p className="pt-6 text-gray-400">Authorized Signatory</p>
             </div>
           </div>

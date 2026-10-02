@@ -7,9 +7,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { setCookie, getCookie } from "@tanstack/react-start/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { User, type ApprovalStatus } from "@/lib/mongodb/models/User";
 import { RefreshToken } from "@/lib/mongodb/models/RefreshToken";
+import { TenantModel } from "@/lib/mongodb/models/Tenant";
 import {
   signAccessToken,
   signRefreshToken,
@@ -34,23 +35,12 @@ function getInitials(name: string): string {
 /** Convert a raw lean Mongoose document to a safe UserProfile for the client */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toProfile(user: Record<string, any>): UserProfile {
-  const isDixit = String(user["fullName"] || "").toLowerCase().includes("dixit") || String(user["email"] || "").toLowerCase().includes("dixit");
-  const rawClinic = String(user["clinicName"] || "").trim();
-  const clinicName = !rawClinic || rawClinic.toLowerCase().includes("harmony")
-    ? "Real Care Small Animal Clinic"
-    : rawClinic;
-
-  const rawBranch = String(user["branch"] || "").trim();
-  const branch = !rawBranch || rawBranch.toLowerCase().includes("koramangala")
-    ? "Nagpur Main Clinic"
-    : rawBranch;
-
   const profile: UserProfile = {
     id:             String(user["_id"]),
     fullName:       String(user["fullName"]),
     email:          String(user["email"]),
-    clinicName,
-    branch,
+    clinicName:     String(user["clinicName"] || ""),
+    branch:         String(user["branch"] || ""),
     roleId:         user["roleId"] as RoleId,
     roleName:       String(user["roleName"]),
     initials:       String(user["initials"]),
@@ -60,17 +50,17 @@ function toProfile(user: Record<string, any>): UserProfile {
       : String(user["createdAt"]),
   };
 
-  profile.phone         = String(user["phone"] || (isDixit ? "+91 87674 84342" : ""));
-  profile.licenseNumber = String(user["licenseNumber"] || (isDixit ? "M.S.V.C.-8648" : ""));
-  profile.qualification = String(user["qualification"] || (isDixit ? "B.V.Sc & AH, M.V.Sc, PGDAW" : ""));
-  profile.department    = String(user["department"] || (isDixit ? "Clinical Administration & Surgery" : ""));
-  profile.specialty     = (user["specialty"] || (isDixit ? "General Practice" : "Administration")) as NonNullable<UserProfile["specialty"]>;
+  profile.phone         = String(user["phone"] || "");
+  profile.licenseNumber = String(user["licenseNumber"] || "");
+  profile.qualification = String(user["qualification"] || "");
+  profile.department    = String(user["department"] || "");
+  profile.specialty     = (user["specialty"] || "Administration") as NonNullable<UserProfile["specialty"]>;
   if (user["avatarUrl"]) profile.avatarUrl = String(user["avatarUrl"]);
   return profile;
 }
 
-async function issueTokens(userId: string, email: string, roleId: string) {
-  const accessToken = signAccessToken(userId, email, roleId);
+async function issueTokens(userId: string, email: string, roleId: string, tenantId?: string, tenantSlug?: string) {
+  const accessToken = signAccessToken(userId, email, roleId, tenantId, tenantSlug);
   const { token: refreshToken } = signRefreshToken(userId);
   const expiresAt = new Date(Date.now() + REFRESH_TTL_MS);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,6 +116,18 @@ export const loginFn = createServerFn({ method: "POST" })
       return { success: false, message: "Your staff account has been deactivated. Please contact your Clinic Administrator." };
     }
 
+    let tenantSlug: string | undefined;
+    if (user["tenantId"]) {
+      const tenant = await TenantModel.findOne({ tenantId: user["tenantId"] }).lean();
+      if (tenant?.status === "SUSPENDED") {
+        return { success: false, message: "This clinic's VetOS Cloud subscription is currently suspended. Please contact support." };
+      }
+      if (tenant?.subscriptionStatus === "CANCELLED") {
+        return { success: false, message: "This clinic's VetOS Cloud subscription has been cancelled." };
+      }
+      tenantSlug = tenant?.slug;
+    }
+
     await User.updateOne(
       { _id: user["_id"] },
       { $set: { lastLoginAt: new Date() }, $inc: { loginCount: 1 } }
@@ -133,7 +135,7 @@ export const loginFn = createServerFn({ method: "POST" })
 
     const userId = String(user["_id"]);
     const { accessToken, refreshToken, expiresAt } = await issueTokens(
-      userId, user["email"] as string, user["roleId"] as string
+      userId, user["email"] as string, user["roleId"] as string, user["tenantId"] as string | undefined, tenantSlug
     );
 
     setCookie(COOKIE_NAME, refreshToken, {
@@ -159,8 +161,7 @@ const registerSchema = z.object({
   email:         z.string().email(),
   password:      z.string().min(6, "Password must be at least 6 characters"),
   phone:         z.string().optional(),
-  clinicName:    z.string().min(1).default("Harmony Pet Super-Specialty Hospital"),
-  branch:        z.string().min(1).default("Central Hospital · Koramangala"),
+  clinicSlug:    z.string().min(1, "Clinic identifier is required"),
   roleId:        z.enum(["doctor", "admin", "reception", "accounts", "platform"]).default("doctor"),
   licenseNumber: z.string().optional(),
   qualification: z.string().optional(),
@@ -172,6 +173,14 @@ export const registerFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => registerSchema.parse(raw))
   .handler(async ({ data }): Promise<AuthResponse> => {
     await connectDB();
+
+    const tenant = await TenantModel.findOne({ slug: data.clinicSlug.trim() }).lean();
+    if (!tenant) {
+      return { success: false, message: "Clinic not found. Check the clinic identifier and try again." };
+    }
+    if (tenant.status === "SUSPENDED") {
+      return { success: false, message: "This clinic's VetOS Cloud subscription is currently suspended." };
+    }
 
     const cleanEmail = data.email.toLowerCase().trim();
     const existing = await User.findOne({ email: cleanEmail }).lean();
@@ -187,8 +196,9 @@ export const registerFn = createServerFn({ method: "POST" })
       fullName:       data.fullName.trim(),
       email:          cleanEmail,
       passwordHash,
-      clinicName:     data.clinicName.trim() || "Harmony Pet Super-Specialty Hospital",
-      branch:         data.branch.trim()     || "Central Hospital · Koramangala",
+      tenantId:       tenant.tenantId,
+      clinicName:     tenant.name,
+      branch:         "MAIN",
       roleId:         data.roleId,
       roleName,
       initials,
@@ -233,7 +243,7 @@ export const checkStaffStatusFn = createServerFn({ method: "POST" })
 // NOTE: system accounts (isSystemAccount: true) are hidden from the staff directory.
 
 export const listStaffMembersFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<any[]> => {
+  .handler(tenantScoped(async (): Promise<any[]> => {
     await connectDB();
     // Exclude built-in system / developer accounts from the public staff directory
     const users = await User.find({ isSystemAccount: { $ne: true } }).sort({ createdAt: -1 }).lean();
@@ -259,7 +269,7 @@ export const listStaffMembersFn = createServerFn({ method: "GET" })
       lastLoginAt:     u.lastLoginAt ? u.lastLoginAt.toISOString() : undefined,
       createdAt:       u.createdAt ? u.createdAt.toISOString() : undefined,
     }))));
-  });
+  }));
 
 // ─── approveStaffMemberFn ───────────────────────────────────────────────────
 
@@ -270,7 +280,7 @@ export const approveStaffMemberFn = createServerFn({ method: "POST" })
     department: z.string().optional(),
     approvedBy: z.string().optional(),
   }).parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean; message: string }> => {
     await connectDB();
     const roleName = ROLES[data.roleId]?.name || "Clinic Staff";
     await User.findByIdAndUpdate(data.userId, {
@@ -285,7 +295,7 @@ export const approveStaffMemberFn = createServerFn({ method: "POST" })
       },
     });
     return { success: true, message: `Staff member approved and assigned role: ${roleName}` };
-  });
+  }));
 
 // ─── rejectStaffMemberFn ────────────────────────────────────────────────────
 
@@ -294,7 +304,7 @@ export const rejectStaffMemberFn = createServerFn({ method: "POST" })
     userId: z.string(),
     reason: z.string().optional(),
   }).parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean; message: string }> => {
     await connectDB();
     await User.findByIdAndUpdate(data.userId, {
       $set: {
@@ -304,7 +314,7 @@ export const rejectStaffMemberFn = createServerFn({ method: "POST" })
       },
     });
     return { success: true, message: "Staff access request declined." };
-  });
+  }));
 
 // ─── createStaffMemberByAdminFn ─────────────────────────────────────────────
 
@@ -324,7 +334,7 @@ const adminCreateSchema = z.object({
 
 export const createStaffMemberByAdminFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => adminCreateSchema.parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean; message: string; user?: any }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean; message: string; user?: any }> => {
     await connectDB();
     const cleanEmail = data.email.toLowerCase().trim();
     const existing = await User.findOne({ email: cleanEmail }).lean();
@@ -365,7 +375,7 @@ export const createStaffMemberByAdminFn = createServerFn({ method: "POST" })
       user: toProfile(doc.toObject ? doc.toObject() : doc),
     };
 
-  });
+  }));
 
 // ─── updateStaffMemberFn ───────────────────────────────────────────────────
 
@@ -387,7 +397,7 @@ const updateStaffSchema = z.object({
 
 export const updateStaffMemberFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => updateStaffSchema.parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean; message: string; user?: any }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean; message: string; user?: any }> => {
     await connectDB();
     const user = await User.findById(data.userId);
     if (!user) {
@@ -446,13 +456,13 @@ export const updateStaffMemberFn = createServerFn({ method: "POST" })
       message: `Staff member ${user.fullName}'s profile updated successfully!`,
       user: toProfile(user.toObject ? user.toObject() : user),
     };
-  });
+  }));
 
 // ─── deleteStaffMemberFn ───────────────────────────────────────────────────
 
 export const deleteStaffMemberFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ userId: z.string() }).parse(raw))
-  .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean; message: string }> => {
     await connectDB();
     const user = await User.findById(data.userId);
     if (!user) {
@@ -467,7 +477,7 @@ export const deleteStaffMemberFn = createServerFn({ method: "POST" })
       success: true,
       message: `Staff member ${userName} has been removed from the database.`,
     };
-  });
+  }));
 
 // ─── logoutFn ───────────────────────────────────────────────────────────────
 
@@ -520,10 +530,10 @@ const SYSTEM_CREDENTIALS = [
     email:           "ayush.sahare@vit.edu",
     password:        "ayush@123",
     phone:           "",
-    clinicName:      "Real Care Small Animal Clinic",
-    branch:          "Nagpur",
-    roleId:          "admin" as RoleId,
-    roleName:        "Clinic Administrator / Medical Director",
+    clinicName:      "VetOS Cloud",
+    branch:          "Platform",
+    roleId:          "platform" as RoleId,
+    roleName:        "Platform Systems Administrator",
     initials:        "AS",
     licenseNumber:   "SYS-DEV-0001",
     qualification:   "B.Tech Computer Science",
@@ -626,7 +636,7 @@ export const clearAndReseedFn = createServerFn({ method: "POST" })
 // ─── listApprovedDoctorsFn ──────────────────────────────────────────────────
 
 export const listApprovedDoctorsFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<Array<{ id: string; name: string; specialty?: string; licenseNumber?: string }>> => {
+  .handler(tenantScoped(async (): Promise<Array<{ id: string; name: string; specialty?: string; licenseNumber?: string }>> => {
     await connectDB();
     try {
       const doctors = await User.find({
@@ -656,4 +666,4 @@ export const listApprovedDoctorsFn = createServerFn({ method: "GET" })
       { id: "doc-3", name: "Dr. Ananya Rao", specialty: "Senior Surgeon & Orthopedic Vet" },
       { id: "doc-4", name: "Dr. Ayush Sahare", specialty: "Consultant Veterinary Physician" },
     ];
-  });
+  }));

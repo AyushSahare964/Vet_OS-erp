@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ErpRow } from "@/lib/mongodb/models/ErpRow";
 import { ClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
 
@@ -13,7 +13,7 @@ const SEED_APPOINTMENTS: any[] = [];
 const appointmentCategoryEnum = z.enum(["call", "whatsapp", "social_media"]).nullable().optional();
 
 export const listAppointmentsFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<any[]> => {
+  .handler(tenantScoped(async (): Promise<any[]> => {
     await connectDB();
     const docs = await ErpRow.find({ moduleId: "appointments" }).sort({ createdAt: -1 }).lean();
 
@@ -89,7 +89,7 @@ export const listAppointmentsFn = createServerFn({ method: "GET" })
         time: (d.data as any)?.time || (d.data as any)?.slot || null,
       }))
     );
-  });
+  }));
 
 const appointmentPayloadSchema = z
   .object({
@@ -102,7 +102,7 @@ const appointmentPayloadSchema = z
 
 export const createAppointmentFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => appointmentPayloadSchema.parse(raw))
-  .handler(async ({ data }): Promise<any> => {
+  .handler(tenantScoped(async ({ data }): Promise<any> => {
     await connectDB();
     const payload = {
       ...data,
@@ -115,7 +115,7 @@ export const createAppointmentFn = createServerFn({ method: "POST" })
       data: payload,
     });
     return toPlain(doc.data);
-  });
+  }));
 
 const updateAppointmentPayloadSchema = z
   .object({
@@ -128,7 +128,7 @@ const updateAppointmentPayloadSchema = z
 
 export const updateAppointmentFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => updateAppointmentPayloadSchema.parse(raw))
-  .handler(async ({ data }): Promise<any> => {
+  .handler(tenantScoped(async ({ data }): Promise<any> => {
     await connectDB();
     const token = data.token;
     const numToken = Number(token);
@@ -159,11 +159,11 @@ export const updateAppointmentFn = createServerFn({ method: "POST" })
     await existing.save();
 
     return toPlain(updatedData);
-  });
+  }));
 
 export const updateAppointmentStatusFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ token: z.union([z.number(), z.string()]), status: z.string() }).parse(raw))
-  .handler(async ({ data }): Promise<boolean> => {
+  .handler(tenantScoped(async ({ data }): Promise<boolean> => {
     await connectDB();
     const token = data.token;
     const numToken = Number(token);
@@ -177,11 +177,11 @@ export const updateAppointmentStatusFn = createServerFn({ method: "POST" })
       { $set: { "data.status": data.status } }
     );
     return true;
-  });
+  }));
 
 export const deleteAppointmentFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ token: z.union([z.number(), z.string()]) }).parse(raw))
-  .handler(async ({ data }): Promise<boolean> => {
+  .handler(tenantScoped(async ({ data }): Promise<boolean> => {
     await connectDB();
     const token = data.token;
     const numToken = Number(token);
@@ -195,4 +195,4 @@ export const deleteAppointmentFn = createServerFn({ method: "POST" })
       $or: orClauses,
     });
     return true;
-  });
+  }));

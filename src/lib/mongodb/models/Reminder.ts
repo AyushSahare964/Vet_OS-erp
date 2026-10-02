@@ -5,6 +5,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export type ReminderChannel = "IN_APP" | "SMS" | "WHATSAPP" | "EMAIL";
 export type ReminderStatus = "OPEN" | "DONE" | "SNOOZED";
@@ -62,9 +63,11 @@ const ReminderSchema = new Schema<IReminder>(
 
 ReminderSchema.index({ status: 1, remindOn: 1 });
 ReminderSchema.index(
-  { autoKey: 1 },
+  { tenantId: 1, autoKey: 1 },
   { unique: true, partialFilterExpression: { autoKey: { $gt: "" } } },
 );
+
+ReminderSchema.plugin(tenantScopePlugin);
 
 export const ReminderModel =
   (mongoose.models["Reminder"] as mongoose.Model<IReminder>) ??

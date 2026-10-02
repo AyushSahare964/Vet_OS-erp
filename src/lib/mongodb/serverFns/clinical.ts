@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ClinicalVisit, type IClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
 import { Owner } from "@/lib/mongodb/models/Owner";
 import { Pet } from "@/lib/mongodb/models/Pet";
@@ -174,15 +174,15 @@ async function ensureVisitsSeeded() {
 
 // ─── Server Functions ─────────────────────────────────────────────────────────
 
-export const listVisitsFn = createServerFn({ method: "GET" }).handler(async () => {
+export const listVisitsFn = createServerFn({ method: "GET" }).handler(tenantScoped(async () => {
   await ensureVisitsSeeded();
   const visits = await ClinicalVisit.find({}).sort({ createdAt: -1 }).limit(50).lean();
   return toPlain<any[]>(visits);
-});
+}));
 
 export const admitPatientFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => AdmitPatientInputZ.parse(data))
-  .handler(async ({ data }: { data: z.infer<typeof AdmitPatientInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof AdmitPatientInputZ> }) => {
     await connectDB();
     const visitId = await nextSeq("clinical_visit", "V", 4, maxVisitSeq);
     const invSeq = await nextSeq("invoice_no", "INV/2026-27", 4, maxInvoiceSeq);
@@ -272,11 +272,11 @@ export const admitPatientFn = createServerFn({ method: "POST" })
 
     const newVisit = await ClinicalVisit.create(docPayload);
     return toPlain<any>(newVisit.toObject ? newVisit.toObject() : newVisit);
-  });
+  }));
 
 export const savePrescriptionFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => SavePrescriptionInputZ.parse(data))
-  .handler(async ({ data }: { data: z.infer<typeof SavePrescriptionInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof SavePrescriptionInputZ> }) => {
     await connectDB();
     let visit = await ClinicalVisit.findOne({ visitId: data.visitId });
     if (!visit) {
@@ -393,7 +393,7 @@ export const savePrescriptionFn = createServerFn({ method: "POST" })
     }
 
     return toPlain<any>(visit.toObject ? visit.toObject() : visit);
-  });
+  }));
 
 // ─── Section Save & Sync Machinery (§5.1, §5.2, §5.3) ─────────────────────────
 
@@ -459,7 +459,7 @@ const SectionSaveInputZ = z.object({
 
 export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SectionSaveInputZ.parse(raw))
-  .handler(async ({ data }: { data: z.infer<typeof SectionSaveInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof SectionSaveInputZ> }) => {
     await connectDB();
 
     let visit = await ClinicalVisit.findOne({ visitId: data.visitId });
@@ -1074,11 +1074,11 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
         lineCount: visit.items.length,
       },
     };
-  });
+  }));
 
 export const getPrescriptionBillingSummaryFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ visitId: z.string().min(1) }).parse(raw))
-  .handler(async ({ data }: { data: { visitId: string } }) => {
+  .handler(tenantScoped(async ({ data }: { data: { visitId: string } }) => {
     await connectDB();
     const visit = await ClinicalVisit.findOne({ visitId: data.visitId }).lean();
     if (!visit) {
@@ -1095,11 +1095,11 @@ export const getPrescriptionBillingSummaryFn = createServerFn({ method: "GET" })
       version: (visit as any).prescriptionData?.version || 1,
       sectionSavedAt: (visit as any).prescriptionData?.sectionSavedAt || {},
     };
-  });
+  }));
 
 export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => FinalizeVisitInputZ.parse(data))
-  .handler(async ({ data }: { data: z.infer<typeof FinalizeVisitInputZ> }) => {
+  .handler(tenantScoped(async ({ data }: { data: z.infer<typeof FinalizeVisitInputZ> }) => {
     await connectDB();
 
     let visit = await ClinicalVisit.findOne({ visitId: data.visitId });
@@ -1467,19 +1467,19 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     }
 
     return toPlain<any>(visit.toObject ? visit.toObject() : visit);
-  });
+  }));
 
 export const deleteVisitFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ visitId: z.string() }).parse(data))
-  .handler(async ({ data }: { data: { visitId: string } }) => {
+  .handler(tenantScoped(async ({ data }: { data: { visitId: string } }) => {
     await connectDB();
     await ClinicalVisit.deleteOne({ visitId: data.visitId });
     return { success: true };
-  });
+  }));
 
 export const getLatestVisitFn = createServerFn({ method: "GET" })
   .validator((data: unknown) => z.object({ petId: z.string(), excludeVisitId: z.string().optional() }).parse(data))
-  .handler(async ({ data }) => {
+  .handler(tenantScoped(async ({ data }) => {
     await connectDB();
     const query: any = { petId: data.petId, status: "Completed" };
     if (data.excludeVisitId) {
@@ -1487,7 +1487,7 @@ export const getLatestVisitFn = createServerFn({ method: "GET" })
     }
     const visit = await ClinicalVisit.findOne(query).sort({ date: -1, createdAt: -1 }).lean();
     return toPlain<any>(visit);
-  });
+  }));
 
 export const getPatientHistoryFn = createServerFn({ method: "GET" })
   .validator(
@@ -1498,7 +1498,7 @@ export const getPatientHistoryFn = createServerFn({ method: "GET" })
         excludeVisitId: z.string().optional(),
       }).parse(data)
   )
-  .handler(async ({ data }) => {
+  .handler(tenantScoped(async ({ data }) => {
     await connectDB();
     await ensureVisitsSeeded();
 
@@ -1523,11 +1523,11 @@ export const getPatientHistoryFn = createServerFn({ method: "GET" })
       .lean();
 
     return toPlain<any[]>(visits);
-  });
+  }));
 
 export const getUpcomingFollowUpsFn = createServerFn({ method: "GET" })
   .validator((data: unknown) => z.object({ daysAhead: z.number().optional() }).parse(data))
-  .handler(async ({ data }) => {
+  .handler(tenantScoped(async ({ data }) => {
     await connectDB();
     const daysAhead = data.daysAhead ?? 14;
     const today = new Date().toISOString().slice(0, 10);
@@ -1556,13 +1556,13 @@ export const getUpcomingFollowUpsFn = createServerFn({ method: "GET" })
       doctorName: v.doctorName,
       diagnosis: v.diagnosis,
     })));
-  });
+  }));
 
 export const getVisitByIdFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ visitId: z.string().min(1) }).parse(raw))
-  .handler(async ({ data }: { data: { visitId: string } }) => {
+  .handler(tenantScoped(async ({ data }: { data: { visitId: string } }) => {
     await connectDB();
     const visit = await ClinicalVisit.findOne({ visitId: data.visitId }).lean();
     if (!visit) return null;
     return toPlain<any>(visit);
-  });
+  }));

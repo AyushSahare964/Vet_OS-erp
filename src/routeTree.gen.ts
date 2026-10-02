@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PendingApprovalRouteImport } from './routes/pending-approval'
+import { Route as RegisterClinicRouteImport } from './routes/register-clinic'
 import { Route as MModuleIdRouteImport } from './routes/m.$moduleId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const PendingApprovalRoute = PendingApprovalRouteImport.update({
   path: '/pending-approval',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegisterClinicRoute = RegisterClinicRouteImport.update({
+  id: '/register-clinic',
+  path: '/register-clinic',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MModuleIdRoute = MModuleIdRouteImport.update({
   id: '/m/$moduleId',
   path: '/m/$moduleId',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/pending-approval': typeof PendingApprovalRoute
+  '/register-clinic': typeof RegisterClinicRoute
   '/m/$moduleId': typeof MModuleIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/pending-approval': typeof PendingApprovalRoute
+  '/register-clinic': typeof RegisterClinicRoute
   '/m/$moduleId': typeof MModuleIdRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,29 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/pending-approval': typeof PendingApprovalRoute
+  '/register-clinic': typeof RegisterClinicRoute
   '/m/$moduleId': typeof MModuleIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/pending-approval' | '/m/$moduleId'
+  fullPaths:
+    '/' | '/login' | '/pending-approval' | '/register-clinic' | '/m/$moduleId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/pending-approval' | '/m/$moduleId'
-  id: '__root__' | '/' | '/login' | '/pending-approval' | '/m/$moduleId'
+  to: '/' | '/login' | '/pending-approval' | '/register-clinic' | '/m/$moduleId'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/pending-approval'
+    | '/register-clinic'
+    | '/m/$moduleId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   PendingApprovalRoute: typeof PendingApprovalRoute
+  RegisterClinicRoute: typeof RegisterClinicRoute
   MModuleIdRoute: typeof MModuleIdRoute
 }
 
@@ -92,6 +109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PendingApprovalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/register-clinic': {
+      id: '/register-clinic'
+      path: '/register-clinic'
+      fullPath: '/register-clinic'
+      preLoaderRoute: typeof RegisterClinicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/m/$moduleId': {
       id: '/m/$moduleId'
       path: '/m/$moduleId'
@@ -106,6 +130,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   PendingApprovalRoute: PendingApprovalRoute,
+  RegisterClinicRoute: RegisterClinicRoute,
   MModuleIdRoute: MModuleIdRoute,
 }
 export const routeTree = rootRouteImport

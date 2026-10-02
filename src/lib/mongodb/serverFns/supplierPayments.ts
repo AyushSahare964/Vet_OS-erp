@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { SupplierPaymentModel, type ISupplierPayment } from "@/lib/mongodb/models/SupplierPayment";
 import { PurchaseBillModel } from "@/lib/mongodb/models/PurchaseBill";
 import { SupplierModel } from "@/lib/mongodb/models/Supplier";
@@ -78,7 +78,7 @@ export const listSupplierPaymentsFn = createServerFn({ method: "GET" })
       q: z.string().optional(),
     }).optional().parse(raw)
   )
-  .handler(async ({ data }): Promise<SupplierPaymentRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<SupplierPaymentRow[]> => {
     await connectDB();
     const today = todayIST();
     const from = data?.from ?? today.slice(0, 7) + "-01";
@@ -95,7 +95,7 @@ export const listSupplierPaymentsFn = createServerFn({ method: "GET" })
     }
     const docs = await SupplierPaymentModel.find(filter).sort({ paymentDate: -1, createdAt: -1 }).lean();
     return docs.map(toPaymentRow);
-  });
+  }));
 
 const PaymentLineInputZ = z.object({
   mode: z.enum(["CASH", "UPI", "CARD", "BANK_TRANSFER", "CHEQUE"]),
@@ -125,7 +125,7 @@ export const createSupplierPaymentFn = createServerFn({ method: "POST" })
       remarks: z.string().optional(),
     }).parse(raw)
   )
-  .handler(async ({ data }): Promise<{ ok: boolean; _id: string; voucherNo: string }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean; _id: string; voucherNo: string }> => {
     await connectDB();
     const supplier = await SupplierModel.findById(data.supplierId).lean();
     const supplierName = supplier?.name ?? data.supplierName ?? "Unknown Supplier";
@@ -187,11 +187,11 @@ export const createSupplierPaymentFn = createServerFn({ method: "POST" })
 
     const doc: any = await SupplierPaymentModel.create(docData);
     return { ok: true, _id: String(doc._id), voucherNo };
-  });
+  }));
 
 export const voidSupplierPaymentFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ id: z.string(), reason: z.string().min(3) }).parse(raw))
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean }> => {
     await connectDB();
     const payment = await SupplierPaymentModel.findById(data.id);
     if (!payment) throw new Error("Payment voucher not found");
@@ -215,7 +215,7 @@ export const voidSupplierPaymentFn = createServerFn({ method: "POST" })
     payment.voidReason = data.reason;
     await payment.save();
     return { ok: true };
-  });
+  }));
 
 // ─── Supplier Ledger & Payables Summary ──────────────────────────────────────────
 
@@ -257,7 +257,7 @@ export const getSupplierLedgerFn = createServerFn({ method: "GET" })
       to: z.string(),
     }).parse(raw)
   )
-  .handler(async ({ data }): Promise<SupplierLedgerResult> => {
+  .handler(tenantScoped(async ({ data }): Promise<SupplierLedgerResult> => {
     await connectDB();
     const supplier = await SupplierModel.findById(data.supplierId).lean();
     if (!supplier) throw new Error("Supplier not found");
@@ -367,7 +367,7 @@ export const getSupplierLedgerFn = createServerFn({ method: "GET" })
       totalDebit,
       totalCredit,
     };
-  });
+  }));
 
 export interface PayablesAgeingRow {
   supplierId: string;
@@ -382,7 +382,7 @@ export interface PayablesAgeingRow {
 }
 
 export const getPayablesSummaryFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<PayablesAgeingRow[]> => {
+  .handler(tenantScoped(async (): Promise<PayablesAgeingRow[]> => {
     await connectDB();
     const suppliers = await SupplierModel.find({ isActive: true }).lean();
     const activeBills = await PurchaseBillModel.find({
@@ -442,4 +442,4 @@ export const getPayablesSummaryFn = createServerFn({ method: "GET" })
     return Object.values(map)
       .filter((r) => r.totalOutstanding > 0)
       .sort((a, b) => b.totalOutstanding - a.totalOutstanding);
-  });
+  }));

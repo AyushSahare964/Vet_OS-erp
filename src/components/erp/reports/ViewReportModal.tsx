@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Printer, FileText, Download, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
@@ -16,6 +16,7 @@ interface Props {
 }
 
 export function ViewReportModal({ open, onClose, report }: Props) {
+  const CLINIC_CONFIG = useClinicBranding();
   if (!report) return null;
 
   // ── Doctor resolution (same pattern as PrescriptionPrintView) ───────────────
@@ -112,7 +113,7 @@ export function ViewReportModal({ open, onClose, report }: Props) {
                 <p className="text-[11px] font-semibold text-blue-800">{CLINIC_CONFIG.subName}</p>
                 <p className="text-[11px] text-slate-600 mt-0.5">{CLINIC_CONFIG.addressLine2}</p>
                 <p className="text-[11px] text-slate-600">
-                  Phone: {CLINIC_CONFIG.phone} · {CLINIC_CONFIG.website}
+                  Phone: {[CLINIC_CONFIG.phone, CLINIC_CONFIG.website].filter(Boolean).join(" · ")}
                 </p>
               </div>
             </div>
@@ -259,7 +260,7 @@ export function ViewReportModal({ open, onClose, report }: Props) {
           <div className="pt-6 border-t border-slate-200 flex items-end justify-between text-[10px]">
             <div className="text-slate-400 space-y-0.5">
               <p>Electronically Verified on {reportDate} · {CLINIC_CONFIG.fullName}</p>
-              <p>{CLINIC_CONFIG.phone} · {CLINIC_CONFIG.website}</p>
+              <p>{[CLINIC_CONFIG.phone, CLINIC_CONFIG.website].filter(Boolean).join(" · ")}</p>
               {CLINIC_CONFIG.regNo && <p>Reg. No: {CLINIC_CONFIG.regNo}</p>}
             </div>
             <div className="text-center space-y-1">

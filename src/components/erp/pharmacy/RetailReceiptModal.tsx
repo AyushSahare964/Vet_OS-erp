@@ -2,6 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, ShoppingBag, Receipt, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 interface Props {
   open: boolean;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function RetailReceiptModal({ open, onClose, sale }: Props) {
+  const CLINIC_CONFIG = useClinicBranding();
   if (!sale) return null;
 
   const handlePrint = () => {
@@ -45,9 +47,9 @@ export function RetailReceiptModal({ open, onClose, sale }: Props) {
         {/* Printable Thermal Receipt Canvas */}
         <div className="p-6 bg-white text-slate-900 font-mono text-xs space-y-4">
           <div className="text-center space-y-1 border-b border-dashed border-slate-300 pb-3">
-            <h3 className="font-bold text-sm tracking-tight text-slate-900">🐾 Harmony Pet Pharmacy &amp; Retail</h3>
-            <p className="text-[10px] text-slate-500">Koramangala, Bengaluru · GSTIN: 29AABCU9603R1ZM</p>
-            <p className="text-[10px] text-slate-400">Tel: +91 80 4920 1100 · Counter Bill</p>
+            <h3 className="font-bold text-sm tracking-tight text-slate-900">🐾 {CLINIC_CONFIG.shortName} Pharmacy &amp; Retail</h3>
+            <p className="text-[10px] text-slate-500">{CLINIC_CONFIG.addressLine2}{CLINIC_CONFIG.gstin ? ` · GSTIN: ${CLINIC_CONFIG.gstin}` : ""}</p>
+            <p className="text-[10px] text-slate-400">Tel: {CLINIC_CONFIG.phone} · Counter Bill</p>
           </div>
 
           <div className="flex justify-between text-[11px] border-b border-dashed border-slate-300 pb-2">
@@ -87,7 +89,7 @@ export function RetailReceiptModal({ open, onClose, sale }: Props) {
           </div>
 
           <div className="text-center text-[10px] text-slate-400 pt-2 border-t border-dashed border-slate-200">
-            Thank you for visiting Real Care Small Animal Clinic! 🐶🐱
+            Thank you for visiting {CLINIC_CONFIG.shortName}! 🐶🐱
           </div>
         </div>
       </DialogContent>

@@ -1,4 +1,5 @@
 ﻿import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IPaymentLine {
   mode: "CASH" | "UPI" | "CARD" | "BANK_TRANSFER" | "CHEQUE";
@@ -60,7 +61,7 @@ const PaymentLineSchema = new Schema<IPaymentLine>(
 
 const ExpenseSchema = new Schema<IExpense>(
   {
-    voucherNo: { type: String, required: true, unique: true },
+    voucherNo: { type: String, required: true, },
     expenseDate: { type: String, required: true },
     categoryId: { type: Schema.Types.ObjectId, ref: "ExpenseCategory", required: true },
     categoryName: { type: String, required: true },
@@ -91,6 +92,9 @@ ExpenseSchema.index({ expenseDate: 1 });
 ExpenseSchema.index({ categoryId: 1 });
 ExpenseSchema.index({ status: 1 });
 ExpenseSchema.index({ isRecurringTemplate: 1, recurNextDate: 1 });
+
+ExpenseSchema.plugin(tenantScopePlugin);
+ExpenseSchema.index({ tenantId: 1, voucherNo: 1 }, { unique: true });
 
 export const ExpenseModel =
   (mongoose.models["Expense"] as mongoose.Model<IExpense>) ??

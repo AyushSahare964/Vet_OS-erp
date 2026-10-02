@@ -13,7 +13,19 @@
 
 import { connectDB } from "@/lib/mongodb/client";
 import { Counter } from "@/lib/mongodb/models/Counters";
+import { getTenantContext } from "@/lib/mongodb/tenantContext";
 import type { ClientSession } from "mongoose";
+
+/**
+ * Counter documents use their name as `_id`, which is unique across the whole
+ * collection — so "invoice_no" can exist for exactly one tenant. Prefixing the
+ * key with the tenant gives every clinic its own independent sequence. With no
+ * tenant context (offline scripts) the bare name is used, matching legacy rows.
+ */
+function counterKey(counterId: string): string {
+  const tenantId = getTenantContext()?.tenantId;
+  return tenantId ? `${tenantId}:${counterId}` : counterId;
+}
 import { NumberSeriesModel, type SeriesDocType } from "@/lib/mongodb/models/NumberSeries";
 import { fyCodeFor, buildDocNumber } from "@/lib/finance/fyUtils";
 
@@ -36,7 +48,7 @@ function parseSeqNum(id: string, prefix: string): number {
 export async function syncSeq(counterId: string, minSeq: number): Promise<void> {
   await connectDB();
   await Counter.findOneAndUpdate(
-    { _id: counterId },
+    { _id: counterKey(counterId) },
     // $max only updates the field if the new value is greater than the current value
     { $max: { seq: minSeq } },
     { upsert: true, returnDocument: "after" },
@@ -52,7 +64,7 @@ export async function ensureCounterInSync(
   getMaxExisting: () => Promise<number>,
 ): Promise<void> {
   await connectDB();
-  const doc = await Counter.findOne({ _id: counterId }).lean();
+  const doc = await Counter.findOne({ _id: counterKey(counterId) }).lean();
   const storedSeq = doc?.seq ?? 0;
   const maxExisting = await getMaxExisting();
   if (maxExisting > storedSeq) {
@@ -83,7 +95,7 @@ export async function nextSeq(
     if (maxExisting > 0) {
       // $max ensures we never go backwards — safe under concurrency
       await Counter.findOneAndUpdate(
-        { _id: counterId },
+        { _id: counterKey(counterId) },
         { $max: { seq: maxExisting } },
         { upsert: true, returnDocument: "after" },
       );
@@ -91,7 +103,7 @@ export async function nextSeq(
   }
 
   const result = await Counter.findOneAndUpdate(
-    { _id: counterId },
+    { _id: counterKey(counterId) },
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: "after" },
   );
@@ -114,7 +126,7 @@ export async function peekNextSeq(
 ): Promise<string> {
   await connectDB();
 
-  let currentSeq = (await Counter.findOne({ _id: counterId }).lean())?.seq ?? 0;
+  let currentSeq = (await Counter.findOne({ _id: counterKey(counterId) }).lean())?.seq ?? 0;
 
   if (maxFn) {
     const maxExisting = await maxFn();

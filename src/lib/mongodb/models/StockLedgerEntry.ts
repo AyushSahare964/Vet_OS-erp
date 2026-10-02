@@ -11,6 +11,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export type StockSourceKind =
   | "OPENING"
@@ -78,6 +79,8 @@ const StockLedgerEntrySchema = new Schema<IStockLedgerEntry>(
 );
 
 StockLedgerEntrySchema.index({ itemCode: 1, entryDate: 1, _id: 1 });
+
+StockLedgerEntrySchema.plugin(tenantScopePlugin);
 
 export const StockLedgerEntryModel =
   (mongoose.models["StockLedgerEntry"] as mongoose.Model<IStockLedgerEntry>) ??

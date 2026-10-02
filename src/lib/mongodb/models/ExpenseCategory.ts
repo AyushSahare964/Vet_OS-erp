@@ -1,4 +1,5 @@
 ﻿import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IExpenseCategory extends Document {
   name: string;
@@ -11,7 +12,7 @@ export interface IExpenseCategory extends Document {
 
 const ExpenseCategorySchema = new Schema<IExpenseCategory>(
   {
-    name: { type: String, required: true, unique: true, trim: true, maxlength: 80 },
+    name: { type: String, required: true, trim: true, maxlength: 80 },
     nature: { type: String, enum: ["BUSINESS", "PERSONAL"], default: "BUSINESS" },
     glAccountCode: { type: String },
     sortOrder: { type: Number, default: 0 },
@@ -43,9 +44,16 @@ const SEED_CATEGORIES = [
 export async function seedExpenseCategories() {
   const count = await ExpenseCategoryModel.countDocuments();
   if (count === 0) {
-    await ExpenseCategoryModel.insertMany(SEED_CATEGORIES);
+    // Fresh copies — insertMany's tenant-stamping hook mutates each doc in
+    // place, and SEED_CATEGORIES is a module-level const reused by every
+    // caller, so inserting the originals directly would leak one tenant's
+    // ID into every other tenant's seed data from then on.
+    await ExpenseCategoryModel.insertMany(SEED_CATEGORIES.map((c) => ({ ...c })));
   }
 }
+
+ExpenseCategorySchema.plugin(tenantScopePlugin);
+ExpenseCategorySchema.index({ tenantId: 1, name: 1 }, { unique: true });
 
 export const ExpenseCategoryModel =
   (mongoose.models["ExpenseCategory"] as mongoose.Model<IExpenseCategory>) ??

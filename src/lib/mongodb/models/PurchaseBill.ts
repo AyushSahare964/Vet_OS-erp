@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IPurchaseBillItem {
   lineNo: number;
@@ -94,7 +95,7 @@ const BillItemSchema = new Schema<IPurchaseBillItem>(
 const PurchaseBillSchema = new Schema<IPurchaseBill>(
   {
     docType: { type: String, enum: ["PURCHASE", "DEBIT_NOTE"], default: "PURCHASE", index: true },
-    internalRef: { type: String, required: true, unique: true },
+    internalRef: { type: String, required: true, },
     supplierId: { type: String, required: true },
     supplierName: { type: String, required: true },
     partyId: { type: String, default: "", index: true },
@@ -135,9 +136,12 @@ PurchaseBillSchema.index({ partyId: 1, billDate: -1 });
 // bill number twice within one purchase-doc type. Sparse so historical rows
 // created before this index existed, if any lack billNumber, don't collide.
 PurchaseBillSchema.index(
-  { supplierId: 1, billNumber: 1, docType: 1 },
+  { tenantId: 1, supplierId: 1, billNumber: 1, docType: 1 },
   { unique: true, partialFilterExpression: { billNumber: { $gt: "" } } },
 );
+
+PurchaseBillSchema.plugin(tenantScopePlugin);
+PurchaseBillSchema.index({ tenantId: 1, internalRef: 1 }, { unique: true });
 
 export const PurchaseBillModel =
   (mongoose.models["PurchaseBill"] as mongoose.Model<IPurchaseBill>) ??

@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IBloodTest extends Document {
   testId: string;
@@ -15,7 +16,7 @@ export interface IBloodTest extends Document {
 
 const BloodTestSchema = new Schema<IBloodTest>(
   {
-    testId: { type: String, required: true, unique: true, index: true },
+    testId: { type: String, required: true, index: true },
     patientId: { type: String, required: true, index: true },
     visitId: { type: String },
     testType: { type: String, required: true },
@@ -26,5 +27,8 @@ const BloodTestSchema = new Schema<IBloodTest>(
   },
   { timestamps: true }
 );
+
+BloodTestSchema.plugin(tenantScopePlugin);
+BloodTestSchema.index({ tenantId: 1, testId: 1 }, { unique: true });
 
 export const BloodTest = (mongoose.models["BloodTest"] || mongoose.model<IBloodTest>("BloodTest", BloodTestSchema)) as mongoose.Model<IBloodTest>;

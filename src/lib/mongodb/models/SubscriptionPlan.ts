@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface ISubscriptionPlan extends Document {
   planId: string;
@@ -16,7 +17,7 @@ export interface ISubscriptionPlan extends Document {
 
 const SubscriptionPlanSchema = new Schema<ISubscriptionPlan>(
   {
-    planId: { type: String, required: true, unique: true, index: true },
+    planId: { type: String, required: true, index: true },
     name: { type: String, required: true, trim: true },
     price: { type: Number, required: true },
     billingType: { type: String, enum: ["recurring", "session_pack"], required: true },
@@ -30,6 +31,9 @@ const SubscriptionPlanSchema = new Schema<ISubscriptionPlan>(
 );
 
 SubscriptionPlanSchema.index({ isActive: 1 });
+
+SubscriptionPlanSchema.plugin(tenantScopePlugin);
+SubscriptionPlanSchema.index({ tenantId: 1, planId: 1 }, { unique: true });
 
 export const SubscriptionPlanModel =
   (mongoose.models["SubscriptionPlan"] as mongoose.Model<ISubscriptionPlan>) ??

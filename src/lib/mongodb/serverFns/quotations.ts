@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { Quotation, type IQuotation } from "@/lib/mongodb/models/Quotation";
 
 function toPlain<T>(v: any): T {
@@ -9,7 +9,7 @@ function toPlain<T>(v: any): T {
 
 export const listQuotationsFn = createServerFn({ method: "GET" })
   .validator((d: { query?: string } | undefined) => d || {})
-  .handler(async ({ data }): Promise<any[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<any[]> => {
     try {
       await connectDB();
       const q = data?.query?.trim();
@@ -29,7 +29,7 @@ export const listQuotationsFn = createServerFn({ method: "GET" })
       console.error("[listQuotationsFn] Error:", err);
       return [];
     }
-  });
+  }));
 
 export const createQuotationFn = createServerFn({ method: "POST" })
   .validator(
@@ -61,7 +61,7 @@ export const createQuotationFn = createServerFn({ method: "POST" })
       status?: string;
     }) => d
   )
-  .handler(async ({ data }): Promise<any> => {
+  .handler(tenantScoped(async ({ data }): Promise<any> => {
     try {
       await connectDB();
       const created = await Quotation.create({
@@ -76,7 +76,7 @@ export const createQuotationFn = createServerFn({ method: "POST" })
       // Fallback: Return created object
       return toPlain<any>(data);
     }
-  });
+  }));
 
 export const updateQuotationStatusFn = createServerFn({ method: "POST" })
   .validator(
@@ -86,7 +86,7 @@ export const updateQuotationStatusFn = createServerFn({ method: "POST" })
       convertedInvoiceNo?: string;
     }) => d
   )
-  .handler(async ({ data }): Promise<any> => {
+  .handler(tenantScoped(async ({ data }): Promise<any> => {
     try {
       await connectDB();
       const updated = await (Quotation as any).findOneAndUpdate(
@@ -104,11 +104,11 @@ export const updateQuotationStatusFn = createServerFn({ method: "POST" })
       console.error("[updateQuotationStatusFn] Error:", err);
       return null;
     }
-  });
+  }));
 
 export const deleteQuotationFn = createServerFn({ method: "POST" })
   .validator((d: { quotationNo: string }) => d)
-  .handler(async ({ data }) => {
+  .handler(tenantScoped(async ({ data }) => {
     try {
       await connectDB();
       await Quotation.deleteOne({ quotationNo: data.quotationNo });
@@ -117,4 +117,4 @@ export const deleteQuotationFn = createServerFn({ method: "POST" })
       console.error("[deleteQuotationFn] Error:", err);
       return { success: false };
     }
-  });
+  }));

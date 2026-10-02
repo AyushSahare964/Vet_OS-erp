@@ -1,4 +1,5 @@
 ﻿import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IPaymentAccount extends Document {
   name: string;
@@ -27,9 +28,14 @@ const SEED_ACCOUNTS = [
 export async function seedPaymentAccounts() {
   const count = await PaymentAccountModel.countDocuments();
   if (count === 0) {
-    await PaymentAccountModel.insertMany(SEED_ACCOUNTS);
+    // Fresh copies — see the matching comment in ExpenseCategory.ts's
+    // seedExpenseCategories(): insertMany's tenant-stamping hook mutates
+    // each doc in place, and SEED_ACCOUNTS is a shared module-level const.
+    await PaymentAccountModel.insertMany(SEED_ACCOUNTS.map((a) => ({ ...a })));
   }
 }
+
+PaymentAccountSchema.plugin(tenantScopePlugin);
 
 export const PaymentAccountModel =
   (mongoose.models["PaymentAccount"] as mongoose.Model<IPaymentAccount>) ??

@@ -54,3 +54,9 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# E2E output (contains generated clinic passwords / screenshots)
+clinic-credentials/
+e2e-output/
+refrence/
+graphify-out/

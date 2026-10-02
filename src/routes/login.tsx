@@ -52,9 +52,8 @@ function AuthPage() {
     email: "",
     password: "",
     phone: "",
-    clinicName: "Real Care Small Animal Clinic",
-    branch: "Nagpur Main Clinic",
-    roleId: "admin",
+    clinicSlug: "",
+    roleId: "doctor",
     licenseNumber: "",
     department: "Clinical Care",
     specialty: "General Practice",
@@ -362,7 +361,13 @@ function AuthPage() {
                 <div>
                   <h1 className="text-lg font-bold text-navy">Create Profile</h1>
                   <p className="text-xs text-muted-foreground">
-                    Register operator profile to access ERP features.
+                    Join your clinic's existing VetOS Cloud workspace as staff.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    New clinic?{" "}
+                    <Link to="/register-clinic" className="text-primary font-semibold hover:underline">
+                      Register your clinic instead →
+                    </Link>
                   </p>
                 </div>
 
@@ -419,12 +424,13 @@ function AuthPage() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">Clinic Name</label>
+                      <label className="block text-[0.68rem] font-semibold text-foreground">Clinic Identifier *</label>
                       <input
                         type="text"
-                        value={regData.clinicName}
-                        onChange={(e) => setRegData({ ...regData, clinicName: e.target.value })}
-                        placeholder="Real Care Small Animal Clinic"
+                        required
+                        value={regData.clinicSlug}
+                        onChange={(e) => setRegData({ ...regData, clinicSlug: e.target.value })}
+                        placeholder="real_care_ngp"
                         className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
                       />
                     </div>

@@ -12,7 +12,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { connectDB } from "@/lib/mongodb/client";
+import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { FinanceTransaction } from "@/lib/mongodb/models/FinanceTransaction";
 import { nextSeq } from "@/lib/mongodb/serverFns/counters";
 
@@ -270,7 +270,7 @@ function toDbData(v: unknown): Record<string, unknown> {
 // ─── getAccountsFn ────────────────────────────────────────────────────────────
 
 export const getAccountsFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<GLAccountRow[]> => {
+  .handler(tenantScoped(async (): Promise<GLAccountRow[]> => {
     await connectDB();
 
     const count = await FinanceTransaction.countDocuments({ type: "account" });
@@ -290,17 +290,17 @@ export const getAccountsFn = createServerFn({ method: "GET" })
       .sort({ "data.code": 1 })
       .lean();
     return toPlain(docs.map((d) => d.data as GLAccountRow));
-  });
+  }));
 
 // ─── createAccountFn ─────────────────────────────────────────────────────────
 
 export const createAccountFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => GLAccountInputZ.parse(raw))
-  .handler(async ({ data }): Promise<GLAccountRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<GLAccountRow> => {
     await connectDB();
     await FinanceTransaction.create({ type: "account", data });
     return toPlain(data) as GLAccountRow;
-  });
+  }));
 
 // ─── updateAccountFn ─────────────────────────────────────────────────────────
 
@@ -308,7 +308,7 @@ export const updateAccountFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) =>
     z.object({ code: z.string(), patch: GLAccountInputZ.partial() }).parse(raw)
   )
-  .handler(async ({ data }): Promise<{ success: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
     await connectDB();
     const setOps = Object.fromEntries(
       Object.entries(data.patch).map(([k, v]) => [`data.${k}`, v])
@@ -319,13 +319,13 @@ export const updateAccountFn = createServerFn({ method: "POST" })
       { returnDocument: "after" }
     ).lean();
     return { success: true };
-  });
+  }));
 
 // ─── createPaymentFn ─────────────────────────────────────────────────────────
 
 export const createPaymentFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => PaymentEntryInputZ.parse(raw))
-  .handler(async ({ data }): Promise<PaymentRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<PaymentRow> => {
     await connectDB();
     const paymentNo = await nextSeq("payment_entry", "PE", 4);
     const totalAllocated = data.references.reduce((s, r) => s + r.allocatedAmount, 0);
@@ -352,7 +352,7 @@ export const createPaymentFn = createServerFn({ method: "POST" })
     };
     const doc = await FinanceTransaction.create({ type: "payment", data: toDbData(entry) });
     return toPlain({ ...entry, _id: (doc._id as { toString(): string }).toString() });
-  });
+  }));
 
 // ─── getPaymentsFn ────────────────────────────────────────────────────────────
 
@@ -360,19 +360,19 @@ export const getPaymentsFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) =>
     z.object({ partyType: z.string().default("all") }).parse(raw)
   )
-  .handler(async ({ data }): Promise<PaymentRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<PaymentRow[]> => {
     await connectDB();
     const filter: Record<string, unknown> = { type: "payment" };
     if (data.partyType !== "all") filter["data.partyType"] = data.partyType;
     const docs = await FinanceTransaction.find(filter).sort({ createdAt: -1 }).lean();
     return toPlain(docs.map((d) => d.data as PaymentRow));
-  });
+  }));
 
 // ─── createJournalFn ─────────────────────────────────────────────────────────
 
 export const createJournalFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => JournalEntryInputZ.parse(raw))
-  .handler(async ({ data }): Promise<JournalRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<JournalRow> => {
     await connectDB();
     const totalDebit  = data.lines.reduce((s, l) => s + l.debit, 0);
     const totalCredit = data.lines.reduce((s, l) => s + l.credit, 0);
@@ -398,23 +398,23 @@ export const createJournalFn = createServerFn({ method: "POST" })
     };
     const doc = await FinanceTransaction.create({ type: "journal", data: toDbData(entry) });
     return toPlain({ ...entry, _id: (doc._id as { toString(): string }).toString() });
-  });
+  }));
 
 // ─── getJournalsFn ───────────────────────────────────────────────────────────
 
 export const getJournalsFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<JournalRow[]> => {
+  .handler(tenantScoped(async (): Promise<JournalRow[]> => {
     await connectDB();
     const docs = await FinanceTransaction.find({ type: "journal" })
       .sort({ createdAt: -1 }).limit(100).lean();
     return toPlain(docs.map((d) => d.data as JournalRow));
-  });
+  }));
 
 // ─── createBudgetFn ──────────────────────────────────────────────────────────
 
 export const createBudgetFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => BudgetInputZ.parse(raw))
-  .handler(async ({ data }): Promise<BudgetRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<BudgetRow> => {
     await connectDB();
     const budgetNo    = await nextSeq("budget", "BUD", 3);
     const totalBudget = data.lines.reduce((s, l) => s + l.annualBudget, 0);
@@ -446,22 +446,22 @@ export const createBudgetFn = createServerFn({ method: "POST" })
     };
     const doc = await FinanceTransaction.create({ type: "budget", data: budget });
     return toPlain({ ...budget, _id: (doc._id as { toString(): string }).toString() });
-  });
+  }));
 
 // ─── getBudgetsFn ────────────────────────────────────────────────────────────
 
 export const getBudgetsFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<BudgetRow[]> => {
+  .handler(tenantScoped(async (): Promise<BudgetRow[]> => {
     await connectDB();
     const docs = await FinanceTransaction.find({ type: "budget" }).sort({ createdAt: -1 }).lean();
     return toPlain(docs.map((d) => d.data as BudgetRow));
-  });
+  }));
 
 // ─── createTaxTemplateFn ─────────────────────────────────────────────────────
 
 export const createTaxTemplateFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => TaxTemplateInputZ.parse(raw))
-  .handler(async ({ data }): Promise<TaxTemplateRow> => {
+  .handler(tenantScoped(async ({ data }): Promise<TaxTemplateRow> => {
     await connectDB();
     if (data.isDefault) {
       await FinanceTransaction.updateMany(
@@ -472,16 +472,16 @@ export const createTaxTemplateFn = createServerFn({ method: "POST" })
     const template: TaxTemplateRow = { ...data, status: "Active" };
     const doc = await FinanceTransaction.create({ type: "tax_template", data: template });
     return toPlain({ ...template, _id: (doc._id as { toString(): string }).toString() });
-  });
+  }));
 
 // ─── getTaxTemplatesFn ───────────────────────────────────────────────────────
 
 export const getTaxTemplatesFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<TaxTemplateRow[]> => {
+  .handler(tenantScoped(async (): Promise<TaxTemplateRow[]> => {
     await connectDB();
     const docs = await FinanceTransaction.find({ type: "tax_template" }).sort({ createdAt: -1 }).lean();
     return toPlain(docs.map((d) => d.data as TaxTemplateRow));
-  });
+  }));
 
 // ─── getTransactionsFn ───────────────────────────────────────────────────────
 
@@ -492,14 +492,14 @@ export const getTransactionsFn = createServerFn({ method: "GET" })
       limit: z.number().int().min(1).max(500).default(100),
     }).parse(raw)
   )
-  .handler(async ({ data }): Promise<PaymentRow[]> => {
+  .handler(tenantScoped(async ({ data }): Promise<PaymentRow[]> => {
     await connectDB();
     const filter: Record<string, unknown> = {};
     if (data.type) filter["type"] = data.type;
     const docs = await FinanceTransaction.find(filter)
       .sort({ createdAt: -1 }).limit(data.limit).lean();
     return toPlain(docs.map((d) => d.data as PaymentRow));
-  });
+  }));
 
 // ─── getFinancialKpisFn ───────────────────────────────────────────────────────
 
@@ -528,7 +528,7 @@ export const getFinancialKpisFn = createServerFn({ method: "GET" })
       to: z.string().optional(),
     }).optional().parse(raw)
   )
-  .handler(async ({ data }): Promise<FinancialOverviewKpis> => {
+  .handler(tenantScoped(async ({ data }): Promise<FinancialOverviewKpis> => {
     await connectDB();
     const today = todayIST();
     const from = data?.from ?? `${today.slice(0, 7)}-01`;
@@ -609,7 +609,7 @@ export const getFinancialKpisFn = createServerFn({ method: "GET" })
       digitalOutflow,
       netIncome,
     };
-  });
+  }));
 
 // ─── getPaymentAnalyticsFn ────────────────────────────────────────────────────
 // All clinic collections (visit finalize, invoice payment, partial payment) post a
@@ -641,7 +641,7 @@ function pctChange(curr: number, prev: number): number {
 }
 
 export const getPaymentAnalyticsFn = createServerFn({ method: "GET" })
-  .handler(async (): Promise<PaymentAnalyticsData> => {
+  .handler(tenantScoped(async (): Promise<PaymentAnalyticsData> => {
     await connectDB();
     const today = todayIST();
     const monthStart = `${today.slice(0, 7)}-01`;
@@ -742,5 +742,5 @@ export const getPaymentAnalyticsFn = createServerFn({ method: "GET" })
         digitalShareTrendPct: Math.round((digitalSharePct - digitalSharePrevPct) * 10) / 10,
       },
     };
-  });
+  }));
 

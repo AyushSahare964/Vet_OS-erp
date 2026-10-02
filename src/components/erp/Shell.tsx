@@ -37,7 +37,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
-  const { role, currentUser } = useErp();
+  const { role, currentUser, clinicBranding } = useErp();
+  const displayName = clinicBranding?.clinicName || currentUser?.clinicName || CLINIC_CONFIG.shortName;
+  const displayPerson = clinicBranding
+    ? (clinicBranding.doctorName || currentUser?.fullName || "")
+    : (currentUser?.fullName || CLINIC_CONFIG.doctorName);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mongoStatus, setMongoStatus] = useState<MongoStatusRow | null>(null);
 
@@ -68,15 +72,21 @@ function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
             transition={{ duration: 0.2 }}
             className="flex items-center justify-center"
           >
-            <img
-              src={CLINIC_CONFIG.logoPath}
-              alt={CLINIC_CONFIG.shortName}
-              className="h-14 w-auto object-contain"
-            />
+            {clinicBranding?.logoUrl ? (
+              <img
+                src={clinicBranding.logoUrl}
+                alt={displayName}
+                className="h-14 w-auto object-contain"
+              />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10">
+                <Building2 className="h-7 w-7 text-primary" />
+              </div>
+            )}
           </motion.div>
           <div className="text-center">
-            <p className="text-sm font-bold tracking-tight text-navy leading-tight">{CLINIC_CONFIG.shortName}</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">{CLINIC_CONFIG.doctorName}</p>
+            <p className="text-sm font-bold tracking-tight text-navy leading-tight">{displayName}</p>
+            <p className="text-[10px] text-muted-foreground leading-tight">{displayPerson}</p>
           </div>
         </Link>
         <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[0.65rem] font-bold text-primary">

@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Button } from "@/components/ui/button";
 import { Printer, Download, CheckCircle2, Building2, Calendar, FileText, CreditCard, Trash2 } from "lucide-react";
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
-import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
 import { type PurchaseBillRow } from "@/lib/mongodb/serverFns/purchaseBills";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ export function PurchaseBillPrintView({
   onMarkPaid,
   onDelete,
 }: PurchaseBillPrintViewProps) {
+  const CLINIC_CONFIG = useClinicBranding();
   if (!bill) return null;
 
   const handlePrint = () => {
@@ -145,7 +146,7 @@ export function PurchaseBillPrintView({
                     {CLINIC_CONFIG.doctorName} · {CLINIC_CONFIG.doctorQualifications}
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    Phone: {CLINIC_CONFIG.phone} · {CLINIC_CONFIG.website}
+                    Phone: {[CLINIC_CONFIG.phone, CLINIC_CONFIG.website].filter(Boolean).join(" · ")}
                   </p>
                 </div>
               </div>

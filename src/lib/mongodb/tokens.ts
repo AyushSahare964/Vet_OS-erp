@@ -16,6 +16,8 @@ export interface AccessTokenPayload {
   sub: string;
   email: string;
   roleId: string;
+  tenantId?: string;
+  tenantSlug?: string;
 }
 
 export interface RefreshTokenPayload {
@@ -23,9 +25,9 @@ export interface RefreshTokenPayload {
   jti: string;
 }
 
-export function signAccessToken(userId: string, email: string, roleId: string): string {
+export function signAccessToken(userId: string, email: string, roleId: string, tenantId?: string, tenantSlug?: string): string {
   // @ts-expect-error: jwt.sign expiresIn string overload conflicts with exactOptionalPropertyTypes
-  return jwt.sign({ sub: userId, email, roleId }, ACCESS_SECRET, { expiresIn: ACCESS_TTL });
+  return jwt.sign({ sub: userId, email, roleId, tenantId, tenantSlug }, ACCESS_SECRET, { expiresIn: ACCESS_TTL });
 }
 
 export function signRefreshToken(userId: string): { token: string; jti: string } {

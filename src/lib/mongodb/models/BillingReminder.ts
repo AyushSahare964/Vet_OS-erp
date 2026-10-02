@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IBillingReminder extends Document {
   reminderId: string;
@@ -19,7 +20,7 @@ export interface IBillingReminder extends Document {
 
 const BillingReminderSchema = new Schema<IBillingReminder>(
   {
-    reminderId: { type: String, required: true, unique: true, index: true },
+    reminderId: { type: String, required: true, index: true },
     invoiceNo: { type: String, default: "" },
     petName: { type: String, required: true },
     ownerName: { type: String, required: true },
@@ -40,6 +41,9 @@ const BillingReminderSchema = new Schema<IBillingReminder>(
 );
 
 BillingReminderSchema.index({ status: 1, scheduledDate: 1 });
+
+BillingReminderSchema.plugin(tenantScopePlugin);
+BillingReminderSchema.index({ tenantId: 1, reminderId: 1 }, { unique: true });
 
 export const BillingReminderModel =
   (mongoose.models["BillingReminder"] as mongoose.Model<IBillingReminder>) ??

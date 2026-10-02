@@ -5,6 +5,7 @@
  */
 
 import mongoose, { Schema, model } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export type BatchStatus = "Active" | "Exhausted" | "Rejected" | "Expired";
 
@@ -59,7 +60,7 @@ export type StockBatchDocument = IStockBatch & mongoose.Document;
 
 const stockBatchSchema = new Schema<StockBatchDocument>(
   {
-    batchCode:    { type: String, required: true, unique: true, index: true },
+    batchCode:    { type: String, required: true, index: true },
     itemId:       { type: String, required: true, index: true },
     itemCode:     { type: String, required: true },
     itemName:     { type: String, required: true },
@@ -100,6 +101,9 @@ const stockBatchSchema = new Schema<StockBatchDocument>(
 
 stockBatchSchema.index({ itemId: 1, expiryDate: 1 }); // for FEFO
 stockBatchSchema.index({ itemId: 1, status: 1, qty: -1 });
+
+stockBatchSchema.plugin(tenantScopePlugin);
+stockBatchSchema.index({ tenantId: 1, batchCode: 1 }, { unique: true });
 
 export const StockBatch: mongoose.Model<StockBatchDocument> =
   (mongoose.models["StockBatch"] as mongoose.Model<StockBatchDocument>) ??

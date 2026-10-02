@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IPrescriptionLine {
   lineType:
@@ -303,8 +304,8 @@ const PaymentRecordSchema = new Schema<IPaymentRecord>({
 
 const ClinicalVisitSchema = new Schema<IClinicalVisit>(
   {
-    visitId: { type: String, required: true, unique: true, index: true },
-    invoiceNo: { type: String, required: true, unique: true, index: true },
+    visitId: { type: String, required: true, index: true },
+    invoiceNo: { type: String, required: true, index: true },
     prescriptionNo: { type: String, required: true, index: true },
     date: { type: String, required: true, index: true },
     branch: { type: String, default: "Main Clinic" },
@@ -384,6 +385,10 @@ const ClinicalVisitSchema = new Schema<IClinicalVisit>(
   },
   { timestamps: true },
 );
+
+ClinicalVisitSchema.plugin(tenantScopePlugin);
+ClinicalVisitSchema.index({ tenantId: 1, visitId: 1 }, { unique: true });
+ClinicalVisitSchema.index({ tenantId: 1, invoiceNo: 1 }, { unique: true });
 
 export const ClinicalVisit = (mongoose.models["ClinicalVisit"] ||
   mongoose.model<IClinicalVisit>(

@@ -97,7 +97,7 @@ export function RealCatJumpingWelcome({
     { tag: "Yay!", icon: "✨", text: "OPD queue is active and rolling!" },
     { tag: "Meow!", icon: "🩺", text: "Ready for veterinary rounds!" },
     { tag: "Hehe", icon: "🐟", text: "Did someone say salmon treats?" },
-    { tag: "Purr!", icon: "⭐", text: "Nagpur's #1 veterinary clinic!" },
+    { tag: "Purr!", icon: "⭐", text: "Caring for every pet, every day!" },
     { tag: "Doc!", icon: "📋", text: "Diagnostics & prescriptions ready!" },
     { tag: "Meow!", icon: "🐾", text: "Healing pets with care & love!" },
   ], [personName]);

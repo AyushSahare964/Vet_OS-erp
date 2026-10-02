@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IFollowUp extends Document {
   followUpId: string;
@@ -14,7 +15,7 @@ export interface IFollowUp extends Document {
 
 const FollowUpSchema = new Schema<IFollowUp>(
   {
-    followUpId: { type: String, required: true, unique: true, index: true },
+    followUpId: { type: String, required: true, index: true },
     patientId: { type: String, required: true, index: true },
     visitId: { type: String },
     type: { type: String, required: true },
@@ -24,5 +25,8 @@ const FollowUpSchema = new Schema<IFollowUp>(
   },
   { timestamps: true }
 );
+
+FollowUpSchema.plugin(tenantScopePlugin);
+FollowUpSchema.index({ tenantId: 1, followUpId: 1 }, { unique: true });
 
 export const FollowUp = (mongoose.models["FollowUp"] || mongoose.model<IFollowUp>("FollowUp", FollowUpSchema)) as mongoose.Model<IFollowUp>;

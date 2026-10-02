@@ -90,6 +90,7 @@ import {
 } from "@/lib/mongodb/serverFns/purchaseBills";
 import { PurchaseBillPrintView } from "./PurchaseBillPrintView";
 import { cn } from "@/lib/utils";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 interface BillingDeskDashboardProps {
   invoices: any[];
@@ -127,6 +128,7 @@ export function BillingDeskDashboard({
   onViewInvoice,
   onConvertToInvoice,
 }: BillingDeskDashboardProps) {
+  const CLINIC_CONFIG = useClinicBranding();
   const [masked, setMasked] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange());
 
@@ -822,7 +824,7 @@ export function BillingDeskDashboard({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-black tracking-tight text-foreground">
-                Billing Desk — Real Care Small Animal Clinic
+                Billing Desk — {CLINIC_CONFIG.fullName}
               </h1>
               <button
                 type="button"

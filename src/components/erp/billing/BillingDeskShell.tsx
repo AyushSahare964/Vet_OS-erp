@@ -21,6 +21,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { Shell } from "@/components/erp/Shell";
 import { formatDisplayDate, formatDisplayTime } from "@/lib/utils/dateUtils";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 export type BillingMenuId =
   | "dashboard"
@@ -56,6 +57,7 @@ export function BillingDeskShell({
   onSelectMenu,
   children,
 }: BillingDeskShellProps) {
+  const CLINIC_CONFIG = useClinicBranding();
   // Live ticking clock and date for the Hitech sidebar footer
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
@@ -74,7 +76,7 @@ export function BillingDeskShell({
   }, []);
 
   return (
-    <Shell title="Billing Desk — Real Care Small Animal Clinic">
+    <Shell title={`Billing Desk — ${CLINIC_CONFIG.fullName}`}>
       <div className="mx-auto max-w-[1600px] flex flex-col md:flex-row min-h-[calc(100vh-130px)] gap-4">
         {/* ── Hitech Left Sidebar ── */}
         <aside className="w-full md:w-60 shrink-0 flex flex-col rounded-2xl bg-[#0f172a] text-slate-200 shadow-xl overflow-hidden border border-slate-800">
@@ -86,7 +88,7 @@ export function BillingDeskShell({
                 <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold">9.3</span>
               </div>
               <p className="text-[10px] text-slate-400 truncate mt-0.5 max-w-[170px]">
-                Real Care Small Animal Clinic
+                {CLINIC_CONFIG.fullName}
               </p>
             </div>
 

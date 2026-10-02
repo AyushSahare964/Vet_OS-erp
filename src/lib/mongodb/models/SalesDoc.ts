@@ -11,6 +11,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 import { roundMoney } from "@/lib/utils/moneyUtils";
 
 export type SalesDocType = "QUOTATION" | "INVOICE" | "CREDIT_NOTE";
@@ -300,12 +301,14 @@ const SalesDocSchema = new Schema<ISalesDoc>(
 // A posted number is unique per type; drafts (docNumber "") are exempt via the
 // partial filter, so any number of drafts can coexist.
 SalesDocSchema.index(
-  { docType: 1, docNumber: 1 },
+  { tenantId: 1, docType: 1, docNumber: 1 },
   { unique: true, partialFilterExpression: { docNumber: { $gt: "" } } },
 );
 SalesDocSchema.index({ docDate: -1, status: 1 });
 SalesDocSchema.index({ partyId: 1, docDate: -1 });
 SalesDocSchema.index({ status: 1, balanceDue: 1 });
+
+SalesDocSchema.plugin(tenantScopePlugin);
 
 export const SalesDocModel =
   (mongoose.models["SalesDoc"] as mongoose.Model<ISalesDoc>) ??

@@ -31,6 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useErp } from "@/lib/erp/store";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { getItemsFn } from "@/lib/mongodb/serverFns/inventory";
 import { finalizeVisitAndBillFn, getLatestVisitFn, getPatientHistoryFn, savePrescriptionFn, getVisitByIdFn } from "@/lib/mongodb/serverFns/clinical";
 import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
@@ -78,6 +79,7 @@ interface BillLine {
 
 export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized }: VisitWorkspaceProps) {
   const { currentUser, role } = useErp();
+  const CLINIC_CONFIG = useClinicBranding();
   const [activeVisit, setActiveVisit] = useState<any>(visit);
 
   useEffect(() => {
@@ -1853,7 +1855,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized }: 
                       >
                         <div className="flex items-center gap-2" style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1 1 200px", minWidth: "180px" }}>
                           <img
-                            src="/clinic-logo.png"
+                            src={CLINIC_CONFIG.logoPath}
                             alt="Clinic Logo"
                             className="h-8 w-auto object-contain shrink-0"
                             style={{ maxHeight: 32, width: "auto", flexShrink: 0 }}
@@ -1863,7 +1865,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized }: 
                               className="text-sm font-black tracking-tight uppercase"
                               style={{ fontSize: "14px", fontWeight: 900, color: "#1e3a8a", letterSpacing: "-0.01em", margin: 0 }}
                             >
-                              Real Care Small Animal Clinic
+                              {CLINIC_CONFIG.fullName}
                             </h2>
                             <p className="text-[11px] text-slate-600 mt-1" style={{ color: "#475569", margin: "3px 0 0 0", fontSize: "11px" }}>
                               Plot 42, Central Avenue, Near Medical Square, Nagpur - 440009
@@ -2226,7 +2228,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized }: 
                       >
                         <div className="flex items-center gap-1.5" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                           <span className="inline-block size-2 rounded-full bg-emerald-600" style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#059669" }}></span>
-                          <span className="font-semibold text-slate-700" style={{ fontWeight: 600, color: "#334155" }}>Real Care Small Animal Clinic · VetOS Clinical Console</span>
+                          <span className="font-semibold text-slate-700" style={{ fontWeight: 600, color: "#334155" }}>{CLINIC_CONFIG.fullName} · VetOS Clinical Console</span>
                         </div>
                         <div>
                           <span>Generated: <strong style={{ color: "#0f172a" }}>{new Date().toLocaleDateString("en-GB")} at {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })} IST</strong></span>
@@ -2275,15 +2277,15 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized }: 
                       {/* Header */}
                       <div className="border-b-2 border-slate-900 pb-3.5 flex items-start justify-between" style={{ borderBottom: "2px solid #0f172a", paddingBottom: "14px", flexWrap: "wrap", rowGap: "10px", display: "flex", alignItems: "flex-start" }}>
                         <div className="flex items-center gap-2" style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1 1 200px", minWidth: "180px" }}>
-                          <img src="/clinic-logo.png" alt="Clinic Logo" className="h-8 w-auto object-contain shrink-0" style={{ maxHeight: 32, width: "auto" }} />
+                          <img src={CLINIC_CONFIG.logoPath} alt="Clinic Logo" className="h-8 w-auto object-contain shrink-0" style={{ maxHeight: 32, width: "auto" }} />
                           <div className="leading-tight" style={{ minWidth: "160px", flex: "1 1 auto" }}>
-                            <h2 className="text-sm font-black tracking-tight uppercase" style={{ fontSize: "14px", fontWeight: 900, color: "#0f172a" }}>Real Care Small Animal Clinic</h2>
-                            <p className="text-[11px] text-slate-600 mt-0.5">Plot 42, Central Avenue, Near Medical Square, Nagpur - 440009</p>
-                            <p className="text-[11px] text-slate-600">Phone: +91 712 2548899 · Reg: MH/VET/2019/8821</p>
-                            {finalizedVisit.billType === "GST" && (
-                              <p className="text-[11px] font-mono font-bold text-slate-800">GSTIN: 27AABCV1234F1Z5</p>
+                            <h2 className="text-sm font-black tracking-tight uppercase" style={{ fontSize: "14px", fontWeight: 900, color: "#0f172a" }}>{CLINIC_CONFIG.fullName}</h2>
+                            <p className="text-[11px] text-slate-600 mt-0.5">{CLINIC_CONFIG.addressLine1}</p>
+                            <p className="text-[11px] text-slate-600">Phone: {CLINIC_CONFIG.phone}{CLINIC_CONFIG.regNo ? ` · Reg: ${CLINIC_CONFIG.regNo}` : ""}</p>
+                            {finalizedVisit.billType === "GST" && CLINIC_CONFIG.gstin && (
+                              <p className="text-[11px] font-mono font-bold text-slate-800">GSTIN: {CLINIC_CONFIG.gstin}</p>
                             )}
-                            <p className="text-[11px] text-slate-600">Branch: {finalizedVisit.branch || "Central Avenue, Nagpur"}</p>
+                            <p className="text-[11px] text-slate-600">Branch: {finalizedVisit.branch || CLINIC_CONFIG.addressLine2}</p>
                           </div>
                         </div>
                         <div className="text-right text-[11px] space-y-1 shrink-0 min-w-[110px]" style={{ marginLeft: "auto" }}>
@@ -2418,7 +2420,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized }: 
                           <p style={{ margin: 0 }}>• Computer-generated sales invoice and official receipt.</p>
                         </div>
                         <div className="text-center min-w-[160px]" style={{ marginLeft: "auto" }}>
-                          <p className="font-bold text-slate-700" style={{ margin: "0 0 4px 0" }}>For Real Care Small Animal Clinic</p>
+                          <p className="font-bold text-slate-700" style={{ margin: "0 0 4px 0" }}>For {CLINIC_CONFIG.fullName}</p>
                           <div className="w-full border-b border-slate-300 pb-5 pt-1"></div>
                           <p className="text-slate-400 pt-1 text-[10px]" style={{ margin: "4px 0 0 0" }}>Authorized Signatory</p>
                         </div>
@@ -2428,7 +2430,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized }: 
                       <div className="pt-3 border-t border-dashed border-slate-200 flex items-center justify-between text-[10px] text-slate-500 font-mono mt-3" style={{ borderTop: "1px dashed #cbd5e1" }}>
                         <div className="flex items-center gap-1.5">
                           <span className="inline-block size-1.5 rounded-full bg-emerald-500" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }}></span>
-                          <span>Real Care VetOS · Electronically Generated Tax Invoice</span>
+                          <span>{CLINIC_CONFIG.fullName} · Electronically Generated Tax Invoice</span>
                         </div>
                         <div>
                           <span>Generated: {new Date().toLocaleDateString("en-GB")} at {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })} IST</span>

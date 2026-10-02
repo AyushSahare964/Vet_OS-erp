@@ -13,6 +13,7 @@
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 /** Document families that carry their own series. */
 export type SeriesDocType =
@@ -80,7 +81,9 @@ const NumberSeriesSchema = new Schema<INumberSeries>(
   { timestamps: true, collection: "number_series" },
 );
 
-NumberSeriesSchema.index({ branchId: 1, docType: 1, fyCode: 1 }, { unique: true });
+NumberSeriesSchema.index({ tenantId: 1, branchId: 1, docType: 1, fyCode: 1 }, { unique: true });
+
+NumberSeriesSchema.plugin(tenantScopePlugin);
 
 export const NumberSeriesModel =
   (mongoose.models["NumberSeries"] as mongoose.Model<INumberSeries>) ??

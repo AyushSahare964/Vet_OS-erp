@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { tenantScopePlugin } from "../tenantScopePlugin";
 
 export interface IOwner extends Document {
   ownerId: string;
@@ -41,7 +42,7 @@ export interface IOwner extends Document {
 
 const OwnerSchema = new Schema<IOwner>(
   {
-    ownerId: { type: String, required: true, unique: true, index: true },
+    ownerId: { type: String, required: true, index: true },
     name: { type: String, required: true, index: true },
     phone: { type: String, required: true, index: true },
     altPhone: { type: String },
@@ -72,6 +73,9 @@ const OwnerSchema = new Schema<IOwner>(
   },
   { timestamps: true },
 );
+
+OwnerSchema.plugin(tenantScopePlugin);
+OwnerSchema.index({ tenantId: 1, ownerId: 1 }, { unique: true });
 
 export const Owner = (mongoose.models["Owner"] ||
   mongoose.model<IOwner>("Owner", OwnerSchema)) as mongoose.Model<IOwner>;
