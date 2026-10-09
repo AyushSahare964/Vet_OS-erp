@@ -1,5 +1,6 @@
 import {
   Activity,
+  BadgePercent,
   BarChart3,
   Bone,
   Boxes,
@@ -23,11 +24,13 @@ import {
   Users,
   Wallet,
   Waves,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 
 const MAP: Record<string, LucideIcon> = {
   Activity,
+  BadgePercent,
   BarChart3,
   Bone,
   Boxes,
@@ -50,6 +53,7 @@ const MAP: Record<string, LucideIcon> = {
   Users,
   Wallet,
   Waves,
+  BookOpen,
 };
 
 export function getIcon(name: string): LucideIcon {

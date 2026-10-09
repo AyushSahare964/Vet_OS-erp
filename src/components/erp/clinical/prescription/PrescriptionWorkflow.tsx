@@ -40,10 +40,11 @@ import { ConsultationFeeSection } from "./ConsultationFeeSection";
 import { FollowUpSection, type FollowUpState } from "./FollowUpSection";
 import { LaboratoryOrderSection, type LaboratoryState } from "./LaboratoryOrderSection";
 import { LivePrescriptionSummaryPanel } from "./LivePrescriptionSummaryPanel";
+import { ActiveSchemeBanner } from "./ActiveSchemeBanner";
 
 import { savePrescriptionSectionFn } from "@/lib/mongodb/serverFns/clinical";
-import { createAppointmentFn, updateAppointmentFn } from "@/lib/mongodb/serverFns/appointments";
-import { formatDisplayDate } from "@/lib/utils/dateUtils";
+import { createAppointmentFn, updateAppointmentFn, deleteAppointmentFn } from "@/lib/mongodb/serverFns/appointments";
+import { formatDisplayDate, calculateQuickDate } from "@/lib/utils/dateUtils";
 import { resolveUnitPrice, convertToBase } from "@/lib/inventory/packagingUtils";
 import type { IPrescriptionData } from "@/lib/mongodb/models/ClinicalVisit";
 
@@ -857,59 +858,73 @@ export function PrescriptionWorkflow({
       amount: consultationFee,
       preset: consultationFeePreset,
     });
-  const handleSaveFollowUp = async () => {
-    await executeSaveSection("FOLLOWUP", {
-      required: followUp.required,
-      entries: followUp.entries,
-    });
-
-    // Fix 6/7: Auto-book a real appointment for Treatment follow-up
-    const treatEntry = followUp.entries.TREATMENT;
-    if (treatEntry?.enabled && treatEntry?.dueDate) {
+  // Books/updates/cancels Appointments-board entries for every enabled follow-up.
+  // Treatment with an N-day quick option books one visit per day for the next N days;
+  // everything else books a single visit on its due date. Tokens are persisted on the entry
+  // so re-saving updates the same appointments instead of duplicating them.
+  const syncFollowUpAppointments = async (entries: FollowUpState["entries"]): Promise<FollowUpState["entries"]> => {
+    const labels: Record<string, string> = {
+      TREATMENT: "Treatment Follow-up",
+      CONSULTATION: "Consultation Follow-up",
+      VACCINE: "Vaccine Booster",
+      DEWORMING: "Deworming Booster",
+    };
+    const out: any = { ...entries };
+    for (const type of Object.keys(labels)) {
+      const e: any = (entries as any)[type];
+      if (!e) continue;
+      const old: string[] = e.appointmentTokens?.length ? e.appointmentTokens : e.appointmentToken ? [e.appointmentToken] : [];
+      const daily = type === "TREATMENT" && /^\d+D$/.test(e.quickOption || "") ? parseInt(e.quickOption, 10) : 0;
+      const dates: string[] =
+        e.enabled && e.dueDate
+          ? daily > 0 ? Array.from({ length: daily }, (_, i) => calculateQuickDate(rawDate, `${i + 1}D`)) : [e.dueDate]
+          : [];
+      const tokens: string[] = [];
       try {
-        const token = treatEntry.appointmentToken;
-        const appointmentPayload = {
-          pet: patientName,
-          petId: patientId,
-          species: petDetails?.species || visit?.species || "",
-          breed: petDetails?.breed || visit?.breed || "",
-          owner: petDetails?.ownerName || visit?.ownerName || "",
-          phone: petDetails?.ownerPhone || visit?.ownerPhone || "",
-          doctor: doctorName,
-          reason: treatEntry.notes || "Treatment Follow-up",
-          type: "Follow-up",
-          status: "Waiting",
-          appointment_date: treatEntry.dueDate,
-          date: treatEntry.dueDate,
-          slot: "To be assigned",
-          priority: "Routine",
-          sourceVisitId: visit?.visitId,
-        };
-
-        if (!token) {
-          // Create new appointment
-          const generatedToken = `A-${100 + Math.floor(Math.random() * 900)}`;
-          const created = await createAppointmentFn({ data: { ...appointmentPayload, token: generatedToken } });
-          // Store token back on the entry to prevent duplicate on re-save
-          const returnedToken = created?.token ?? generatedToken;
-          setFollowUp((prev) => ({
-            ...prev,
-            entries: {
-              ...prev.entries,
-              TREATMENT: { ...prev.entries.TREATMENT, appointmentToken: String(returnedToken) },
-            },
-          }));
-          toast.success(`Treatment follow-up appointment booked for ${formatDisplayDate(treatEntry.dueDate)}`);
-        } else {
-          // Update existing appointment if date or notes changed
-          await updateAppointmentFn({ data: { ...appointmentPayload, token } });
-          toast.success(`Treatment follow-up appointment updated for ${formatDisplayDate(treatEntry.dueDate)}`);
+        for (let i = 0; i < dates.length; i++) {
+          const payload = {
+            pet: patientName,
+            petId: patientId,
+            species: petDetails?.species || visit?.species || "",
+            breed: petDetails?.breed || visit?.breed || "",
+            owner: petDetails?.ownerName || visit?.ownerName || "",
+            phone: petDetails?.ownerPhone || visit?.ownerPhone || "",
+            doctor: doctorName,
+            reason: e.notes || (daily > 0 ? `${labels[type]} (day ${i + 1} of ${daily})` : labels[type]),
+            type: "Follow-up",
+            status: "Waiting",
+            appointment_date: dates[i],
+            date: dates[i],
+            slot: "To be assigned",
+            priority: "Routine",
+            sourceVisitId: visit?.visitId,
+          };
+          if (old[i]) {
+            await updateAppointmentFn({ data: { ...payload, token: old[i] } });
+            tokens.push(old[i]!);
+          } else {
+            const token = `A-${(Date.now() % 1000000) + i}`;
+            const created = await createAppointmentFn({ data: { ...payload, token } });
+            tokens.push(String(created?.token ?? token));
+          }
         }
-      } catch (err: any) {
-        console.warn("Could not book treatment follow-up appointment:", err);
-        // Non-blocking — prescription save already succeeded above
+        // Follow-up shortened or turned off: cancel the surplus bookings
+        for (const t of old.slice(dates.length)) await deleteAppointmentFn({ data: { token: t } });
+        if (dates.length) toast.success(`${labels[type]}: ${dates.length > 1 ? `${dates.length} appointments booked` : "appointment booked"} (${formatDisplayDate(dates[0]!)}${dates.length > 1 ? ` – ${formatDisplayDate(dates[dates.length - 1]!)}` : ""})`);
+        out[type] = { ...e, appointmentTokens: tokens, appointmentToken: tokens[0] };
+      } catch (err) {
+        console.warn(`Could not sync ${type} follow-up appointments:`, err);
+        out[type] = { ...e, appointmentTokens: [...tokens, ...old.slice(tokens.length)], appointmentToken: tokens[0] ?? old[0] };
       }
     }
+    return out;
+  };
+  const handleSaveFollowUp = async () => {
+    const entries = followUp.required
+      ? await syncFollowUpAppointments(followUp.entries)
+      : followUp.entries;
+    setFollowUp((prev) => ({ ...prev, entries }));
+    await executeSaveSection("FOLLOWUP", { required: followUp.required, entries });
   };
   const handleSaveLaboratory = () =>
     executeSaveSection("LABORATORY", {
@@ -1476,6 +1491,18 @@ export function PrescriptionWorkflow({
           )}
         </div>
       </div>
+
+      {/* Ongoing discount scheme highlight */}
+      <ActiveSchemeBanner
+        disabled={isSettled}
+        onApply={(pct) => {
+          const apply = (l: InventoryItemLine) => ({ ...l, discountPercent: pct });
+          setAnimalFood((a) => a.map(apply));
+          setPrescribedFood((a) => a.map(apply));
+          setAccessories((a) => a.map(apply));
+          toast.success(`${pct}% applied to food & accessories. Save each section to keep it.`);
+        }}
+      />
 
       {/* ── 2-Column Responsive Workspace: Sections + Sticky Live Summary ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

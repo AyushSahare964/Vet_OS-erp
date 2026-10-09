@@ -101,7 +101,6 @@ import {
 import { listOwnersWithPetsFn } from "@/lib/mongodb/serverFns/crm";
 import { PurchaseBillPrintView } from "./PurchaseBillPrintView";
 import { cn } from "@/lib/utils";
-import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 interface BillingDeskDashboardProps {
   invoices: any[];
@@ -150,7 +149,6 @@ export function BillingDeskDashboard({
   suppliersRefreshKey = 0,
   clientsRefreshKey = 0,
 }: BillingDeskDashboardProps) {
-  const CLINIC_CONFIG = useClinicBranding();
   const [masked, setMasked] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange());
 
@@ -306,12 +304,7 @@ export function BillingDeskDashboard({
     const updateTime = () => {
       const now = new Date();
       const timeStr = now.toLocaleTimeString("en-GB", { hour12: false });
-      const dateStr = now.toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      });
+      const dateStr = `${now.toLocaleDateString("en-GB", { weekday: "long" })}, ${formatDisplayDate(now)}`;
       setCurrentTime(timeStr);
       setCurrentDateString(dateStr);
     };
@@ -957,7 +950,7 @@ export function BillingDeskDashboard({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-black tracking-tight text-foreground">
-                Billing Desk — {CLINIC_CONFIG.fullName}
+                Billing Desk — Real Care Small Animal Clinic
               </h1>
               <button
                 type="button"

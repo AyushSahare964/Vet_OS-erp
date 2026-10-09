@@ -7,6 +7,8 @@ export interface Kpi {
   value: string;
   trend?: string;
   trendTone?: "up" | "down" | "flat";
+  /** Records behind the number; shown in a popup when the card is clicked. */
+  detail?: { columns: string[]; rows: (string | number)[][] };
 }
 
 export interface Flashcard {
@@ -160,12 +162,12 @@ export const ROLES: Record<RoleId, RoleConfig> = {
             badge: "Billing",
           },
           {
-            module: "accounting",
-            icon: "Wallet",
-            title: "Accounting & Finance",
-            subtitle: "Revenue ledger, journal entries & P&L snapshot",
-            metricLabel: "MTD Revenue",
-            metricValue: "₹0",
+            module: "ledgers",
+            icon: "BookOpen",
+            title: "Ledgers",
+            subtitle: "Customer, supplier, staff & cash ledgers",
+            metricLabel: "Ledger types",
+            metricValue: "4",
             accent: "blue",
             badge: "Finance",
           },
@@ -376,14 +378,21 @@ export const ROLES: Record<RoleId, RoleConfig> = {
         category: "Finance & People",
         cards: [
           {
-            module: "accounting",
-            icon: "Wallet",
-            title: "Accounting & Finance (view)",
-            subtitle: "Ledgers, P&L and cash flow snapshot",
-            metricLabel: "Net revenue MTD",
-            metricValue: "₹0",
-            trend: "0%",
-            trendTone: "flat",
+            module: "ledgers",
+            icon: "BookOpen",
+            title: "Ledgers (view)",
+            subtitle: "Customer, supplier, staff & cash ledgers",
+            metricLabel: "Ledger types",
+            metricValue: "4",
+          },
+          {
+            module: "discount-schemes",
+            icon: "BadgePercent",
+            title: "Discount Schemes",
+            subtitle: "Create special offers for clients",
+            metricLabel: "Offers for clients",
+            metricValue: "Manage",
+            accent: "green",
           },
           {
             module: "identity-global",
@@ -560,14 +569,12 @@ export const ROLES: Record<RoleId, RoleConfig> = {
         category: "Finance & People",
         cards: [
           {
-            module: "accounting",
-            icon: "Wallet",
-            title: "Accounting & Finance",
-            subtitle: "Ledgers, P&L, balance sheet, GST/TDS",
-            metricLabel: "Net revenue MTD",
-            metricValue: "₹0",
-            trend: "0%",
-            trendTone: "flat",
+            module: "ledgers",
+            icon: "BookOpen",
+            title: "Ledgers",
+            subtitle: "Customer, supplier, staff & cash ledgers",
+            metricLabel: "Ledger types",
+            metricValue: "4",
           },
           {
             module: "payroll",

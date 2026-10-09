@@ -2,7 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, FlaskConical, FileCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useClinicBranding } from "@/lib/erp/useClinicBranding";
+import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
 
@@ -14,7 +14,6 @@ interface Props {
 }
 
 export function LabReportPrintModal({ open, onClose, order, onEditResults }: Props) {
-  const CLINIC_CONFIG = useClinicBranding();
   if (!order) return null;
 
   const handlePrint = () => {
@@ -252,7 +251,7 @@ export function LabReportPrintModal({ open, onClose, order, onEditResults }: Pro
                 Sample Specimen: {order.sample || "Whole Blood (EDTA)"} · Status: {order.status || "Reported"}
               </p>
               <p className="text-[10px] text-slate-400">
-                Report Generated: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                Report Generated: {formatDisplayDate(new Date())} · {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
               </p>
             </div>
 
