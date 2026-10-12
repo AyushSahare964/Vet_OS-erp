@@ -471,17 +471,17 @@ export const rejectStaffMemberFn = createServerFn({ method: "POST" })
 // ─── createStaffMemberByAdminFn ─────────────────────────────────────────────
 
 const adminCreateSchema = z.object({
-  fullName: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(6),
-  phone: z.string().optional(),
-  clinicName: z.string().default("Harmony Pet Super-Specialty Hospital"),
-  branch: z.string().default("Central Hospital · Koramangala"),
+  fullName: z.string().trim().min(2, "Name must be at least 2 characters"),
+  email: z.string().trim().email("Please provide a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  phone: z.string().optional().nullable(),
+  clinicName: z.string().optional().nullable(),
+  branch: z.string().optional().nullable(),
   roleId: z.enum(["doctor", "admin", "reception", "accounts", "platform"]),
-  licenseNumber: z.string().optional(),
-  qualification: z.string().optional(),
-  department: z.string().default("Clinical Care"),
-  specialty: z.enum(["Canine", "Feline", "Avian", "Exotic", "Surgery", "General Practice", "Administration"]).default("General Practice"),
+  licenseNumber: z.string().optional().nullable(),
+  qualification: z.string().optional().nullable(),
+  department: z.string().optional().nullable(),
+  specialty: z.enum(["Canine", "Feline", "Avian", "Exotic", "Surgery", "General Practice", "Administration"]).optional().default("General Practice"),
 });
 
 export const createStaffMemberByAdminFn = createServerFn({ method: "POST" })
