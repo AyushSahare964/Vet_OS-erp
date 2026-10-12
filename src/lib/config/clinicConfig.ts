@@ -1,39 +1,39 @@
 /**
- * Real Care Animals Clinical Complex - Centralized Clinic Configuration
- * Update this file to change clinic branding across the entire system.
+ * Centralized Clinic Configuration defaults
+ * Provides safe fallback branding when no tenant-specific profile is loaded.
  */
 
 export const CLINIC_CONFIG = {
-  /** Short name shown in sidebar / mobile header */
-  shortName: "Real Care Clinic",
-  /** Full name shown in invoices and prescriptions */
-  fullName: "REAL CARE SMALL ANIMAL CLINIC",
-  /** Sub-brand (second entity on letterhead) */
-  subName: "Real Care Animals Clinical Complex",
-  /** Primary doctor */
-  doctorName: "Dr. Makarand M. Dixit",
-  /** Doctor qualifications */
-  doctorQualifications: "B.V.Sc & AH, M.V.Sc, PGDAW (M.S.V.C.-8648)",
-  /** Doctor designation */
+  /** Short name shown in sidebar / mobile header fallback */
+  shortName: "VetOS Clinic",
+  /** Full name shown in invoices and prescriptions fallback */
+  fullName: "Veterinary Care & Animal Hospital",
+  /** Sub-brand fallback */
+  subName: "Clinical Complex & Animal Healthcare",
+  /** Primary doctor fallback */
+  doctorName: "Attending Veterinary Surgeon",
+  /** Doctor qualifications fallback */
+  doctorQualifications: "B.V.Sc & AH, M.V.Sc",
+  /** Doctor designation fallback */
   doctorDesignation: "Chief Veterinary Physician & Surgeon",
-  /** Address line 1 */
-  addressLine1: "Real Care Small Animal Clinic",
-  /** Address line 2 */
-  addressLine2: "Nagpur, Maharashtra",
-  /** Phone number */
-  phone: "+91 87674 84342",
-  /** Website */
-  website: "www.petsdmart.com",
-  /** Email */
-  email: "care@realcareclinic.com",
-  /** GSTIN (if applicable) */
+  /** Address line 1 fallback */
+  addressLine1: "Veterinary Healthcare Facility",
+  /** Address line 2 fallback */
+  addressLine2: "",
+  /** Phone number fallback */
+  phone: "",
+  /** Website fallback */
+  website: "",
+  /** Email fallback */
+  email: "",
+  /** GSTIN fallback */
   gstin: "",
-  /** Registration number */
+  /** Registration number fallback */
   regNo: "",
-  /** Path to the clinic logo - served from /public */
-  logoPath: "/clinic-logo.png",
-  /** Tagline */
-  tagline: "An Animal's Eyes Have The Power to Speak a Great Language",
-  /** Sub-tagline */
-  subTagline: "We Specialise in your Satisfaction",
+  /** Path to the default clinic logo */
+  logoPath: "/favicon.svg",
+  /** Tagline fallback */
+  tagline: "Dedicated to Excellence in Veterinary Medicine",
+  /** Sub-tagline fallback */
+  subTagline: "Compassionate Clinical Care",
 } as const;

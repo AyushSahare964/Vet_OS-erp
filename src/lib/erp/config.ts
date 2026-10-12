@@ -45,9 +45,9 @@ export const ROLES: Record<RoleId, RoleConfig> = {
   doctor: {
     id: "doctor",
     name: "Doctor / Senior Vet",
-    person: "Dr. Makarand M. Dixit",
-    initials: "MD",
-    scope: "Real Care Small Animal Clinic — Nagpur",
+    person: "Attending Doctor",
+    initials: "DR",
+    scope: "Main Clinic Branch",
     scopeCaption: "OPD & Clinical Practice · Room 1",
     greeting: "Clinical OPD queue, live inventory prescriptions, and patient diagnostic records.",
     kpis: [
@@ -258,9 +258,9 @@ export const ROLES: Record<RoleId, RoleConfig> = {
   admin: {
     id: "admin",
     name: "Admin",
-    person: "Dr. Makarand M. Dixit",
-    initials: "MD",
-    scope: "Real Care Small Animal Clinic — Nagpur",
+    person: "Clinic Administrator",
+    initials: "CA",
+    scope: "Main Clinic Branch",
     scopeCaption: "Clinic Suite · v1.0",
     greeting: "Branch operations at a glance.",
     kpis: [
@@ -425,9 +425,9 @@ export const ROLES: Record<RoleId, RoleConfig> = {
   reception: {
     id: "reception",
     name: "Receptionist",
-    person: "Kavitha Nair",
-    initials: "KN",
-    scope: "Real Care Small Animal Clinic — Nagpur",
+    person: "Reception Desk",
+    initials: "RD",
+    scope: "Main Clinic Branch",
     scopeCaption: "Front Desk · Counter 1",
     greeting: "Everything you need for today's front desk.",
     kpis: [

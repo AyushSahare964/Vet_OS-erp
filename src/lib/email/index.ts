@@ -5,3 +5,5 @@
 
 export * from "./emailjs";
 export * from "./templates";
+export * from "./resend";
+export * from "./welcomeTemplate";

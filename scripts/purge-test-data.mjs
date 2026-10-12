@@ -90,8 +90,8 @@ async function run() {
     console.log("=".repeat(60));
     console.log("Total test documents deleted:", totalDeleted);
 
-    // Delete all users EXCEPT makarand & ayush
-    const KEEP_EMAILS = ["makarand.dixit@gmail.com", "ayush.sahare@vit.edu"];
+    // Delete all users EXCEPT ayush
+    const KEEP_EMAILS = ["ayush.sahare@vit.edu"];
     const allUsers = await db.collection("users").find({}, { projection: { _id: 1, fullName: 1, email: 1 } }).toArray();
     const toDeleteIds = allUsers
       .filter((u) => !KEEP_EMAILS.includes(String(u.email).toLowerCase()))
@@ -113,12 +113,11 @@ async function run() {
       const userDelRes = await db.collection("users").deleteMany({ _id: { $in: toDeleteIds } });
       console.log("[users] Deleted " + userDelRes.deletedCount + " test user(s).");
     } else {
-      console.log("[users] No extra users to delete. Only Ayush and Makarand are present.");
+      console.log("[users] No extra users to delete. Only Ayush is present.");
     }
 
     // Ayush is the hidden testing/developer login: never listed as staff or doctor.
     await db.collection("users").updateOne({ email: "ayush.sahare@vit.edu" }, { $set: { isSystemAccount: true } });
-    await db.collection("users").updateOne({ email: "makarand.dixit@gmail.com" }, { $set: { isSystemAccount: false } });
 
     // Clear stale refresh tokens
     const staleRt = await db.collection("refresh_tokens").deleteMany({});

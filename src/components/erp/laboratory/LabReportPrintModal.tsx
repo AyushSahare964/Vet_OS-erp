@@ -2,7 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, FlaskConical, FileCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
 
@@ -14,6 +14,7 @@ interface Props {
 }
 
 export function LabReportPrintModal({ open, onClose, order, onEditResults }: Props) {
+  const CLINIC_CONFIG = useClinicBranding();
   if (!order) return null;
 
   const handlePrint = () => {
@@ -79,7 +80,7 @@ export function LabReportPrintModal({ open, onClose, order, onEditResults }: Pro
 
         {/* Printable Report Canvas */}
         <div id="lab-report-printable-area" className="p-8 bg-white text-slate-900 space-y-6 font-sans print:p-0">
-          {/* Clinic Header with Real Care Small Animal Clinic Branding */}
+          {/* Clinic Header Branding */}
           <div className="border-b-2 border-blue-900 pb-4 flex items-start justify-between">
             <div className="flex items-start gap-3.5">
               <img

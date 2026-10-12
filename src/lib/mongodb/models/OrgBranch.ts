@@ -89,7 +89,7 @@ export async function getDefaultBranch(): Promise<
 
   return {
     code: DEFAULT_BRANCH_CODE,
-    name: "Real Care Small Animal Clinic",
+    name: "Main Clinic Branch",
     stateCode: "27",
     gstin: "",
     isComposition: false,

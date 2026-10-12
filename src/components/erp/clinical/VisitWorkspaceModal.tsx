@@ -100,7 +100,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
     }
   }, [visit]);
 
-  const activeDoctorName = activeVisit?.doctorName || visit?.doctorName || currentUser?.fullName || role?.person || "Dr. Rohit Sharma";
+  const activeDoctorName = activeVisit?.doctorName || visit?.doctorName || currentUser?.fullName || role?.person || CLINIC_CONFIG.doctorName || "Attending Veterinarian";
 
   // Doctor specialty/title lookup — keeps the printed Rx/invoice letterhead accurate per treating doctor
   const [doctorsList, setDoctorsList] = useState<Array<{ id: string; name: string; specialty?: string }>>([]);
@@ -2303,17 +2303,21 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                             >
                               {CLINIC_CONFIG.fullName}
                             </h2>
-                            <p className="text-[11px] text-slate-600 mt-1" style={{ color: "#475569", margin: "3px 0 0 0", fontSize: "11px" }}>
-                              Plot 42, Central Avenue, Near Medical Square, Nagpur - 440009
-                            </p>
-                            <p className="text-[11px] text-slate-600" style={{ color: "#475569", margin: "1px 0 0 0", fontSize: "11px" }}>
-                              Phone: +91 712 2548899 · Reg: MH/VET/2019/8821
-                            </p>
+                            {CLINIC_CONFIG.addressLine1 && (
+                              <p className="text-[11px] text-slate-600 mt-1" style={{ color: "#475569", margin: "3px 0 0 0", fontSize: "11px" }}>
+                                {CLINIC_CONFIG.addressLine1}{CLINIC_CONFIG.addressLine2 ? `, ${CLINIC_CONFIG.addressLine2}` : ""}
+                              </p>
+                            )}
+                            {(CLINIC_CONFIG.phone || CLINIC_CONFIG.regNo) && (
+                              <p className="text-[11px] text-slate-600" style={{ color: "#475569", margin: "1px 0 0 0", fontSize: "11px" }}>
+                                {[CLINIC_CONFIG.phone ? `Phone: ${CLINIC_CONFIG.phone}` : "", CLINIC_CONFIG.regNo ? `Reg: ${CLINIC_CONFIG.regNo}` : ""].filter(Boolean).join(" · ")}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="text-right text-[11px] space-y-0.5 shrink-0 min-w-[110px]" style={{ textAlign: "right", minWidth: "110px", marginLeft: "auto" }}>
                           <p className="font-bold text-sm" style={{ fontSize: "13px", fontWeight: 700, color: "#1e3a8a", margin: 0 }}>
-                            {finalizedVisit.doctorName || activeDoctorName || "Dr. Makarand Dixit"}
+                            {finalizedVisit.doctorName || activeDoctorName || CLINIC_CONFIG.doctorName || "Attending Veterinarian"}
                           </p>
                           <p className="text-slate-600 text-xs" style={{ color: "#475569", fontSize: "11px", margin: "2px 0 0 0" }}>
                             {getDoctorTitle(finalizedVisit.doctorName || activeDoctorName)}
@@ -2646,14 +2650,16 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                           </div>
                           <div className="w-full border-t border-slate-400 my-1" style={{ width: "100%", borderTop: "1px solid #94a3b8", margin: "4px 0 6px 0" }}></div>
                           <div className="font-bold text-slate-900 text-sm" style={{ fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>
-                            {finalizedVisit.doctorName || activeDoctorName || "Dr. Makarand Dixit"}
+                            {finalizedVisit.doctorName || activeDoctorName || CLINIC_CONFIG.doctorName || "Attending Veterinarian"}
                           </div>
                           <div className="text-slate-600 text-xs" style={{ color: "#475569", fontSize: "11px" }}>
                             Registered Veterinary Practitioner
                           </div>
-                          <div className="text-[10px] text-slate-500 font-mono" style={{ color: "#64748b", fontSize: "10px", fontFamily: "monospace" }}>
-                            Reg No: MH/VET/2019/8821
-                          </div>
+                          {CLINIC_CONFIG.regNo && (
+                            <div className="text-[10px] text-slate-500 font-mono" style={{ color: "#64748b", fontSize: "10px", fontFamily: "monospace" }}>
+                              Reg No: {CLINIC_CONFIG.regNo}
+                            </div>
+                          )}
                         </div>
                       </div>
 

@@ -46,7 +46,7 @@ export function useClinicBranding(): ResolvedClinicBranding {
   const { clinicBranding, currentUser } = useErp();
   const cb = clinicBranding as FullClinicConfig | null;
 
-  // Real Care's static demo values are only a fallback for a session with NO
+  // Static demo values are only a fallback for a session with NO
   // tenant branding loaded. Once a tenant's config exists, a field it hasn't
   // filled in must render blank — never another clinic's phone/doctor/website.
   const isTenant = Boolean(cb);

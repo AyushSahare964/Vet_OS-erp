@@ -16,7 +16,7 @@ export function TypewriterWelcome({
   personName,
   roleName = "Clinic Administrator",
   greetingSubtitle = "Branch operations at a glance.",
-  branchName = "Nagpur · Real Care Small Animal Clinic",
+  branchName = "Main Branch",
   onRefresh,
   className,
 }: TypewriterWelcomeProps) {
@@ -32,10 +32,10 @@ export function TypewriterWelcome({
   const phrases = useMemo(() => [
     `Welcome, ${personName}`,
     `${timeGreeting}, ${personName} 👋`,
-    `Real Care Small Animal Clinic · Nagpur 🏥`,
+    `${branchName} · Operations Active 🏥`,
     `Live OPD & Clinical Pulse Active 🩺`,
     `Excellence in Veterinary Care · All systems operational ✨`,
-  ], [personName, timeGreeting]);
+  ], [personName, timeGreeting, branchName]);
 
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [displayText, setDisplayText] = useState("");

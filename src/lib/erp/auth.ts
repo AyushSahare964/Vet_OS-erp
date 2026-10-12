@@ -268,29 +268,11 @@ export class AuthService {
   }
 
   /**
-   * Returns the two built-in system credentials for the login page quick-fill.
-   * Makarand Dixit = visible admin. (The hidden developer account is never listed client-side.)
+   * Returns demo staff list (empty by default; staff accounts are created dynamically).
    */
   public static getDemoStaffList(): UserProfile[] {
-    return [
-      {
-        id:          "sys-makarand",
-        fullName:    "Dr. Makarand Dixit",
-        email:       "makarand.dixit@gmail.com",
-        roleId:      "admin",
-        roleName:    "Clinic Administrator / Medical Director",
-        initials:    "MD",
-        clinicName:  "Real Care Small Animal Clinic",
-        branch:      "Nagpur",
-        department:  "Veterinary Administration",
-        specialty:   "Administration",
-        qualification: "",
-        licenseNumber: "",
-        createdAt:   "2026-01-01T00:00:00.000Z",
-        approvalStatus: "approved",
-      },
-    ];
+    return [];
   }
 }
 
-export const INITIAL_SEED_USERS = AuthService.getDemoStaffList();
+export const INITIAL_SEED_USERS: UserProfile[] = [];

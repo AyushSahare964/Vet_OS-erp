@@ -127,7 +127,7 @@ export function IdentityAccessHub() {
 
   const handleClearAndReseed = async () => {
     if (!window.confirm(
-      "⚠️ This will PERMANENTLY DELETE all staff records from MongoDB and re-insert only the 2 default system credentials (Makarand Dixit + Ayush Sahare).\n\nContinue?"
+      "⚠️ This will PERMANENTLY DELETE all staff records from MongoDB and re-insert only the system administrator credentials.\n\nContinue?"
     )) return;
     setClearReseedLoading(true);
     try {

@@ -682,12 +682,11 @@ export const getMeFn = createServerFn({ method: "GET" })
 // ─── seedDemoUsersFn ─────────────────────────────────────────────────────────
 // Seeds ONLY the two built-in system credentials if they don't already exist.
 
-/** The two permanent built-in credential definitions. */
+/** Built-in system credential definitions. */
 const SYSTEM_CREDENTIALS = [
   {
-    // ── Developer / hidden system account ────────────────────────────────────
-    // Not shown in the Identity Hub staff list (isSystemAccount: true).
-    // Logs in with full admin dashboard access.
+    // ── Platform Systems Administrator account ─────────────────────────────
+    // Logs in with full platform administration access.
     fullName:        "Ayush Sahare",
     email:           "ayush.sahare@vit.edu",
     password:        "ayush@123",
@@ -703,27 +702,7 @@ const SYSTEM_CREDENTIALS = [
     specialty:       "Administration" as const,
     approvalStatus:  "approved" as ApprovalStatus,
 
-    isSystemAccount: true,   // ← hidden from staff directory
-    isActive: true,
-  },
-  {
-    // ── Visible admin — approves registrations ────────────────────────────────
-    // Shown in the Identity Hub staff list. Can review & approve new registrations.
-    fullName: "Dr. Makarand Dixit",
-    email: "makarand.dixit@gmail.com",
-    password: "12345678",
-    phone: "+91 87674 84342",
-    clinicName: "Real Care Small Animal Clinic",
-    branch: "Nagpur Main Clinic",
-    roleId: "admin" as RoleId,
-    roleName: "Clinic Administrator / Medical Director",
-    initials: "MD",
-    licenseNumber: "M.S.V.C.-8648",
-    qualification: "B.V.Sc & AH, M.V.Sc, PGDAW",
-    department: "Clinical Administration & Surgery",
-    specialty: "General Practice" as const,
-    approvalStatus: "approved" as ApprovalStatus,
-    isSystemAccount: false,  // ← visible in staff directory
+    isSystemAccount: true,   // ← hidden from clinic staff directory
     isActive: true,
   },
 ];

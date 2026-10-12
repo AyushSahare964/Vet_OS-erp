@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ClinicConfigModel } from "@/lib/mongodb/models/ClinicConfig";
+import { getTenantContext } from "@/lib/mongodb/tenantContext";
 
 function toPlain<T>(v: unknown): T {
   return JSON.parse(JSON.stringify(v)) as T;
@@ -12,6 +13,8 @@ export const getClinicConfigFn = createServerFn({ method: "GET" })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   .handler(tenantScoped(async (): Promise<any> => {
     await connectDB();
+    const ctx = getTenantContext();
+    if (!ctx?.tenantId) return null;
     const config = await ClinicConfigModel.findOne({}).lean();
     return config ? toPlain(config) : null;
   }));

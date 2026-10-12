@@ -62,7 +62,7 @@ function useTransparentCatImage(src: string) {
 export function RealCatJumpingWelcome({
   personName,
   greetingSubtitle = "Branch operations at a glance.",
-  branchName = "Nagpur · Real Care Small Animal Clinic",
+  branchName = "Main Branch",
   className,
 }: RealCatJumpingWelcomeProps) {
   const words = useMemo(() => {

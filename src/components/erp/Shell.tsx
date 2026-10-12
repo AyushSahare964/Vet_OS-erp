@@ -42,10 +42,15 @@ import {
 
 function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
   const { role, currentUser, clinicBranding } = useErp();
-  const displayName = clinicBranding?.clinicName || currentUser?.clinicName || CLINIC_CONFIG.shortName;
-  const displayPerson = clinicBranding
-    ? (clinicBranding.doctorName || currentUser?.fullName || "")
-    : (currentUser?.fullName || CLINIC_CONFIG.doctorName);
+  const isPlatform = role.id === "platform" || currentUser?.roleId === "platform";
+  const displayName = isPlatform
+    ? (currentUser?.clinicName || "VetOS Cloud")
+    : (clinicBranding?.clinicName || currentUser?.clinicName || CLINIC_CONFIG.shortName);
+  const displayPerson = isPlatform
+    ? (currentUser?.fullName || "Platform Admin")
+    : (clinicBranding
+        ? (clinicBranding.doctorName || currentUser?.fullName || "")
+        : (currentUser?.fullName || CLINIC_CONFIG.doctorName));
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mongoStatus, setMongoStatus] = useState<MongoStatusRow | null>(null);
 
@@ -80,11 +85,14 @@ function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
             transition={{ duration: 0.2 }}
             className="flex items-center justify-center"
           >
-            {clinicBranding?.logoUrl ? (
+            {!isPlatform && clinicBranding?.logoUrl ? (
               <img
                 src={clinicBranding.logoUrl}
                 alt={displayName}
                 className="h-14 w-auto object-contain"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = "none";
+                }}
               />
             ) : (
               <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10">
@@ -127,8 +135,12 @@ function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
             Online
           </span>
         </div>
-        <p className="mt-1 text-sm font-semibold leading-tight text-foreground truncate">{role.scope}</p>
-        <p className="text-xs text-muted-foreground truncate">{role.scopeCaption}</p>
+        <p className="mt-1 text-sm font-semibold leading-tight text-foreground truncate">
+          {isPlatform ? (currentUser?.clinicName || "VetOS Cloud") : (currentUser?.branch || currentUser?.clinicName || role.scope)}
+        </p>
+        <p className="text-xs text-muted-foreground truncate">
+          {isPlatform ? "Platform Systems Administration" : (currentUser?.branch || role.scopeCaption)}
+        </p>
         
         {currentUser?.specialty && (
           <p className="mt-1.5 inline-block rounded bg-muted px-1.5 py-0.5 text-[0.68rem] font-medium text-muted-foreground">
@@ -537,13 +549,13 @@ function Topbar({ title, onMenu }: { title: string; onMenu: () => void }) {
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Registration / VCI:</span>
                 <span className="font-mono font-semibold text-emerald-600">
-                  {currentUser?.licenseNumber || (currentUser?.fullName?.includes("Dixit") ? "M.S.V.C.-8648" : "VCI-ACTIVE")}
+                  {currentUser?.licenseNumber || "VCI-ACTIVE"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Qualification:</span>
-                <span className="font-medium text-foreground truncate max-w-[155px]" title={currentUser?.qualification || (currentUser?.fullName?.includes("Dixit") ? CLINIC_CONFIG.doctorQualifications : "Veterinary Specialist")}>
-                  {currentUser?.qualification || (currentUser?.fullName?.includes("Dixit") ? "B.V.Sc & AH, M.V.Sc, PGDAW" : "Veterinary Specialist")}
+                <span className="font-medium text-foreground truncate max-w-[155px]" title={currentUser?.qualification || CLINIC_CONFIG.doctorQualifications}>
+                  {currentUser?.qualification || CLINIC_CONFIG.doctorQualifications}
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -555,7 +567,7 @@ function Topbar({ title, onMenu }: { title: string; onMenu: () => void }) {
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Branch:</span>
                 <span className="font-medium text-foreground truncate max-w-[155px]">
-                  {currentUser?.branch || "Nagpur Main Clinic"}
+                  {currentUser?.branch || "Main Branch"}
                 </span>
               </div>
             </div>

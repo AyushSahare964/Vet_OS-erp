@@ -48,8 +48,8 @@ import {
   X,
   AlertTriangle,
   ExternalLink,
-  Trash2,
 } from "lucide-react";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { useInventory } from "@/components/erp/inventory/useInventoryStore";
 import {
   PieChart,
@@ -147,8 +147,8 @@ export function BillingDeskDashboard({
   onConvertToInvoice,
   purchasesRefreshKey = 0,
   suppliersRefreshKey = 0,
-  clientsRefreshKey = 0,
 }: BillingDeskDashboardProps) {
+  const clinicBranding = useClinicBranding();
   const [masked, setMasked] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange());
 
@@ -950,7 +950,7 @@ export function BillingDeskDashboard({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-black tracking-tight text-foreground">
-                Billing Desk — Real Care Small Animal Clinic
+                Billing Desk — {clinicBranding.shortName || "Clinic POS"}
               </h1>
               <button
                 type="button"

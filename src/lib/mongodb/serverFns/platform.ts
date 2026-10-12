@@ -29,6 +29,9 @@ import { signAccessToken, signRefreshToken, hashToken } from "@/lib/mongodb/toke
 import { SUBSCRIPTION_PLANS } from "@/lib/erp/features";
 import { ROLES } from "@/lib/erp/config";
 import type { AuthResponse, UserProfile } from "@/lib/erp/auth";
+import { sendResendEmail } from "@/lib/email/resend";
+import { buildClinicWelcomeEmail } from "@/lib/email/welcomeTemplate";
+import { appUrl } from "@/lib/email/emailjs";
 
 const SALT_ROUNDS = 12;
 const COOKIE_NAME = "vetos_refresh";
@@ -264,6 +267,26 @@ export const registerTenantFn = createServerFn({ method: "POST" })
       approvalStatus: "approved",
       createdAt: new Date().toISOString(),
     };
+
+    // ── Send welcome / credentials email (fire-and-forget; never blocks registration) ──
+    void (async () => {
+      try {
+        const { subject, html } = buildClinicWelcomeEmail({
+          adminName: data.adminFullName.trim(),
+          adminEmail: cleanAdminEmail,
+          adminPassword: data.adminPassword,
+          clinicName: data.clinicName.trim(),
+          planName: plan.name,
+          trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+          loginUrl: `${appUrl()}/login`,
+          primaryColor: data.primaryColor,
+        });
+        const sent = await sendResendEmail({ to: cleanAdminEmail, subject, html });
+        if (!sent) console.warn(`[registration] Welcome email not delivered to ${cleanAdminEmail}`);
+      } catch (e) {
+        console.warn("[registration] Welcome email error:", e);
+      }
+    })();
 
     return {
       success: true,

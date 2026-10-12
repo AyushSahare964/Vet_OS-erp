@@ -9,7 +9,8 @@ import {
   UserCheck, 
   UserPlus, 
   ArrowRight,
-  Database
+  Database,
+  Building2
 } from "lucide-react";
 import { toast } from "sonner";
 import { useErp } from "@/lib/erp/store";
@@ -20,7 +21,7 @@ import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
 import { cn } from "@/lib/utils";
 import { requestPasswordResetFn } from "@/lib/mongodb/serverFns/auth";
 
-const COMMON_EMAIL_DOMAINS = ["@gmail.com", "@realcarepet.com", "@vetos.cloud", "@outlook.com", "@yahoo.com"];
+const COMMON_EMAIL_DOMAINS = ["@gmail.com", "@vetos.cloud", "@outlook.com", "@yahoo.com"];
 
 /** Cleans and caps input strictly to a 10-digit mobile number, handling pasted +91, 0, or formatting */
 function clean10DigitPhone(input: string): string {
@@ -40,7 +41,7 @@ function clean10DigitPhone(input: string): string {
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: `${CLINIC_CONFIG.shortName} — Staff Sign In` },
+      { title: "VetOS Cloud — Staff Sign In" },
       {
         name: "description",
         content: "Professional veterinary clinic operator sign in and profile creation portal.",
@@ -111,8 +112,6 @@ function AuthPage() {
   const expiresIn = otpExpiresAt - now;
   const [verifiedEmail, setVerifiedEmail] = useState("");
   const emailVerified = !!regData.email.trim() && regData.email.trim().toLowerCase() === verifiedEmail;
-
-  const demoStaff = AuthService.getDemoStaffList();
 
   // Redirect if already authenticated (wait for cookie hydration first)
   useEffect(() => {
@@ -288,14 +287,12 @@ function AuthPage() {
       {/* Brand Header above card */}
       <div className="mb-6 flex items-center justify-between w-full max-w-4xl px-2">
         <Link to="/" className="flex items-center gap-2.5 group">
-          <img
-            src={CLINIC_CONFIG.logoPath}
-            alt={CLINIC_CONFIG.shortName}
-            className="h-10 w-auto object-contain"
-          />
+          <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+            <Building2 className="size-5" />
+          </div>
           <div>
-            <span className="text-base font-bold tracking-tight text-navy">{CLINIC_CONFIG.shortName}</span>
-            <span className="block text-[0.65rem] text-muted-foreground leading-none">{CLINIC_CONFIG.doctorName}</span>
+            <span className="text-base font-bold tracking-tight text-navy">VetOS Cloud</span>
+            <span className="block text-[0.65rem] text-muted-foreground leading-none">Veterinary Practice & Clinic Management</span>
           </div>
         </Link>
 
@@ -660,7 +657,7 @@ function AuthPage() {
                         required
                         value={regData.clinicSlug}
                         onChange={(e) => setRegData({ ...regData, clinicSlug: e.target.value })}
-                        placeholder="real_care_ngp"
+                        placeholder="your_clinic_slug"
                         className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
                       />
                     </div>

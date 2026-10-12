@@ -1,5 +1,5 @@
 /**
- * Unified Email Templates for Harmony ERP / Real Care Animal Clinic
+ * Unified Email Templates for VetOS Clinic ERP
  * Single-file template engine combining HTML structure, inlined CSS, and JS/TS template builders.
  * Supports individual EmailJS templates per query and master template fallback.
  */
@@ -112,7 +112,7 @@ export function renderEmailLayout(opts: {
   preheader?: string;
   bodyHtml: string;
 }): string {
-  const clinic = CLINIC_CONFIG.fullName || "Real Care Small Animal Clinic";
+  const clinic = CLINIC_CONFIG.fullName || "Veterinary Care Clinic";
   const tagline = CLINIC_CONFIG.tagline || "Comprehensive Veterinary & Surgical Care";
   const address = `${CLINIC_CONFIG.addressLine1 || ""}, ${CLINIC_CONFIG.addressLine2 || ""}`.trim();
   const phone = CLINIC_CONFIG.phone || "";
@@ -241,7 +241,7 @@ export function registrationOTPEmail(p: RegistrationOTPProps): EmailTemplateResu
     }),
     templateParams: {
       // Matching 2_registration_otp.html
-      clinic_name: CLINIC_CONFIG.fullName || "Real Care Small Animal Clinic",
+      clinic_name: CLINIC_CONFIG.fullName || "Veterinary Care Clinic",
       clinic_tagline: CLINIC_CONFIG.tagline || "Comprehensive Veterinary & Surgical Care",
       clinic_address: address,
       clinic_phone: CLINIC_CONFIG.phone || "",
@@ -306,7 +306,7 @@ export function passwordResetEmail(p: PasswordResetProps): EmailTemplateResult {
     }),
     templateParams: {
       // Matching 3_password_reset.html
-      clinic_name: CLINIC_CONFIG.fullName || "Real Care Small Animal Clinic",
+      clinic_name: CLINIC_CONFIG.fullName || "Veterinary Care Clinic",
       clinic_tagline: CLINIC_CONFIG.tagline || "Comprehensive Veterinary & Surgical Care",
       clinic_address: address,
       clinic_phone: CLINIC_CONFIG.phone || "",
