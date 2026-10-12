@@ -10,7 +10,10 @@ import {
   UserPlus, 
   ArrowRight,
   Database,
-  Building2
+  Building2,
+  Sparkles,
+  CheckCircle2,
+  ShieldCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import { useErp } from "@/lib/erp/store";
@@ -20,6 +23,8 @@ import { PetShowcase } from "@/components/erp/PetShowcase";
 import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
 import { cn } from "@/lib/utils";
 import { requestPasswordResetFn } from "@/lib/mongodb/serverFns/auth";
+import { doctorHeadLinks } from "@/components/doctor/doctorHead";
+import { BrandChip } from "@/components/doctor/shared/BrandChip";
 
 const COMMON_EMAIL_DOMAINS = ["@gmail.com", "@vetos.cloud", "@outlook.com", "@yahoo.com"];
 
@@ -41,12 +46,13 @@ function clean10DigitPhone(input: string): string {
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "VetOS Cloud — Staff Sign In" },
+      { title: "VetOS Cloud — Staff Sign In & Practice Onboarding" },
       {
         name: "description",
-        content: "Professional veterinary clinic operator sign in and profile creation portal.",
+        content: "Professional veterinary clinic operator sign in and multi-tenant practice registration portal.",
       },
     ],
+    links: doctorHeadLinks,
   }),
   component: AuthPage,
 });
@@ -56,7 +62,7 @@ function AuthPage() {
   const { login, register, currentUser, isAuthenticated, isLoadingAuth } = useErp();
   const [seeding, setSeeding] = useState(false);
 
-  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
+  const [mode, setMode] = useState<"login" | "register" | "clinic" | "forgot">("login");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -283,55 +289,81 @@ function AuthPage() {
 
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-slate-100/90 via-slate-50 to-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-10">
+    <div 
+      className="min-h-screen w-full flex flex-col items-center justify-center p-3 sm:p-6 lg:p-8 relative selection:bg-[#7bbde8]/30 selection:text-[#001d39]"
+      style={{
+        backgroundColor: "#eaf3fa",
+        backgroundImage: `radial-gradient(circle at 50% 12%, rgba(123, 189, 232, 0.28) 0%, transparent 55%), radial-gradient(circle at 85% 85%, rgba(10, 65, 116, 0.08) 0%, transparent 50%), url("/pattern/pets-pattern.svg")`,
+        backgroundSize: "cover, cover, 280px 280px",
+        backgroundRepeat: "no-repeat, no-repeat, repeat",
+        fontFamily: '"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif',
+      }}
+    >
       
       {/* Brand Header above card */}
-      <div className="mb-6 flex items-center justify-between w-full max-w-4xl px-2">
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 w-full max-w-4xl px-2">
+        <Link to="/" className="flex items-center gap-3 group">
+          <div className="flex size-11 items-center justify-center rounded-2xl bg-[#001d39] text-[#7bbde8] border border-[#bcd0e2] shadow-[0_4px_12px_rgba(0,29,57,0.12)] group-hover:scale-105 transition-transform">
             <Building2 className="size-5" />
           </div>
           <div>
-            <span className="text-base font-bold tracking-tight text-navy">VetOS Cloud</span>
-            <span className="block text-[0.65rem] text-muted-foreground leading-none">Veterinary Practice & Clinic Management</span>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black tracking-tight text-[#001d39] font-['Bricolage_Grotesque',system-ui,sans-serif]">
+                VetOS Cloud
+              </span>
+              <BrandChip />
+            </div>
+            <span className="block text-[0.72rem] text-[#4d6a86] font-medium leading-none">
+              Veterinary Practice & Clinic Management
+            </span>
           </div>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          {/* Quick Header CTA for Clinic Registration */}
+          <Link
+            to="/register-clinic"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-[#001d39] via-[#0a4174] to-[#001d39] px-3.5 py-2 rounded-xl border border-[#bcd0e2] shadow-[0_4px_14px_rgba(10,65,116,0.2)] hover:shadow-[0_6px_20px_rgba(10,65,116,0.3)] hover:scale-105 active:scale-95 transition-all"
+          >
+            <Building2 className="size-3.5 text-[#7bbde8]" />
+            <span>Register New Clinic</span>
+            <ArrowRight className="size-3 text-[#7bbde8]" />
+          </Link>
+
           <button
             onClick={handleSeedDemo}
             disabled={seeding}
             title="Seed demo staff users into MongoDB Atlas"
-            className="inline-flex items-center gap-1 text-[0.68rem] font-semibold text-emerald-600 bg-white border border-emerald-200/80 px-2.5 py-1 rounded-full shadow-2xs hover:bg-emerald-50 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1 text-[0.7rem] font-bold text-emerald-700 bg-white/90 border border-emerald-300 px-3 py-2 rounded-xl shadow-2xs hover:bg-emerald-50 transition-colors disabled:opacity-50"
           >
-            <Database className="size-3" />
-            {seeding ? "Seeding…" : "MongoDB Atlas"}
+            <Database className="size-3 text-emerald-600" />
+            {seeding ? "Seeding…" : "Atlas DB"}
           </button>
         </div>
       </div>
 
       {/* Main Centered Professional Action Card */}
-      <div className="w-full max-w-4xl rounded-2xl bg-white border border-slate-200/90 shadow-xl shadow-slate-200/50 overflow-hidden grid grid-cols-1 md:grid-cols-12">
+      <div className="w-full max-w-4xl rounded-3xl bg-white border border-[#bcd0e2] shadow-[0_20px_50px_rgba(0,29,57,0.12),0_1px_3px_rgba(0,29,57,0.06)] overflow-hidden grid grid-cols-1 md:grid-cols-12">
         
         {/* LEFT COLUMN: CONTINUOUS PET ANIMATION SLIDER PREVIEW */}
-        <div className="hidden md:block md:col-span-5 lg:col-span-5 border-r border-slate-100">
+        <div className="hidden md:block md:col-span-5 lg:col-span-5 border-r border-[#d3e2ef]">
           <PetShowcase />
         </div>
 
-        {/* RIGHT COLUMN: ACTION WINDOW (LOGIN & REGISTRATION) */}
+        {/* RIGHT COLUMN: ACTION WINDOW */}
         <div className="md:col-span-7 lg:col-span-7 p-6 sm:p-8 flex flex-col justify-between bg-white">
-          <div className="space-y-5">
+          <div className="space-y-4">
             
-            {/* Minimal Clean Tab Switcher */}
-            <div className="flex rounded-lg bg-slate-100 p-1 border border-slate-200/60 max-w-[260px]">
+            {/* 3-Way Segmented Control */}
+            <div className="flex rounded-xl bg-[#eaf3fa] p-1 border border-[#bcd0e2] w-full gap-1">
               <button
                 type="button"
                 onClick={() => setMode("login")}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all",
+                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all",
                   mode === "login"
-                    ? "bg-white text-navy shadow-xs font-bold"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-[#001d39] text-[#7bbde8] shadow-xs"
+                    : "text-[#4d6a86] hover:text-[#001d39] hover:bg-white/60"
                 )}
               >
                 <UserCheck className="size-3.5" />
@@ -341,32 +373,69 @@ function AuthPage() {
                 type="button"
                 onClick={() => setMode("register")}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all",
+                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all",
                   mode === "register"
-                    ? "bg-white text-navy shadow-xs font-bold"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-[#001d39] text-[#7bbde8] shadow-xs"
+                    : "text-[#4d6a86] hover:text-[#001d39] hover:bg-white/60"
                 )}
               >
                 <UserPlus className="size-3.5" />
-                Register
+                Staff Join
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("clinic")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all",
+                  mode === "clinic"
+                    ? "bg-gradient-to-r from-[#0a4174] to-[#001d39] text-white shadow-xs"
+                    : "text-[#0a4174] hover:text-[#001d39] hover:bg-white/60 font-extrabold"
+                )}
+              >
+                <Building2 className="size-3.5" />
+                Clinic Setup
               </button>
             </div>
 
             {/* TAB: SIGN IN */}
             {mode === "login" ? (
-              <div className="space-y-4 animate-in fade-in duration-150">
-                <div>
-                  <h1 className="text-lg font-bold text-navy">Welcome back</h1>
-                  <p className="text-xs text-muted-foreground">
-                    Sign in to access clinical modules and patient records.
-                  </p>
+              <div className="space-y-3.5 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-xl font-extrabold text-[#001d39] font-['Bricolage_Grotesque',system-ui,sans-serif]">
+                      Welcome back
+                    </h1>
+                    <p className="text-xs text-[#4d6a86]">
+                      Sign in to access clinical modules, OPD triage, and patient records.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Option for Clinic Registration */}
+                <div className="rounded-xl border border-[#bcd0e2] bg-gradient-to-r from-[#f0f6fc] via-[#e7f1f9] to-[#f0f6fc] p-2.5 flex items-center justify-between gap-2.5 shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#001d39] text-[#7bbde8] shadow-xs">
+                      <Building2 className="size-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#001d39] truncate">Opening a New Clinic or Practice?</p>
+                      <p className="text-[0.68rem] text-[#4d6a86] truncate">Launch your isolated multi-tenant ERP in 2 minutes</p>
+                    </div>
+                  </div>
+                  <Link
+                    to="/register-clinic"
+                    className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-[#0a4174] hover:bg-[#001d39] text-white px-2.5 py-1.5 text-xs font-bold shadow-xs transition-all hover:scale-105 active:scale-95"
+                  >
+                    <span>Register</span>
+                    <ArrowRight className="size-3" />
+                  </Link>
                 </div>
 
                 <form onSubmit={handleLoginSubmit} className="space-y-3">
                   <div className="space-y-1">
-                    <label className="block text-xs font-semibold text-foreground">Email</label>
+                    <label className="block text-xs font-bold text-[#001d39]">Work Email</label>
                     <div className="relative">
-                      <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#49769f]" />
                       <input
                         type="email"
                         required
@@ -379,7 +448,7 @@ function AuthPage() {
                           }
                         }}
                         placeholder="staff@vetos.cloud"
-                        className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] pl-9 pr-3 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none transition-all focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <datalist id="login-email-suggestions">
                         {COMMON_EMAIL_DOMAINS.map((dom) => {
@@ -392,29 +461,29 @@ function AuthPage() {
 
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <label className="block text-xs font-semibold text-foreground">Password</label>
+                      <label className="block text-xs font-bold text-[#001d39]">Password</label>
                       <button
                         type="button"
                         onClick={() => { setFpEmail(loginEmail); setFpSent(false); setMode("forgot"); }}
-                        className="text-[0.7rem] text-primary hover:underline"
+                        className="text-[0.7rem] text-[#0a4174] font-bold hover:underline"
                       >
                         Forgot password?
                       </button>
                     </div>
                     <div className="relative">
-                      <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#49769f]" />
                       <input
                         type={showPassword ? "text" : "password"}
                         required
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-9 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] pl-9 pr-9 text-xs text-[#08233f] outline-none transition-all focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4d6a86] hover:text-[#001d39]"
                       >
                         {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
                       </button>
@@ -422,12 +491,12 @@ function AuthPage() {
                   </div>
 
                   <div className="flex items-center justify-between pt-0.5">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground select-none">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-[#4d6a86] select-none font-medium">
                       <input
                         type="checkbox"
                         checked={rememberMe}
                         onChange={(e) => setRememberMe(e.target.checked)}
-                        className="size-3.5 rounded border-input text-primary focus:ring-primary"
+                        className="size-3.5 rounded border-[#bcd0e2] text-[#0a4174] focus:ring-[#7bbde8]"
                       />
                       <span>Remember session</span>
                     </label>
@@ -436,7 +505,7 @@ function AuthPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs transition-all hover:bg-primary-hover active:scale-[0.99] disabled:opacity-60"
+                    className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#001d39] to-[#0a4174] text-xs font-bold text-white shadow-md shadow-[#001d39]/15 hover:from-[#0a4174] hover:to-[#001d39] hover:shadow-lg hover:shadow-[#0a4174]/25 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60"
                   >
                     {loading ? (
                       <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -450,12 +519,79 @@ function AuthPage() {
                 </form>
 
               </div>
+            ) : mode === "clinic" ? (
+              /* TAB: CLINIC REGISTRATION QUICK LAUNCHER */
+              <div className="space-y-3.5 animate-in fade-in duration-150">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-[#bcd0e2] bg-[#eaf3fa] px-2.5 py-0.5 text-[0.68rem] font-bold text-[#0a4174] mb-1.5">
+                    <Sparkles className="size-3 text-[#0a4174]" />
+                    <span>Multi-Tenant Practice Onboarding</span>
+                  </div>
+                  <h1 className="text-xl font-extrabold text-[#001d39] font-['Bricolage_Grotesque',system-ui,sans-serif]">
+                    Register Your Veterinary Clinic
+                  </h1>
+                  <p className="text-xs text-[#4d6a86] mt-0.5">
+                    Launch an isolated, cloud-hosted VetOS ERP workspace with OPD consultation triage, live Rx inventory, and WhatsApp integration.
+                  </p>
+                </div>
+
+                <div className="space-y-2.5 rounded-2xl border border-[#d3e2ef] bg-[#f8fbfe] p-3.5">
+                  <div className="flex items-start gap-2.5">
+                    <div className="size-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <CheckCircle2 className="size-3.5" />
+                    </div>
+                    <div className="text-xs">
+                      <strong className="text-[#001d39]">Dedicated Tenant Isolation:</strong>
+                      <span className="text-[#4d6a86] ml-1">Your patients, inventory, and accounts remain strictly private to your clinic.</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <div className="size-5 rounded-full bg-blue-100 text-[#0a4174] flex items-center justify-center shrink-0 mt-0.5">
+                      <CheckCircle2 className="size-3.5" />
+                    </div>
+                    <div className="text-xs">
+                      <strong className="text-[#001d39]">Complete Clinical Suite:</strong>
+                      <span className="text-[#4d6a86] ml-1">Appointments, OPD queue, digital prescriptions, lab reports, and billing.</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <div className="size-5 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <CheckCircle2 className="size-3.5" />
+                    </div>
+                    <div className="text-xs">
+                      <strong className="text-[#001d39]">3-Minute Setup:</strong>
+                      <span className="text-[#4d6a86] ml-1">Configure your clinic details, choose a plan, and invite your doctors immediately.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  to="/register-clinic"
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#001d39] to-[#0a4174] text-xs font-bold text-white shadow-md shadow-[#001d39]/15 hover:from-[#0a4174] hover:to-[#001d39] hover:shadow-lg hover:shadow-[#0a4174]/25 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                >
+                  <Building2 className="size-4 text-[#7bbde8]" />
+                  <span>Start 4-Step Clinic Registration</span>
+                  <ArrowRight className="size-4 text-[#7bbde8]" />
+                </Link>
+
+                <div className="text-center pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setMode("login")}
+                    className="text-xs font-bold text-[#0a4174] hover:underline"
+                  >
+                    Already have a clinic workspace? Sign in here →
+                  </button>
+                </div>
+              </div>
             ) : mode === "forgot" ? (
-              /* TAB: FORGOT PASSWORD (emailed one-time reset link) */
+              /* TAB: FORGOT PASSWORD */
               <div className="space-y-4 animate-in fade-in duration-150">
                 <div>
-                  <h1 className="text-lg font-bold text-navy">Reset password</h1>
-                  <p className="text-xs text-muted-foreground">
+                  <h1 className="text-xl font-extrabold text-[#001d39] font-['Bricolage_Grotesque',system-ui,sans-serif]">Reset password</h1>
+                  <p className="text-xs text-[#4d6a86]">
                     {fpSent
                       ? `If ${fpEmail} belongs to a staff account, a reset link is on its way. It expires in 30 minutes.`
                       : "Enter your staff email and we'll send you a secure reset link."}
@@ -464,7 +600,7 @@ function AuthPage() {
                 {!fpSent && (
                   <form onSubmit={handleForgotSubmit} className="space-y-3">
                     <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-foreground">Email</label>
+                      <label className="block text-xs font-bold text-[#001d39]">Email</label>
                       <input
                         type="email"
                         required
@@ -477,7 +613,7 @@ function AuthPage() {
                           }
                         }}
                         placeholder="staff@vetos.cloud"
-                        className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-3 text-xs text-[#08233f] outline-none focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <datalist id="fp-email-suggestions">
                         {COMMON_EMAIL_DOMAINS.map((dom) => {
@@ -489,7 +625,7 @@ function AuthPage() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+                      className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#001d39] to-[#0a4174] text-xs font-bold text-white hover:opacity-90 disabled:opacity-60 transition-all shadow-md"
                     >
                       {loading ? "Please wait…" : "Send reset link"}
                     </button>
@@ -498,65 +634,65 @@ function AuthPage() {
                 <button
                   type="button"
                   onClick={() => { setMode("login"); setFpSent(false); }}
-                  className="w-full text-center text-[0.7rem] text-primary hover:underline"
+                  className="w-full text-center text-xs font-bold text-[#0a4174] hover:underline"
                 >
                   Back to sign in
                 </button>
               </div>
             ) : (
               /* TAB: CREATE OPERATOR PROFILE */
-              <div className="space-y-3.5 animate-in fade-in duration-150">
+              <div className="space-y-3 animate-in fade-in duration-150">
                 <div>
-                  <h1 className="text-lg font-bold text-navy">Create Profile</h1>
-                  <p className="text-xs text-muted-foreground">
+                  <h1 className="text-xl font-extrabold text-[#001d39] font-['Bricolage_Grotesque',system-ui,sans-serif]">Create Staff Profile</h1>
+                  <p className="text-xs text-[#4d6a86]">
                     Join your clinic's existing VetOS Cloud workspace as staff.
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-[#4d6a86] mt-0.5">
                     New clinic?{" "}
-                    <Link to="/register-clinic" className="text-primary font-semibold hover:underline">
+                    <button type="button" onClick={() => setMode("clinic")} className="text-[#0a4174] font-bold hover:underline">
                       Register your clinic instead →
-                    </Link>
+                    </button>
                   </p>
                 </div>
 
                 <form onSubmit={handleRegisterSubmit} className="space-y-2.5">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">Full Name *</label>
+                      <label className="block text-[0.68rem] font-bold text-[#001d39]">Full Name *</label>
                       <input
                         type="text"
                         required
                         value={regData.fullName}
                         onChange={(e) => setRegData({ ...regData, fullName: e.target.value })}
                         placeholder="Dr. Rajesh Mehra"
-                        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
                     <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">Work Email *</label>
+                      <label className="block text-[0.68rem] font-bold text-[#001d39]">Work Email *</label>
                       <div className="flex gap-1">
-                      <input
-                        type="email"
-                        required
-                        list="reg-email-suggestions"
-                        value={regData.email}
-                        onChange={(e) => {
-                          const formatted = e.target.value.toLowerCase().replace(/\s/g, "");
-                          setRegData({ ...regData, email: formatted });
-                          setOtpSent(false);
-                        }}
-                        onBlur={() => {
-                          if (regData.email && !regData.email.includes("@")) {
-                            setRegData({ ...regData, email: `${regData.email}@gmail.com` });
-                          }
-                        }}
-                        placeholder="rajesh@clinic.com"
-                        className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
-                      />
+                        <input
+                          type="email"
+                          required
+                          list="reg-email-suggestions"
+                          value={regData.email}
+                          onChange={(e) => {
+                            const formatted = e.target.value.toLowerCase().replace(/\s/g, "");
+                            setRegData({ ...regData, email: formatted });
+                            setOtpSent(false);
+                          }}
+                          onBlur={() => {
+                            if (regData.email && !regData.email.includes("@")) {
+                              setRegData({ ...regData, email: `${regData.email}@gmail.com` });
+                            }
+                          }}
+                          placeholder="rajesh@clinic.com"
+                          className="h-8.5 min-w-0 flex-1 rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
+                        />
                         {emailVerified ? (
-                          <span className="inline-flex h-8 items-center rounded-lg bg-emerald-50 px-2 text-[0.68rem] font-bold text-emerald-700">✓ Verified</span>
+                          <span className="inline-flex h-8.5 items-center rounded-xl bg-emerald-50 px-2 text-[0.68rem] font-bold text-emerald-700">✓ Verified</span>
                         ) : (
-                          <button type="button" onClick={handleSendOtp} disabled={loading || otpSent || !regData.email.trim()} className="h-8 rounded-lg bg-primary px-2.5 text-[0.68rem] font-bold text-primary-foreground disabled:opacity-60">
+                          <button type="button" onClick={handleSendOtp} disabled={loading || otpSent || !regData.email.trim()} className="h-8.5 rounded-xl bg-[#0a4174] px-2.5 text-[0.68rem] font-bold text-white disabled:opacity-60">
                             {otpSent ? "Sent" : "Verify"}
                           </button>
                         )}
@@ -571,8 +707,8 @@ function AuthPage() {
                   </div>
 
                   {otpSent && !emailVerified && (
-                    <div className="space-y-1.5 rounded-lg border border-sky-200 bg-sky-50 p-2.5">
-                      <p className="text-[0.68rem] text-sky-900">Enter the 6-digit code we emailed to <b>{regData.email}</b></p>
+                    <div className="space-y-1.5 rounded-xl border border-[#bcd0e2] bg-[#eef6fc] p-2.5">
+                      <p className="text-[0.68rem] text-[#001d39]">Enter the 6-digit code we emailed to <b>{regData.email}</b></p>
                       <div className="flex items-center gap-1.5">
                         <input
                           inputMode="numeric"
@@ -581,18 +717,18 @@ function AuthPage() {
                           value={otp}
                           onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                           placeholder="••••••"
-                          className="h-8 w-28 rounded-lg border border-input bg-background px-2 text-center text-sm font-mono tracking-[0.35em] outline-none focus:border-primary"
+                          className="h-8 w-28 rounded-lg border border-[#bcd0e2] bg-white px-2 text-center text-sm font-mono tracking-[0.35em] outline-none focus:border-[#0a4174]"
                         />
-                        <button type="button" onClick={handleConfirmOtp} disabled={loading || otp.length !== 6 || expiresIn <= 0} className="h-8 rounded-lg bg-primary px-3 text-[0.68rem] font-bold text-primary-foreground disabled:opacity-60">
+                        <button type="button" onClick={handleConfirmOtp} disabled={loading || otp.length !== 6 || expiresIn <= 0} className="h-8 rounded-lg bg-[#001d39] px-3 text-[0.68rem] font-bold text-[#7bbde8] disabled:opacity-60">
                           Confirm
                         </button>
                       </div>
-                      <div className="flex items-center justify-between text-[0.65rem] text-sky-900/80">
+                      <div className="flex items-center justify-between text-[0.65rem] text-[#4d6a86]">
                         <span>{expiresIn > 0 ? `Code expires in ${fmt(expiresIn)}` : "Code expired — request a new one"}</span>
                         {resendIn > 0 ? (
                           <span>Resend in {fmt(resendIn)}</span>
                         ) : (
-                          <button type="button" onClick={handleSendOtp} disabled={loading} className="font-bold text-primary hover:underline disabled:opacity-60">Resend code</button>
+                          <button type="button" onClick={handleSendOtp} disabled={loading} className="font-bold text-[#0a4174] hover:underline disabled:opacity-60">Resend code</button>
                         )}
                       </div>
                     </div>
@@ -600,7 +736,7 @@ function AuthPage() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">Phone Number (10 digits)</label>
+                      <label className="block text-[0.68rem] font-bold text-[#001d39]">Phone Number (10 digits)</label>
                       <input
                         type="tel"
                         inputMode="numeric"
@@ -620,54 +756,54 @@ function AuthPage() {
                           setRegData({ ...regData, phone: clean });
                         }}
                         placeholder="9876543210"
-                        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary font-mono tracking-wide"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">Password *</label>
-                      <input
-                        type="password"
-                        required
-                        value={regData.password}
-                        onChange={(e) => setRegData({ ...regData, password: e.target.value })}
-                        placeholder="••••••••"
-                        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174] font-mono tracking-wide"
                       />
                     </div>
                     <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">Confirm Password *</label>
-                      <input
-                        type="password"
-                        required
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">Clinic Identifier *</label>
+                      <label className="block text-[0.68rem] font-bold text-[#001d39]">Clinic Identifier *</label>
                       <input
                         type="text"
                         required
                         value={regData.clinicSlug}
                         onChange={(e) => setRegData({ ...regData, clinicSlug: e.target.value })}
                         placeholder="your_clinic_slug"
-                        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-0.5">
+                      <label className="block text-[0.68rem] font-bold text-[#001d39]">Password *</label>
+                      <input
+                        type="password"
+                        required
+                        value={regData.password}
+                        onChange={(e) => setRegData({ ...regData, password: e.target.value })}
+                        placeholder="••••••••"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
                     <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">Requested Role</label>
+                      <label className="block text-[0.68rem] font-bold text-[#001d39]">Confirm Password *</label>
+                      <input
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-0.5">
+                      <label className="block text-[0.68rem] font-bold text-[#001d39]">Requested Role</label>
                       <select
                         value={regData.roleId}
                         onChange={(e) => setRegData({ ...regData, roleId: e.target.value as RoleId })}
-                        className="h-8 w-full rounded-lg border border-input bg-background px-2 text-xs outline-none focus:border-primary font-medium"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2 text-xs outline-none focus:bg-white focus:border-[#0a4174] font-medium"
                       >
                         <option value="doctor">🩺 Doctor / Senior Vet</option>
                         <option value="admin">🛡️ Clinic Admin</option>
@@ -676,38 +812,25 @@ function AuthPage() {
                         <option value="platform">⚡ Platform Administrator</option>
                       </select>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">Qualification / Degrees</label>
-                      <input
-                        type="text"
-                        value={regData.qualification || ""}
-                        onChange={(e) => setRegData({ ...regData, qualification: e.target.value })}
-                        placeholder="BVSc & AH, MVSc"
-                        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-semibold text-foreground">License / VCI Registration No.</label>
+                      <label className="block text-[0.68rem] font-bold text-[#001d39]">License / VCI Reg No.</label>
                       <input
                         type="text"
                         value={regData.licenseNumber}
                         onChange={(e) => setRegData({ ...regData, licenseNumber: e.target.value })}
                         placeholder="VCI-KAR-2024-881"
-                        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
                   </div>
 
                   <div className="pt-0.5">
-                    <label className="flex items-center gap-1.5 cursor-pointer text-[0.68rem] text-muted-foreground select-none">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[0.68rem] text-[#4d6a86] select-none">
                       <input
                         type="checkbox"
                         checked={agreedTerms}
                         onChange={(e) => setAgreedTerms(e.target.checked)}
-                        className="size-3.5 rounded border-input text-primary focus:ring-primary"
+                        className="size-3.5 rounded border-[#bcd0e2] text-[#0a4174] focus:ring-[#7bbde8]"
                       />
                       <span>I agree to clinic data policy</span>
                     </label>
@@ -716,7 +839,7 @@ function AuthPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs transition-all hover:bg-primary-hover active:scale-[0.99] disabled:opacity-60"
+                    className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#001d39] to-[#0a4174] text-xs font-bold text-white shadow-md shadow-[#001d39]/15 hover:from-[#0a4174] hover:to-[#001d39] hover:shadow-lg hover:shadow-[#0a4174]/25 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60"
                   >
                     {loading ? (
                       <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -733,18 +856,21 @@ function AuthPage() {
           </div>
 
           {/* Bottom Card Footer */}
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[0.68rem] text-muted-foreground">
+          <div className="mt-4 pt-3 border-t border-[#d3e2ef] flex items-center justify-between text-[0.68rem] text-[#4d6a86]">
             {isAuthenticated && currentUser ? (
               <>
-                <span>Signed in as <strong>{currentUser.fullName}</strong></span>
-                <Link to="/" className="text-primary font-bold hover:underline">
+                <span>Signed in as <strong className="text-[#001d39]">{currentUser.fullName}</strong></span>
+                <Link to="/" className="text-[#0a4174] font-bold hover:underline">
                   Launch Console →
                 </Link>
               </>
             ) : (
               <>
-                <span>VetOS Clinic Management</span>
-                <span className="text-slate-400">Local Auth · MongoDB Ready</span>
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Building2 className="size-3 text-[#0a4174]" />
+                  <span>VetOS Multi-Tenant Architecture</span>
+                </div>
+                <span className="text-[#4d6a86]">MongoDB Atlas Connected</span>
               </>
             )}
           </div>
@@ -753,8 +879,8 @@ function AuthPage() {
       </div>
 
       {/* Page Footer */}
-      <p className="mt-6 text-[0.72rem] text-slate-500">
-        By signing in you agree to the VetOS Clinic Compliance & Privacy Code
+      <p className="mt-5 text-[0.72rem] text-[#4d6a86] font-medium text-center">
+        By signing in or registering you agree to the VetOS Clinic Compliance & Multi-Tenant Data Policy
       </p>
     </div>
   );
