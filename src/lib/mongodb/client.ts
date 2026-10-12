@@ -46,13 +46,22 @@ function getMongoUri(): string {
     }
   }
 
-  const raw =
-    (typeof process !== "undefined" &&
-      (process.env["MONGODB_URI"] || process.env["VITE_MONGODB_URI"])) ||
-    DEFAULT_MONGODB_URI;
+  const rawEnv =
+    typeof process !== "undefined"
+      ? (process.env["MONGODB_URI"] || process.env["VITE_MONGODB_URI"])
+      : undefined;
 
-  // Clean any extraneous whitespace or enclosing quotes
-  return raw.trim().replace(/^["']|["']$/g, "").trim();
+  if (rawEnv && typeof rawEnv === "string") {
+    const cleaned = rawEnv.trim().replace(/^["']|["']$/g, "").trim();
+    if (cleaned.startsWith("mongodb://") || cleaned.startsWith("mongodb+srv://")) {
+      return cleaned;
+    }
+    console.warn(
+      `[MongoDB] Configured MONGODB_URI does not start with "mongodb://" or "mongodb+srv://": "${cleaned.slice(0, 20)}...". Falling back to verified default Atlas URI.`
+    );
+  }
+
+  return DEFAULT_MONGODB_URI;
 }
 
 /**
@@ -142,21 +151,18 @@ export async function connectDB(): Promise<typeof mongoose> {
         cached.conn = m;
         return m;
       } catch (err: any) {
-        console.error("[MongoDB] Connection error:", err?.message || err);
-        // If the environment variable on Vercel contains stale/bad credentials, auto-retry with verified Atlas credentials
-        if (
-          uri !== DEFAULT_MONGODB_URI &&
-          (String(err?.message || "").includes("bad auth") ||
-            String(err?.message || "").includes("Authentication failed") ||
-            err?.code === 8000)
-        ) {
-          console.warn("[MongoDB] Invalid credentials in environment variable. Auto-recovering with verified cluster URI...");
+        console.error("[MongoDB] Connection error with primary URI:", err?.message || err);
+        // If the environment variable on Vercel fails for ANY reason (invalid scheme, bad auth, network, etc.),
+        // auto-recover with verified cluster URI.
+        if (uri !== DEFAULT_MONGODB_URI) {
+          console.warn("[MongoDB] Primary URI failed. Auto-recovering with verified cluster URI...");
           try {
             const mFallback = await mongoose.connect(DEFAULT_MONGODB_URI, opts);
             console.log("[MongoDB] Recovered and connected to Atlas successfully.");
             cached.conn = mFallback;
             return mFallback;
-          } catch (fbErr) {
+          } catch (fbErr: any) {
+            console.error("[MongoDB] Fallback connection error:", fbErr?.message || fbErr);
             cached.promise = null;
             cached.conn = null;
             throw fbErr;
