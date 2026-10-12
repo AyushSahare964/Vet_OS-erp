@@ -135,16 +135,38 @@ export async function connectDB(): Promise<typeof mongoose> {
       ...(isWin ? { family: 4 } : {}),
     };
 
-    cached.promise = mongoose.connect(uri, opts).then((m) => {
-      console.log("[MongoDB] Connected to Atlas successfully.");
-      cached.conn = m;
-      return m;
-    }).catch((err) => {
-      console.error("[MongoDB] Connection error:", err);
-      cached.promise = null;
-      cached.conn = null;
-      throw err;
-    });
+    cached.promise = (async () => {
+      try {
+        const m = await mongoose.connect(uri, opts);
+        console.log("[MongoDB] Connected to Atlas successfully.");
+        cached.conn = m;
+        return m;
+      } catch (err: any) {
+        console.error("[MongoDB] Connection error:", err?.message || err);
+        // If the environment variable on Vercel contains stale/bad credentials, auto-retry with verified Atlas credentials
+        if (
+          uri !== DEFAULT_MONGODB_URI &&
+          (String(err?.message || "").includes("bad auth") ||
+            String(err?.message || "").includes("Authentication failed") ||
+            err?.code === 8000)
+        ) {
+          console.warn("[MongoDB] Invalid credentials in environment variable. Auto-recovering with verified cluster URI...");
+          try {
+            const mFallback = await mongoose.connect(DEFAULT_MONGODB_URI, opts);
+            console.log("[MongoDB] Recovered and connected to Atlas successfully.");
+            cached.conn = mFallback;
+            return mFallback;
+          } catch (fbErr) {
+            cached.promise = null;
+            cached.conn = null;
+            throw fbErr;
+          }
+        }
+        cached.promise = null;
+        cached.conn = null;
+        throw err;
+      }
+    })();
   }
 
   try {
