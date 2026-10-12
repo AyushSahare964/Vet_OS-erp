@@ -37,23 +37,140 @@ export const getPatient360Fn = createServerFn({ method: "GET" })
     }
 
     const isOid = mongoose.Types.ObjectId.isValid(data.petId);
-    const pet = (await Pet.findOne({
+    let pet = (await Pet.findOne({
       $or: [
         { petId: data.petId },
         ...(isOid ? [{ _id: data.petId }] : []),
       ],
     }).lean()) as any;
-    if (!pet) throw new Error(`Patient ${data.petId} not found in this clinic`);
+
+    let ownerDoc: any = null;
+
+    if (!pet) {
+      // 1. Support OTC Walk-in / Retail Counter sales
+      if (/OTC-WALKIN|RETAIL-CLIENT|WALKIN/i.test(data.petId)) {
+        const visits = await ClinicalVisit.find({
+          $or: [
+            { petId: data.petId },
+            { petId: "OTC-WALKIN" },
+            { petName: { $regex: /walk-?in/i } },
+            { ownerName: { $regex: /walk-?in/i } },
+          ],
+        })
+          .sort({ date: -1, createdAt: -1 })
+          .limit(500)
+          .lean();
+
+        pet = {
+          petId: data.petId,
+          name: "OTC Walk-in Sales",
+          species: "Direct Counter",
+          breed: "Walk-in Customer",
+          gender: "N/A",
+          age: "Retail",
+          ownerName: "Direct Counter Client",
+          ownerPhone: "Counter Desk",
+          ownerId: "WALK-IN",
+          status: "Active",
+        };
+
+        ownerDoc = {
+          ownerId: "WALK-IN",
+          name: "Direct Counter Client",
+          phone: "Counter Desk",
+          email: "",
+          address: "Hospital Reception / Pharmacy Counter",
+        };
+
+        return toPlain<any>({
+          pet,
+          owner: ownerDoc,
+          otherPets: [],
+          visits,
+          appointments: [],
+          vaccinations: [],
+          dewormings: [],
+          bloodTests: [],
+          files: [],
+          isWalkIn: true,
+        });
+      }
+
+      // 2. Support searching or clicking an Owner directly (by ownerId or phone)
+      ownerDoc = (await Owner.findOne({
+        $or: [
+          { ownerId: data.petId },
+          { phone: data.petId },
+          ...(isOid ? [{ _id: data.petId }] : []),
+        ],
+      }).lean()) as any;
+
+      if (ownerDoc) {
+        const ownerPets = await Pet.find({ ownerId: ownerDoc.ownerId }).lean();
+        if (ownerPets.length > 0) {
+          pet = ownerPets[0];
+        } else {
+          pet = {
+            petId: ownerDoc.ownerId,
+            name: `${ownerDoc.name} (Client Profile)`,
+            species: "Client Account",
+            breed: "Registered Owner",
+            gender: ownerDoc.gender || "N/A",
+            age: "Client",
+            ownerId: ownerDoc.ownerId,
+            ownerName: ownerDoc.name,
+            ownerPhone: ownerDoc.phone,
+            status: ownerDoc.status || "Active",
+          };
+        }
+      }
+
+      // 3. Support searching or clicking an invoiceNo or visitId
+      if (!pet) {
+        const visitMatch = (await ClinicalVisit.findOne({
+          $or: [
+            { invoiceNo: data.petId },
+            { visitId: data.petId },
+          ],
+        }).lean()) as any;
+
+        if (visitMatch) {
+          if (visitMatch.petId && !/OTC-WALKIN/i.test(visitMatch.petId)) {
+            pet = (await Pet.findOne({ petId: visitMatch.petId }).lean()) as any;
+          }
+          if (!pet) {
+            pet = {
+              petId: visitMatch.petId || "OTC-WALKIN",
+              name: visitMatch.petName || "Walk-in Client",
+              species: visitMatch.species || "Direct Counter",
+              breed: visitMatch.breed || "Retail Client",
+              gender: "N/A",
+              age: "Retail",
+              ownerId: visitMatch.ownerId || "CLIENT",
+              ownerName: visitMatch.ownerName || "Counter Client",
+              ownerPhone: visitMatch.ownerPhone || "N/A",
+              status: "Active",
+            };
+          }
+        }
+      }
+    }
+
+    if (!pet) throw new Error(`Patient or Client record "${data.petId}" not found in this clinic`);
 
     const sections = {
-      owner: () => Owner.findOne({ ownerId: pet.ownerId }).lean(),
+      owner: () => (ownerDoc ? Promise.resolve(ownerDoc) : Owner.findOne({ ownerId: pet.ownerId }).lean()),
       otherPets: () =>
         Pet.find({ ownerId: pet.ownerId, petId: { $ne: pet.petId } })
           .select("petId name species breed gender status photoUrl")
           .lean(),
-      // ponytail: whole visit history for one pet in one read; paginate server-side if a pet ever exceeds a few hundred visits
       visits: () =>
-        ClinicalVisit.find({ petId: pet.petId })
+        ClinicalVisit.find({
+          $or: [
+            { petId: pet.petId },
+            ...(pet.ownerId ? [{ ownerId: pet.ownerId }] : []),
+          ],
+        })
           .sort({ date: -1, createdAt: -1 })
           .limit(500)
           .lean(),

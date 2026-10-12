@@ -15,24 +15,28 @@ function PatientRoute() {
   const { id } = Route.useParams();
   const [loading, setLoading] = useState(true);
   const [pet, setPet] = useState<Pet | null>(null);
+  const [p360, setP360] = useState<any | null>(null);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
 
     getPatient360Fn({ data: { petId: id } })
-      .then((p360) => {
+      .then((data) => {
         if (!active) return;
-        if (p360?.pet) {
-          setPet(adaptMongoPatientToDoctorPet(p360));
+        if (data?.pet) {
+          setP360(data);
+          setPet(adaptMongoPatientToDoctorPet(data));
         } else {
           setPet(null);
+          setP360(null);
         }
       })
       .catch((err) => {
         console.warn("[PatientRoute] Database lookup error:", err);
         if (active) {
           setPet(null);
+          setP360(null);
         }
       })
       .finally(() => {
@@ -66,5 +70,5 @@ function PatientRoute() {
     );
   }
 
-  return <PatientPage pet={pet} />;
+  return <PatientPage pet={pet} p360={p360} />;
 }

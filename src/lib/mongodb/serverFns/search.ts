@@ -234,7 +234,7 @@ export const searchMasterFn = createServerFn({ method: "GET" })
           const firstPet = linkedPets[0];
           petResults.push({
             key: `owner-${o.ownerId}`,
-            petId: firstPet?.petId || "",
+            petId: firstPet?.petId || o.ownerId,
             icon: "paw",
             title: o.name,
             sub: `Client (${o.phone || "No phone"}) · Pets: ${
@@ -243,6 +243,18 @@ export const searchMasterFn = createServerFn({ method: "GET" })
             tag: "Owner",
           });
         }
+      }
+
+      // 1b. Support OTC Walk-in / Counter search
+      if (/otc|walk|counter|retail/i.test(rawQ)) {
+        petResults.push({
+          key: "otc-walkin-client",
+          petId: "OTC-WALKIN",
+          icon: "paw",
+          title: "OTC Walk-in Sales",
+          sub: "Direct over-the-counter sales & client invoices",
+          tag: "Walk-in",
+        });
       }
 
       if (petResults.length > 0) {
