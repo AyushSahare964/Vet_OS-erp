@@ -187,8 +187,9 @@ function AuthPage() {
       } else {
         toast.error(res.message || "Invalid credentials.");
       }
-    } catch {
-      toast.error("Server connection error.");
+    } catch (err: any) {
+      console.error("[Login] error:", err);
+      toast.error(err?.message || "Server connection error.");
     } finally {
       setLoading(false);
     }

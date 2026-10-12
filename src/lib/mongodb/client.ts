@@ -34,6 +34,9 @@ if (!global.__mongooseCache) {
   global.__mongooseCache = cached;
 }
 
+const DEFAULT_MONGODB_URI =
+  "mongodb+srv://astroiddistroyer5_db_user:pswR2IXtdysfgrai@cluster0.yvlqwf4.mongodb.net/vetos_erp?retryWrites=true&w=majority&appName=Cluster0";
+
 function getMongoUri(): string {
   if (typeof process !== "undefined" && typeof (process as unknown as { loadEnvFile?: () => void }).loadEnvFile === "function") {
     try {
@@ -43,10 +46,10 @@ function getMongoUri(): string {
     }
   }
 
-  const raw = typeof process !== "undefined" && (process.env["MONGODB_URI"] || process.env["VITE_MONGODB_URI"]);
-  if (!raw) {
-    throw new Error("MONGODB_URI (or VITE_MONGODB_URI) is not set. Add it to .env or the deployment's environment variables.");
-  }
+  const raw =
+    (typeof process !== "undefined" &&
+      (process.env["MONGODB_URI"] || process.env["VITE_MONGODB_URI"])) ||
+    DEFAULT_MONGODB_URI;
 
   // Clean any extraneous whitespace or enclosing quotes
   return raw.trim().replace(/^["']|["']$/g, "").trim();
@@ -125,9 +128,9 @@ export async function connectDB(): Promise<typeof mongoose> {
     const isWin = typeof process !== "undefined" && process.platform === "win32";
     const opts: mongooseModule.ConnectOptions = {
       maxPoolSize: 15,
-      serverSelectionTimeoutMS: 8000,
-      socketTimeoutMS: 30000,
-      connectTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 15000,
       retryWrites: true,
       ...(isWin ? { family: 4 } : {}),
     };
