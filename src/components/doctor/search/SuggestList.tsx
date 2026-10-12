@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import {
+  Boxes,
   Clock,
   FlaskConical,
   PawPrint,
@@ -20,6 +21,7 @@ const ICONS: Record<ResultIcon, LucideIcon> = {
   vaccine: Syringe,
   medical: Stethoscope,
   deworm: ShieldCheck,
+  pharmacy: Boxes,
 };
 
 interface SuggestListProps {

@@ -1,10 +1,16 @@
 import { useEffect, useRef } from "react";
 import { Receipt } from "lucide-react";
-import { clinic } from "@/data/doctor/clinic";
-import { invoiceTotal, type Invoice } from "@/data/doctor/history";
+import { useErp } from "@/lib/erp/store";
 import type { Pet } from "@/data/doctor/types";
 import { fmtDate, rupee } from "@/lib/doctor/format";
 import { BrandChip } from "../shared/BrandChip";
+
+export interface Invoice {
+  date: Date;
+  by: string;
+  mode: string;
+  items: [name: string, qty: number, rate: number][];
+}
 
 interface BillReceiptProps {
   pet: Pet;
@@ -15,7 +21,15 @@ interface BillReceiptProps {
 
 /** Bill receipt overlay. Print prints only the receipt (see @media print in doctor-records.css). */
 export function BillReceipt({ pet, invoiceNo, invoice: v, onClose }: BillReceiptProps) {
+  const { currentUser, clinicBranding } = useErp();
+  const clinicName = clinicBranding?.clinicName || currentUser?.clinicName || "Veterinary Clinic";
+  const logoUrl = clinicBranding?.logoUrl || "/clinic-logo.png";
   const closeRef = useRef<HTMLButtonElement>(null);
+
+  const invoiceTotal = (v.items || []).reduce(
+    (s, [, qty, rate]) => s + (Number(qty) || 1) * (Number(rate) || 0),
+    0
+  );
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -38,9 +52,16 @@ export function BillReceipt({ pet, invoiceNo, invoice: v, onClose }: BillReceipt
     >
       <div className="receipt-box" role="dialog" aria-modal="true" aria-label="Bill receipt">
         <div className="rc-head">
-          <img className="rc-logo-img" src={clinic.emblemUrl} alt="" />
+          <img
+            className="rc-logo-img"
+            src={logoUrl}
+            alt={clinicName}
+            onError={(e) => {
+              (e.target as HTMLElement).src = "/clinic-logo.png";
+            }}
+          />
           <div>
-            <div className="rc-clinic">{clinic.name}</div>
+            <div className="rc-clinic">{clinicName}</div>
             <div className="rc-sub">
               Powered by <BrandChip />
             </div>
@@ -92,7 +113,7 @@ export function BillReceipt({ pet, invoiceNo, invoice: v, onClose }: BillReceipt
         </table>
         <div className="rc-total">
           <span>Total (taxes included)</span>
-          <b>{rupee(invoiceTotal(v))}</b>
+          <b>{rupee(invoiceTotal)}</b>
         </div>
         <div className="rc-pay">
           <div>

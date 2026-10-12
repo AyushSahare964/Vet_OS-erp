@@ -1,8 +1,10 @@
 import { parseDate } from "./dates";
 
-/** "14 Aug 2025" */
-export const fmtDate = (d: Date) =>
-  d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+/** "14 Aug 2025" or "Not recorded" */
+export const fmtDate = (d: Date | undefined | null): string => {
+  if (!d || isNaN(d.getTime()) || d.getFullYear() <= 1970) return "Not recorded";
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+};
 
 /** Whole days from b to a. */
 export const dayDiff = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / 86_400_000);
@@ -18,8 +20,15 @@ export const today = () => {
 export type Tone = "ok" | "soon" | "late";
 
 /** Red "Overdue by N days", yellow "Due in N days" (14 days or less), green otherwise. */
-export function dueState(dueIso: string): { tone: Tone; label: string } {
-  const d = dayDiff(parseDate(dueIso), today());
+export function dueState(dueIso: string | undefined | null): { tone: Tone; label: string } {
+  if (!dueIso || typeof dueIso !== "string" || !dueIso.includes("-")) {
+    return { tone: "ok", label: "Up to date" };
+  }
+  const pd = parseDate(dueIso);
+  if (isNaN(pd.getTime()) || pd.getFullYear() <= 1970) {
+    return { tone: "ok", label: "Up to date" };
+  }
+  const d = dayDiff(pd, today());
   if (d < 0) return { tone: "late", label: `Overdue by ${-d} day${-d === 1 ? "" : "s"}` };
   if (d === 0) return { tone: "soon", label: "Due today" };
   if (d <= 14) return { tone: "soon", label: `Due in ${d} day${d === 1 ? "" : "s"}` };

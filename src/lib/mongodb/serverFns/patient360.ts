@@ -1,11 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import mongoose from "mongoose";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
+import { getTenantContext } from "@/lib/mongodb/tenantContext";
 import { Pet } from "@/lib/mongodb/models/Pet";
 import { Owner } from "@/lib/mongodb/models/Owner";
 import { ClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
 import { Vaccination } from "@/lib/mongodb/models/Vaccination";
 import { DewormingRecord } from "@/lib/mongodb/models/DewormingRecord";
+import { BloodTest } from "@/lib/mongodb/models/BloodTest";
 import { ErpRow } from "@/lib/mongodb/models/ErpRow";
 
 function toPlain<T>(v: any): T {
@@ -27,10 +30,20 @@ const last10 = (p: unknown) =>
 export const getPatient360Fn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ petId: z.string().min(1) }).parse(raw))
   .handler(tenantScoped(async ({ data }) => {
-
     await connectDB();
-    const pet = (await Pet.findOne({ petId: data.petId }).lean()) as any;
-    if (!pet) throw new Error(`Patient ${data.petId} not found`);
+    const ctx = getTenantContext();
+    if (!ctx?.tenantId) {
+      throw new Error("Unauthorized: Tenant context required");
+    }
+
+    const isOid = mongoose.Types.ObjectId.isValid(data.petId);
+    const pet = (await Pet.findOne({
+      $or: [
+        { petId: data.petId },
+        ...(isOid ? [{ _id: data.petId }] : []),
+      ],
+    }).lean()) as any;
+    if (!pet) throw new Error(`Patient ${data.petId} not found in this clinic`);
 
     const sections = {
       owner: () => Owner.findOne({ ownerId: pet.ownerId }).lean(),
@@ -73,6 +86,8 @@ export const getPatient360Fn = createServerFn({ method: "GET" })
         Vaccination.find({ patientId: pet.petId }).sort({ dateGiven: -1 }).limit(200).lean(),
       dewormings: () =>
         DewormingRecord.find({ patientId: pet.petId }).sort({ dateGiven: -1 }).limit(200).lean(),
+      bloodTests: () =>
+        BloodTest.find({ patientId: pet.petId }).sort({ orderedDate: -1 }).limit(100).lean(),
       files: () =>
         ErpRow.find({ moduleId: FILES_MODULE, "data.petId": pet.petId })
           .select({ "data.dataUrl": 0 })

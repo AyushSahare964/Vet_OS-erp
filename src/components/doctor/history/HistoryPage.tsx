@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import type { Pet, Section } from "@/data/doctor/types";
-import { graphData } from "@/lib/doctor/graphs";
-import { historyRecords, petHistory } from "@/lib/doctor/records";
+import { buildRealHistoryRecords, buildRealGraphData } from "@/lib/doctor/realPatientAdapter";
 import { SECTION_ICON } from "../shared/sectionIcons";
 import { BillReceipt } from "../receipt/BillReceipt";
 import { BigView } from "./BigView";
@@ -14,11 +13,32 @@ import { RecordCard } from "./RecordCard";
 const NO_SELECTION: ChartSelection = { point: null, zone: null };
 
 /** Full history page: records on the left (newest first), sticky graph report on the right. */
-export function HistoryPage({ pet, section }: { pet: Pet; section: Section }) {
+export function HistoryPage({ pet, section, p360 }: { pet: Pet; section: Section; p360?: any }) {
   const navigate = useNavigate();
-  const page = useMemo(() => historyRecords(pet, section), [pet, section]);
-  const graphs = useMemo(() => graphData(pet, section), [pet, section]);
-  const invoices = useMemo(() => petHistory(pet).invoices, [pet]);
+  const page = useMemo(
+    () => buildRealHistoryRecords(pet, section, p360 || {}),
+    [pet, section, p360]
+  );
+  const graphs = useMemo(
+    () => buildRealGraphData(pet, section, p360 || {}),
+    [pet, section, p360]
+  );
+  const invoices = useMemo(() => {
+    const invMap: Record<string, any> = {};
+    if (p360?.visits) {
+      for (const v of p360.visits) {
+        if (v.invoiceNo) {
+          invMap[v.invoiceNo] = {
+            date: v.date ? new Date(v.date) : new Date(v.createdAt || Date.now()),
+            by: v.doctorName || "Billing Desk",
+            mode: v.paymentMode || "Cash / UPI",
+            items: (v.items || []).map((it: any) => [it.name, it.quantity || 1, it.unitPrice || 0]),
+          };
+        }
+      }
+    }
+    return invMap;
+  }, [p360]);
   const Icon = SECTION_ICON[section];
 
   const [metricKey, setMetricKey] = useState(graphs.def);

@@ -1,25 +1,48 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { Search } from "lucide-react";
-import { findPet } from "@/data/doctor/pets";
+import { Search, Loader2 } from "lucide-react";
 import { BrandChip } from "../shared/BrandChip";
-import { buildResults, optionId, type SearchResult } from "./searchResults";
+import { optionId, type SearchResult, type ResultGroup } from "./searchResults";
 import { SuggestList } from "./SuggestList";
+import { searchMasterFn } from "@/lib/mongodb/serverFns/search";
 
-/** "VetOS Master Search": the Google-style Fetch bar with its results drop-down. */
+/** "VetOS Master Search": Live MongoDB-driven search engine scoped to current tenant. */
 export function FetchSearch() {
   const navigate = useNavigate();
   const listId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // On a patient page the box shows that pet's name, as in the reference.
+
   const { id } = useParams({ strict: false });
-  const [query, setQuery] = useState(() => (id && findPet(id)?.name) || "");
-  useEffect(() => setQuery((id && findPet(id)?.name) || ""), [id]);
+  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [groups, setGroups] = useState<ResultGroup[]>([]);
 
-  const groups = useMemo(() => buildResults(query), [query]);
+  // Real-time debounced server search
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await searchMasterFn({ data: { q: query } });
+        if (!cancelled) {
+          setGroups(res as ResultGroup[]);
+        }
+      } catch (err) {
+        console.error("[MasterSearch] Failed to fetch live results:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
   const show = () => {
@@ -30,14 +53,23 @@ export function FetchSearch() {
 
   const choose = (item: SearchResult) => {
     close();
-    setQuery(findPet(item.petId)?.name ?? "");
+    setQuery("");
     inputRef.current?.blur();
-    if (item.section) {
+
+    if (item.toModule) {
+      navigate({
+        to: "/m/$moduleId",
+        params: { moduleId: item.toModule },
+      });
+      return;
+    }
+
+    if (item.section && item.petId) {
       navigate({
         to: "/patient/$id/$section",
         params: { id: item.petId, section: item.section },
       });
-    } else {
+    } else if (item.petId) {
       navigate({ to: "/patient/$id", params: { id: item.petId } });
     }
   };
@@ -95,7 +127,11 @@ export function FetchSearch() {
         <BrandChip /> Master Search
       </div>
       <label className="vd-search-box">
-        <Search strokeWidth={2} aria-hidden="true" />
+        {loading ? (
+          <Loader2 className="size-4 animate-spin text-primary" strokeWidth={2.5} aria-hidden="true" />
+        ) : (
+          <Search strokeWidth={2} aria-hidden="true" />
+        )}
         <input
           ref={inputRef}
           type="search"
