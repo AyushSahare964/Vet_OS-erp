@@ -40,6 +40,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import { SideBar } from "@/components/doctor/layout/SideBar";
+import { sidebarModules } from "@/components/doctor/layout/barItems";
+
+/** true: slim floating side bars (same frame as the doctor home). false: the old 260px white sidebar. */
+export const USE_FLOATING_SHELL = true;
+
 function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
   const { role, currentUser, clinicBranding } = useErp();
   const isPlatform = role.id === "platform" || currentUser?.roleId === "platform";
@@ -360,9 +366,56 @@ function GlobalSearch() {
   );
 }
 
-function Topbar({ title, onMenu }: { title: string; onMenu: () => void }) {
+/** Branch, online status, focus and MongoDB status, shown in the user menu. */
+function BranchStatus() {
+  const { role, currentUser } = useErp();
+  const isPlatform = role.id === "platform" || currentUser?.roleId === "platform";
+  const [mongoStatus, setMongoStatus] = useState<MongoStatusRow | null>(null);
+
+  useEffect(() => {
+    getMongoStatusFn()
+      .then(setMongoStatus)
+      .catch(() => setMongoStatus({ connected: false, readyState: 0, databaseName: "vetos_erp", host: "Atlas", latencyMs: 0, error: "Offline" }));
+  }, []);
+
+  return (
+    <div className="px-2 py-2.5 border-b border-border my-1 text-[0.72rem]">
+      <div className="flex items-center justify-between">
+        <p className="section-label">{isPlatform ? "Environment" : "Branch"}</p>
+        <span className="flex items-center gap-1 text-[0.65rem] font-bold text-success">
+          <span className="size-1.5 rounded-full bg-success animate-pulse" />
+          Online
+        </span>
+      </div>
+      <p className="mt-1 text-sm font-semibold leading-tight text-foreground truncate">
+        {isPlatform ? (currentUser?.clinicName || "VetOS Cloud") : (currentUser?.branch || currentUser?.clinicName || role.scope)}
+      </p>
+      <p className="text-xs text-muted-foreground truncate">
+        {isPlatform ? "Platform Systems Administration" : (currentUser?.branch || role.scopeCaption)}
+      </p>
+      {currentUser?.specialty && (
+        <p className="mt-1.5 inline-block rounded bg-muted px-1.5 py-0.5 text-[0.68rem] font-medium text-muted-foreground">
+          Focus: {currentUser.specialty}
+        </p>
+      )}
+      <div className="mt-2 flex items-center justify-between border-t border-border/60 pt-2 text-[0.65rem]">
+        <span className="text-muted-foreground font-mono">MongoDB Atlas</span>
+        <span className={`inline-flex items-center gap-1 font-semibold ${mongoStatus?.connected ? "text-success" : "text-warning"}`}>
+          <span className={`size-1.5 rounded-full ${mongoStatus?.connected ? "bg-success animate-pulse" : "bg-warning"}`} />
+          {mongoStatus?.connected ? `Connected (${mongoStatus.latencyMs}ms)` : "Connecting…"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | undefined }) {
   const navigate = useNavigate();
-  const { role, roleId, setRoleId, currentUser, logout } = useErp();
+  const { role, roleId, setRoleId, currentUser, clinicBranding, logout } = useErp();
+  const isPlatform = role.id === "platform" || currentUser?.roleId === "platform";
+  const displayName = isPlatform
+    ? (currentUser?.clinicName || "VetOS Cloud")
+    : (clinicBranding?.clinicName || currentUser?.clinicName || CLINIC_CONFIG.shortName);
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -403,19 +456,28 @@ function Topbar({ title, onMenu }: { title: string; onMenu: () => void }) {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-card/90 backdrop-blur-md px-4 lg:px-6">
-      <button className="lg:hidden p-1.5 rounded-lg hover:bg-muted" onClick={onMenu} aria-label="Open navigation" suppressHydrationWarning>
-        <Menu className="size-5" />
-      </button>
+      {onMenu && (
+        <button className="lg:hidden p-1.5 rounded-lg hover:bg-muted" onClick={onMenu} aria-label="Open navigation" suppressHydrationWarning>
+          <Menu className="size-5" />
+        </button>
+      )}
 
-      <motion.h2 
-        key={title}
-        initial={{ opacity: 0, x: -6 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.2 }}
-        className="truncate text-[0.95rem] font-bold text-navy"
+      {/* Page title stays in the DOM for screen readers; the clinic logo is shown instead and goes home. */}
+      <h2 className="sr-only">{title}</h2>
+      <Link
+        to="/"
+        aria-label="Go to home"
+        className="flex shrink-0 items-center rounded-md transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {title}
-      </motion.h2>
+        <img
+          src={!isPlatform && clinicBranding?.logoUrl ? clinicBranding.logoUrl : CLINIC_CONFIG.logoPath}
+          alt={displayName}
+          className="h-10 w-auto object-contain max-[760px]:h-8"
+          onError={(e) => {
+            (e.target as HTMLElement).src = CLINIC_CONFIG.logoPath;
+          }}
+        />
+      </Link>
 
       <GlobalSearch />
 
@@ -572,6 +634,8 @@ function Topbar({ title, onMenu }: { title: string; onMenu: () => void }) {
               </div>
             </div>
 
+            {USE_FLOATING_SHELL && <BranchStatus />}
+
             <DropdownMenuItem asChild className="text-xs cursor-pointer rounded-lg py-2 mt-1">
               <Link to="/login" className="flex items-center gap-2">
                 <LogIn className="size-3.5 text-primary" />
@@ -628,7 +692,7 @@ export function Shell({ title, children }: { title: string; children: ReactNode 
   // 1. Still checking session — show a short branded loading screen.
   if (isLoadingAuth) {
     return (
-      <div className="flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-background">
+      <div className="flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-transparent">
         <div className="flex flex-col items-center gap-3">
           <div className="size-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm font-medium text-muted-foreground animate-pulse">Loading your session…</p>
@@ -648,8 +712,30 @@ export function Shell({ title, children }: { title: string; children: ReactNode 
     return null;
   }
 
+  // Floating frame: two slim bars flush with the screen edges, top bar + page content in the middle.
+  if (USE_FLOATING_SHELL) {
+    return (
+      <div className="vd-shell">
+        <SideBar side="left" />
+        <div className="flex min-h-screen min-w-0 flex-col">
+          <Topbar title={title} />
+          <motion.main
+            key={pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="flex-1 px-4 py-6 lg:px-6"
+          >
+            {children}
+          </motion.main>
+        </div>
+        <SideBar side="right" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex min-h-screen w-full bg-transparent">
       <aside className="sticky top-0 hidden h-screen shrink-0 lg:block">
         <Sidebar />
       </aside>

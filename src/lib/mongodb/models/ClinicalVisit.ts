@@ -15,6 +15,9 @@ export interface IPrescriptionLine {
   batchNo?: string | undefined;
   name: string;
   dosageInstructions?: string | undefined;
+  /** Unit the line is billed in (e.g. Strip) and the same quantity in the item's base unit (e.g. Tablet). */
+  unit?: string | undefined;
+  quantityBase?: number | undefined;
   quantity: number;
   unitPrice: number;
   /** @deprecated use discountType + discountValue instead; kept for backward-compat with old records */
@@ -148,6 +151,10 @@ export interface IPrescriptionData {
   previousHistory?: string | undefined;
   symptomsText?: string | undefined;
   symptomTags?: string[] | undefined;
+  /** Doctor-typed symptoms outside the catalogue, with the triage level the doctor chose. */
+  manualSymptoms?: { label: string; triage: "E" | "C" | "N" }[] | undefined;
+  /** Overall triage computed from the symptoms at save time. */
+  symptomTriage?: "E" | "C" | "N" | undefined;
   clinicalFindings?: string[] | undefined;
   clinicalFindingsOther?: string | undefined;
   immediateMedicines?: IImmediateMedicine[] | undefined;
@@ -277,6 +284,8 @@ const PrescriptionLineSchema = new Schema<IPrescriptionLine>({
   batchNo: { type: String },
   name: { type: String, required: true },
   dosageInstructions: { type: String },
+  unit: { type: String },
+  quantityBase: { type: Number },
   quantity: { type: Number, required: true, default: 1 },
   unitPrice: { type: Number, required: true, default: 0 },
   discountPercent: { type: Number, default: 0 },
