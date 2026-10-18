@@ -34,9 +34,6 @@ if (!global.__mongooseCache) {
   global.__mongooseCache = cached;
 }
 
-const DEFAULT_MONGODB_URI =
-  "mongodb+srv://astroiddistroyer5_db_user:pswR2IXtdysfgrai@cluster0.yvlqwf4.mongodb.net/vetos_erp?retryWrites=true&w=majority&appName=Cluster0";
-
 function getMongoUri(): string {
   if (typeof process !== "undefined" && typeof (process as unknown as { loadEnvFile?: () => void }).loadEnvFile === "function") {
     try {
@@ -56,12 +53,9 @@ function getMongoUri(): string {
     if (cleaned.startsWith("mongodb://") || cleaned.startsWith("mongodb+srv://")) {
       return cleaned;
     }
-    console.warn(
-      `[MongoDB] Configured MONGODB_URI does not start with "mongodb://" or "mongodb+srv://": "${cleaned.slice(0, 20)}...". Falling back to verified default Atlas URI.`
-    );
   }
 
-  return DEFAULT_MONGODB_URI;
+  throw new Error('[MongoDB] MONGODB_URI is missing or does not start with "mongodb://" or "mongodb+srv://".');
 }
 
 /**
@@ -152,22 +146,6 @@ export async function connectDB(): Promise<typeof mongoose> {
         return m;
       } catch (err: any) {
         console.error("[MongoDB] Connection error with primary URI:", err?.message || err);
-        // If the environment variable on Vercel fails for ANY reason (invalid scheme, bad auth, network, etc.),
-        // auto-recover with verified cluster URI.
-        if (uri !== DEFAULT_MONGODB_URI) {
-          console.warn("[MongoDB] Primary URI failed. Auto-recovering with verified cluster URI...");
-          try {
-            const mFallback = await mongoose.connect(DEFAULT_MONGODB_URI, opts);
-            console.log("[MongoDB] Recovered and connected to Atlas successfully.");
-            cached.conn = mFallback;
-            return mFallback;
-          } catch (fbErr: any) {
-            console.error("[MongoDB] Fallback connection error:", fbErr?.message || fbErr);
-            cached.promise = null;
-            cached.conn = null;
-            throw fbErr;
-          }
-        }
         cached.promise = null;
         cached.conn = null;
         throw err;

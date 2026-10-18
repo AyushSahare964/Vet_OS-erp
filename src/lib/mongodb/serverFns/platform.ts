@@ -29,9 +29,7 @@ import { signAccessToken, signRefreshToken, hashToken } from "@/lib/mongodb/toke
 import { SUBSCRIPTION_PLANS } from "@/lib/erp/features";
 import { ROLES } from "@/lib/erp/config";
 import type { AuthResponse, UserProfile } from "@/lib/erp/auth";
-import { sendResendEmail } from "@/lib/email/resend";
-import { buildClinicWelcomeEmail } from "@/lib/email/welcomeTemplate";
-import { appUrl } from "@/lib/email/emailjs";
+import { appUrl, logoUrl, sendEmail } from "@/lib/email/emailjs";
 
 const SALT_ROUNDS = 12;
 const COOKIE_NAME = "vetos_refresh";
@@ -87,7 +85,13 @@ const registerTenantSchema = z.object({
   clinicName: z.string().min(2),
   legalName: z.string().optional(),
   clinicType: z.string().default("Small Animal"),
-  vetCouncilRegNo: z.string().optional(),
+  // Official doctor entry (from the state veterinary council ID card)
+  doctorName: z.string().min(2),
+  doctorRegNo: z.string().min(3),
+  doctorCouncil: z.string().min(3),
+  doctorRegValidUpto: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  doctorQualification: z.string().optional(),
+  doctorIdCardDataUri: z.string().max(2_000_000).regex(/^data:image\/(png|jpeg|jpg|webp);base64,/),
   address: z.string().min(3),
   city: z.string().min(1),
   state: z.string().min(1),
@@ -124,6 +128,15 @@ export const registerTenantFn = createServerFn({ method: "POST" })
     const existingUser = await User.findOne({ email: cleanAdminEmail }).lean();
     if (existingUser) {
       return { success: false, message: "An account with this admin email already exists." };
+    }
+
+    const doctorRegNo = data.doctorRegNo.replace(/\s+/g, "").toUpperCase();
+    const regValidUpto = new Date(`${data.doctorRegValidUpto}T23:59:59+05:30`);
+    if (Number.isNaN(regValidUpto.getTime()) || regValidUpto.getTime() < Date.now()) {
+      return { success: false, message: "The doctor's council registration has expired (check the 'Valid Upto' date)." };
+    }
+    if (await TenantModel.exists({ "doctor.councilRegNo": doctorRegNo })) {
+      return { success: false, message: "A clinic is already registered with this veterinary council registration number." };
     }
 
     // Slug is only a URL/identifier handle, not a uniqueness claim on the clinic's
@@ -227,7 +240,15 @@ export const registerTenantFn = createServerFn({ method: "POST" })
       name: data.clinicName.trim(),
       legalName: data.legalName?.trim() || data.clinicName.trim(),
       clinicType: data.clinicType,
-      ...(data.vetCouncilRegNo?.trim() ? { vetCouncilRegNo: data.vetCouncilRegNo.trim() } : {}),
+      vetCouncilRegNo: doctorRegNo,
+      doctor: {
+        fullName: data.doctorName.trim(),
+        councilRegNo: doctorRegNo,
+        councilName: data.doctorCouncil.trim(),
+        regValidUpto,
+        ...(data.doctorQualification?.trim() ? { qualification: data.doctorQualification.trim() } : {}),
+        idCardDataUri: data.doctorIdCardDataUri,
+      },
       address: data.address.trim(),
       city: data.city.trim(),
       state: data.state.trim(),
@@ -268,33 +289,48 @@ export const registerTenantFn = createServerFn({ method: "POST" })
       createdAt: new Date().toISOString(),
     };
 
-    // ── Send welcome / credentials email (fire-and-forget; never blocks registration) ──
-    void (async () => {
-      try {
-        const { subject, html } = buildClinicWelcomeEmail({
-          adminName: data.adminFullName.trim(),
-          adminEmail: cleanAdminEmail,
-          adminPassword: data.adminPassword,
-          clinicName: data.clinicName.trim(),
-          planName: plan.name,
-          trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-          loginUrl: `${appUrl()}/login`,
-          primaryColor: data.primaryColor,
-        });
-        const sent = await sendResendEmail({ to: cleanAdminEmail, subject, html });
-        if (!sent) console.warn(`[registration] Welcome email not delivered to ${cleanAdminEmail}`);
-      } catch (e) {
-        console.warn("[registration] Welcome email error:", e);
-      }
-    })();
+    // Credentials email (EmailJS template_1s5wswj). Awaited — a fire-and-forget promise is killed when the
+    // serverless function returns. sendEmail never throws, so a mail failure can't undo the registration.
+    const sent = await sendEmail({
+      to: cleanAdminEmail,
+      toName: data.adminFullName.trim(),
+      subject: `Welcome to VetTechIQ — ${data.clinicName.trim()} is ready`,
+      queryType: "clinicWelcome",
+      templateParams: {
+        clinic_name: data.clinicName.trim(),
+        clinic_id: slug,
+        clinic_logo_url: logoUrl("/clinic-logo.png"),
+        user_id: cleanAdminEmail,
+        password: data.adminPassword,
+        login_url: `${appUrl()}/login`,
+        staff_register_url: `${appUrl()}/login`,
+        plan_name: plan.name,
+        trial_days: TRIAL_DAYS,
+        trial_ends: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+        doctor_name: data.doctorName.trim(),
+        doctor_reg_no: doctorRegNo,
+        doctor_council: data.doctorCouncil.trim(),
+        doctor_valid_upto: data.doctorRegValidUpto,
+      },
+    });
+    if (!sent) console.warn(`[registration] Credentials email not delivered to ${cleanAdminEmail}`);
 
     return {
       success: true,
       user: profile,
       accessToken,
-      message: `Welcome to VetOS Cloud, ${data.clinicName.trim()}! Your 14-day ${plan.name} trial is live.`,
+      message: `Welcome to VetTechIQ, ${data.clinicName.trim()}! Your 14-day ${plan.name} trial is live.`,
     };
   });
+
+/** Public: active clinics for the staff-registration clinic picker. Name/city/slug only. */
+export const listClinicsFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Array<{ slug: string; name: string; city: string }>> => {
+    await connectDB();
+    const rows = await TenantModel.find({ status: "ACTIVE" }).select("slug name city").sort({ name: 1 }).lean();
+    return rows.map((t) => ({ slug: t.slug, name: t.name, city: t.city }));
+  },
+);
 
 // ─── Platform admin control plane ───────────────────────────────────────────
 

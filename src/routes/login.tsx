@@ -23,6 +23,7 @@ import { PetShowcase } from "@/components/erp/PetShowcase";
 import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
 import { cn } from "@/lib/utils";
 import { requestPasswordResetFn } from "@/lib/mongodb/serverFns/auth";
+import { listClinicsFn } from "@/lib/mongodb/serverFns/platform";
 import { doctorHeadLinks } from "@/components/doctor/doctorHead";
 import { BrandChip } from "@/components/doctor/shared/BrandChip";
 
@@ -101,6 +102,11 @@ function AuthPage() {
     department: "Clinical Care",
     specialty: "General Practice",
   });
+  const [clinics, setClinics] = useState<Array<{ slug: string; name: string; city: string }> | null>(null);
+  useEffect(() => {
+    if (mode !== "register" || clinics) return;
+    listClinicsFn().then(setClinics).catch(() => toast.error("Could not load the clinic list."));
+  }, [mode, clinics]);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreedTerms, setAgreedTerms] = useState(true);
   const [otpSent, setOtpSent] = useState(false);
@@ -760,15 +766,18 @@ function AuthPage() {
                       />
                     </div>
                     <div className="space-y-0.5">
-                      <label className="block text-[0.68rem] font-bold text-[#001d39]">Clinic Identifier *</label>
-                      <input
-                        type="text"
+                      <label className="block text-[0.68rem] font-bold text-[#001d39]">Select Clinic *</label>
+                      <select
                         required
                         value={regData.clinicSlug}
                         onChange={(e) => setRegData({ ...regData, clinicSlug: e.target.value })}
-                        placeholder="your_clinic_slug"
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
-                      />
+                      >
+                        <option value="" disabled>{clinics ? "Choose your clinic…" : "Loading clinics…"}</option>
+                        {(clinics ?? []).map((c) => (
+                          <option key={c.slug} value={c.slug}>{c.name} — {c.city}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 

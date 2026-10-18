@@ -44,15 +44,36 @@ const INDIAN_STATES = [
   "Madhya Pradesh", "Bihar", "Andhra Pradesh",
 ];
 
-const STEP_LABELS = ["Clinic Details", "Branding", "Choose Plan", "Admin Account"] as const;
-type Step = 1 | 2 | 3 | 4;
+const STEP_LABELS = ["Clinic Details", "Doctor Details", "Branding", "Choose Plan", "Admin Account"] as const;
+type Step = 1 | 2 | 3 | 4 | 5;
+
+const COUNCILS = [
+  "Maharashtra State Veterinary Council",
+  "Veterinary Council of India",
+  "Karnataka Veterinary Council",
+  "Gujarat Veterinary Council",
+  "Tamil Nadu Veterinary Council",
+  "Andhra Pradesh Veterinary Council",
+  "Telangana State Veterinary Council",
+  "Kerala Veterinary and Animal Sciences Council",
+  "Madhya Pradesh Veterinary Council",
+  "Uttar Pradesh Veterinary Council",
+  "Punjab Veterinary Council",
+  "Haryana Veterinary Council",
+  "Rajasthan Veterinary Council",
+  "Delhi Veterinary Council",
+  "West Bengal Veterinary Council",
+  "Bihar Veterinary Council",
+];
+
+const MAX_ID_CARD_DIMENSION = 1200; // large enough to stay legible for manual verification
 
 const MAX_LOGO_DIMENSION = 320;
 const LOGO_JPEG_QUALITY = 0.85;
 
 /** Resizes/compresses an image file client-side before it's sent to the server, so a
  * multi-MB phone photo doesn't turn into a multi-MB MongoDB document. */
-function resizeImageToDataUri(file: File): Promise<string> {
+function resizeImageToDataUri(file: File, maxDim = MAX_LOGO_DIMENSION): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Could not read the file."));
@@ -60,7 +81,7 @@ function resizeImageToDataUri(file: File): Promise<string> {
       const img = new Image();
       img.onerror = () => reject(new Error("Could not read the image."));
       img.onload = () => {
-        const scale = Math.min(1, MAX_LOGO_DIMENSION / Math.max(img.width, img.height));
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
         const w = Math.max(1, Math.round(img.width * scale));
         const h = Math.max(1, Math.round(img.height * scale));
         const canvas = document.createElement("canvas");
@@ -84,13 +105,20 @@ function RegisterClinicPage() {
   const [loading, setLoading] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoProcessing, setLogoProcessing] = useState(false);
+  const [idCardProcessing, setIdCardProcessing] = useState(false);
+  const idCardInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<RegisterTenantPayload>({
     clinicName: "",
     legalName: "",
     clinicType: "Small Animal",
-    vetCouncilRegNo: "",
+    doctorName: "",
+    doctorRegNo: "",
+    doctorCouncil: COUNCILS[0]!,
+    doctorRegValidUpto: "",
+    doctorQualification: "",
+    doctorIdCardDataUri: "",
     address: "",
     city: "",
     state: "Maharashtra",
@@ -140,6 +168,27 @@ function RegisterClinicPage() {
       toast.error("Could not process that image.");
     } finally {
       setLogoProcessing(false);
+    }
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const canContinueDoctor =
+    form.doctorName.trim().length >= 2 && form.doctorRegNo.trim().length >= 3 && form.doctorCouncil.trim() &&
+    form.doctorRegValidUpto > today && !!form.doctorIdCardDataUri;
+
+  const handleIdCardPick = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose a photo/scan of the ID card (JPG or PNG).");
+      return;
+    }
+    setIdCardProcessing(true);
+    try {
+      set("doctorIdCardDataUri", await resizeImageToDataUri(file, MAX_ID_CARD_DIMENSION));
+    } catch {
+      toast.error("Could not process that image.");
+    } finally {
+      setIdCardProcessing(false);
     }
   };
 
@@ -204,7 +253,7 @@ function RegisterClinicPage() {
                   {step > n ? <Check className="size-3.5" /> : n}
                 </div>
                 <span className={cn("text-[0.62rem] font-medium hidden sm:inline", step === n ? "text-navy" : "text-muted-foreground")}>{label}</span>
-                {n < 4 && <div className="h-px flex-1 bg-slate-200" />}
+                {n < 5 && <div className="h-px flex-1 bg-slate-200" />}
               </div>
             );
           })}
@@ -241,7 +290,6 @@ function RegisterClinicPage() {
               </div>
               <Field label="PIN *" value={form.pin} onChange={(v) => set("pin", v)} placeholder="440001" />
             </div>
-            <Field label="Vet Council Registration No." value={form.vetCouncilRegNo || ""} onChange={(v) => set("vetCouncilRegNo", v)} placeholder="Optional" />
             <div className="grid grid-cols-2 gap-2">
               <Field label="GSTIN" value={form.gstin || ""} onChange={(v) => set("gstin", v)} placeholder="Optional" />
               <Field label="PAN" value={form.pan || ""} onChange={(v) => set("pan", v)} placeholder="Optional" />
@@ -267,6 +315,83 @@ function RegisterClinicPage() {
         )}
 
         {step === 2 && (
+          <div className="space-y-3 animate-in fade-in duration-150">
+            <p className="text-xs text-muted-foreground">
+              Enter the registered veterinary practitioner responsible for this clinic exactly as on the state veterinary council ID card.
+            </p>
+            <Field label="Doctor's Name (as on card) *" value={form.doctorName} onChange={(v) => set("doctorName", v)} placeholder="Dr. Makarand Mukund Dixit" />
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Council Regn. No. *" value={form.doctorRegNo} onChange={(v) => set("doctorRegNo", v)} placeholder="MSVC-8648/2011" />
+              <div className="space-y-0.5">
+                <label className="block text-[0.68rem] font-semibold text-foreground">Valid Upto *</label>
+                <input
+                  type="date"
+                  min={today}
+                  value={form.doctorRegValidUpto}
+                  onChange={(e) => set("doctorRegValidUpto", e.target.value)}
+                  className="h-8 w-full rounded-lg border border-input bg-background px-2 text-xs outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              <label className="block text-[0.68rem] font-semibold text-foreground">Veterinary Council *</label>
+              <input
+                list="vet-councils"
+                value={form.doctorCouncil}
+                onChange={(e) => set("doctorCouncil", e.target.value)}
+                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
+              />
+              <datalist id="vet-councils">{COUNCILS.map((c) => <option key={c} value={c} />)}</datalist>
+            </div>
+            <Field label="Qualification" value={form.doctorQualification || ""} onChange={(v) => set("doctorQualification", v)} placeholder="BVSc & AH, MVSc" />
+
+            <div className="space-y-1">
+              <label className="block text-[0.68rem] font-semibold text-foreground">Council Identity Card (photo / scan) *</label>
+              <input
+                ref={idCardInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => void handleIdCardPick(e.target.files?.[0])}
+              />
+              <div className="flex items-center gap-3">
+                <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 overflow-hidden">
+                  {form.doctorIdCardDataUri ? (
+                    <img src={form.doctorIdCardDataUri} alt="ID card preview" className="h-full w-full object-cover" />
+                  ) : (
+                    <Upload className="size-5 text-slate-300" />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={idCardProcessing}
+                  onClick={() => idCardInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 h-8 text-xs font-semibold text-foreground hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <Upload className="size-3.5" />
+                  {idCardProcessing ? "Processing…" : form.doctorIdCardDataUri ? "Replace card" : "Upload ID card"}
+                </button>
+              </div>
+              <p className="text-[0.65rem] text-muted-foreground">Used only to verify the practitioner. Each council registration number can be linked to one clinic.</p>
+            </div>
+
+            <div className="flex gap-2 mt-2">
+              <button type="button" onClick={() => setStep(1)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
+                <ArrowLeft className="size-3.5" /> Back
+              </button>
+              <button
+                type="button"
+                disabled={!canContinueDoctor}
+                onClick={() => setStep(3)}
+                className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary-hover active:scale-[0.99] disabled:opacity-40"
+              >
+                Continue <ArrowRight className="size-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
           <div className="space-y-3.5 animate-in fade-in duration-150">
             <div className="space-y-1">
               <label className="block text-[0.68rem] font-semibold text-foreground">Clinic Logo</label>
@@ -358,12 +483,12 @@ function RegisterClinicPage() {
             </div>
 
             <div className="flex gap-2 mt-2">
-              <button type="button" onClick={() => setStep(1)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
+              <button type="button" onClick={() => setStep(2)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
                 <ArrowLeft className="size-3.5" /> Back
               </button>
               <button
                 type="button"
-                onClick={() => setStep(3)}
+                onClick={() => setStep(4)}
                 className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary-hover active:scale-[0.99]"
               >
                 Continue <ArrowRight className="size-3.5" />
@@ -372,7 +497,7 @@ function RegisterClinicPage() {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="space-y-3 animate-in fade-in duration-150">
             {PLANS.map((plan) => (
               <button
@@ -398,12 +523,12 @@ function RegisterClinicPage() {
             ))}
             <p className="text-[0.68rem] text-muted-foreground text-center">14-day free trial on any plan — no payment needed to start.</p>
             <div className="flex gap-2 mt-2">
-              <button type="button" onClick={() => setStep(2)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
+              <button type="button" onClick={() => setStep(3)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
                 <ArrowLeft className="size-3.5" /> Back
               </button>
               <button
                 type="button"
-                onClick={() => setStep(4)}
+                onClick={() => setStep(5)}
                 className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary-hover active:scale-[0.99]"
               >
                 Continue <ArrowRight className="size-3.5" />
@@ -412,7 +537,7 @@ function RegisterClinicPage() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div className="space-y-3 animate-in fade-in duration-150">
             <p className="text-xs text-muted-foreground">This account becomes the clinic's administrator.</p>
             <Field label="Full Name *" value={form.adminFullName} onChange={(v) => set("adminFullName", v)} placeholder="Dr. Jane Doe" />
@@ -425,7 +550,7 @@ function RegisterClinicPage() {
               <Field label="Confirm Password *" value={confirmPassword} onChange={setConfirmPassword} placeholder="••••••••" type="password" />
             </div>
             <div className="flex gap-2 mt-2">
-              <button type="button" onClick={() => setStep(3)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
+              <button type="button" onClick={() => setStep(4)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
                 <ArrowLeft className="size-3.5" /> Back
               </button>
               <button

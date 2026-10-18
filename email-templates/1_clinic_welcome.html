@@ -1,0 +1,146 @@
+<!--
+  =============================================================================
+  EMAILJS TEMPLATE: Clinic Registration — Administrator Credentials
+  Template ID: template_1s5wswj   (EmailJS name: "Order Confirmation" — rename it if you like)
+  Subject: Welcome to VetTechIQ — {{clinic_name}} is ready
+  To Email: {{to_email}}
+  To Name: {{to_name}}
+  =============================================================================
+  Variables sent by registerTenantFn (src/lib/mongodb/serverFns/platform.ts):
+    to_name, to_email, subject, clinic_name, clinic_id, clinic_logo_url,
+    user_id, password, login_url, staff_register_url, plan_name, trial_days,
+    trial_ends, doctor_name, doctor_reg_no, doctor_council, doctor_valid_upto
+-->
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Your clinic is ready</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    table { border-collapse: collapse !important; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    @media screen and (max-width: 600px) {
+      .email-container { width: 100% !important; max-width: 100% !important; border-radius: 0 !important; }
+      .mobile-padding { padding: 20px 16px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #0f172a;">
+
+  <div style="display: none; max-height: 0px; overflow: hidden; font-size: 1px; line-height: 1px; color: #f1f5f9; opacity: 0;">
+    {{clinic_name}} is registered on VetTechIQ. Your User ID is {{user_id}}.
+  </div>
+
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 32px 12px;">
+    <tr>
+      <td align="center" valign="top">
+
+        <table role="presentation" class="email-container" border="0" cellpadding="0" cellspacing="0" width="600" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); background-color: #0284c7; padding: 22px 28px; color: #ffffff;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="left" valign="middle" width="64" style="padding-right: 14px;">
+                    <img src="{{clinic_logo_url}}" alt="VetTechIQ" width="52" height="52" style="display: block; width: 52px; height: 52px; background-color: #ffffff; border-radius: 10px; padding: 4px;">
+                  </td>
+                  <td align="left" valign="middle">
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #bae6fd; margin-bottom: 3px;">VetTechIQ</div>
+                    <div style="font-size: 18px; font-weight: 700; color: #ffffff;">{{clinic_name}}</div>
+                  </td>
+                  <td align="right" valign="middle">
+                    <span style="display: inline-block; background-color: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.25); color: #ffffff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">REGISTERED</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td class="mobile-padding" style="padding: 30px 28px 8px 28px;">
+              <h1 style="margin: 0 0 14px 0; font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1.3;">Your clinic is ready, {{to_name}}</h1>
+              <p style="margin: 0 0 18px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+                <b>{{clinic_name}}</b> now has its own private VetTechIQ workspace. Use the credentials below to sign in as the <b>Clinic Administrator</b>.
+              </p>
+
+              <!-- Credentials -->
+              <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f0f9ff; border: 2px dashed #7dd3fc; border-radius: 12px;">
+                <tr>
+                  <td style="padding: 18px 20px;">
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #0369a1; margin-bottom: 10px;">Administrator login</div>
+                    <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 5px 0; font-size: 13px; color: #64748b; width: 34%;">User ID</td>
+                        <td style="padding: 5px 0; font-size: 14px; font-weight: 700; color: #0f172a; font-family: Consolas, Menlo, monospace;">{{user_id}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 5px 0; font-size: 13px; color: #64748b;">Password</td>
+                        <td style="padding: 5px 0; font-size: 14px; font-weight: 700; color: #0f172a; font-family: Consolas, Menlo, monospace;">{{password}}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="text-align: center; margin: 24px 0 8px 0;">
+                <a href="{{login_url}}" style="display: inline-block; background-color: #0284c7; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 8px;">Sign in to your clinic</a>
+              </div>
+              <p style="margin: 0 0 22px 0; font-size: 12px; line-height: 1.5; color: #b45309; text-align: center;">
+                For your security, change this password after your first sign-in and delete this email.
+              </p>
+
+              <!-- Clinic details -->
+              <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <tr>
+                  <td style="padding: 10px 14px; font-size: 13px; color: #64748b; width: 38%; border-bottom: 1px solid #e2e8f0;">Clinic ID</td>
+                  <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">{{clinic_id}}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 14px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Plan</td>
+                  <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">{{plan_name}} &mdash; {{trial_days}}-day free trial (till {{trial_ends}})</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 14px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Registered doctor</td>
+                  <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">{{doctor_name}}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 14px; font-size: 13px; color: #64748b;">Council registration</td>
+                  <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #0f172a;">{{doctor_reg_no}} &middot; {{doctor_council}} &middot; valid upto {{doctor_valid_upto}}</td>
+                </tr>
+              </table>
+
+              <!-- Next steps -->
+              <h2 style="margin: 26px 0 8px 0; font-size: 15px; font-weight: 700; color: #0f172a;">Adding your staff</h2>
+              <ol style="margin: 0 0 8px 18px; padding: 0; font-size: 13px; line-height: 1.7; color: #334155;">
+                <li>Ask each team member to open <a href="{{staff_register_url}}" style="color: #0284c7;">{{staff_register_url}}</a> and choose <b>Register</b>.</li>
+                <li>They select <b>{{clinic_name}}</b> from the clinic list and verify their email.</li>
+                <li>Their request appears in your <b>Staff &amp; Access</b> screen &mdash; approve it to activate the account.</li>
+              </ol>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 18px 28px; font-size: 12px; color: #64748b; line-height: 1.5;">
+              <div style="font-weight: 600; color: #334155; margin-bottom: 2px;">VetTechIQ</div>
+              <div style="font-size: 11px; color: #94a3b8;">
+                You received this because {{to_email}} was used to register {{clinic_name}}. If this wasn't you, ignore this email or contact support.
+              </div>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

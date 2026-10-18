@@ -1,10 +1,11 @@
 # Email (EmailJS) Setup
 
-The app sends exactly **two** emails, both through [EmailJS](https://dashboard.emailjs.com/):
+The app sends exactly **three** emails, both through [EmailJS](https://dashboard.emailjs.com/):
 
 | Email | Trigger | Server function | EmailJS template | HTML to paste |
 |---|---|---|---|---|
 | **Staff registration code** | "Verify" next to Work Email on the Register tab | `sendEmailOtpFn` in `serverFns/auth.ts` | `template_zo51h1i` | `email-templates/2_registration_otp.html` |
+| **Clinic admin credentials** | Clinic registration (`/register-clinic`) completes | `registerTenantFn` in `serverFns/platform.ts` | `template_1s5wswj` | `email-templates/1_clinic_welcome.html` |
 | **Password reset link** | "Forgot password?" on the login page | `requestPasswordResetFn` in `serverFns/auth.ts` | `template_rep7mlc` | `email-templates/3_password_reset.html` |
 
 Code lives in `src/lib/email/` (`emailjs.ts` = sender, `templates.ts` = template parameters).
@@ -18,8 +19,9 @@ Production site: **https://harmony-erp-suite-g28j.vercel.app** (used for the res
 |---|---|---|
 | `EMAILJS_PRIVATE_KEY` | **Yes — secret** | EmailJS → Account → API keys. Set it in `.env` locally and in Vercel → Settings → Environment Variables. Never commit it. |
 | `APP_URL` | Optional | Defaults to the Vercel URL in production and `http://localhost:8080` in dev. |
+| `EMAILJS_WELCOME_SERVICE_ID`, `EMAILJS_WELCOME_PUBLIC_KEY`, `EMAILJS_WELCOME_PRIVATE_KEY` | **Yes** (welcome email) | Separate EmailJS account that owns `template_1s5wswj`; no fallback. |
 | `EMAILJS_SERVICE_ID`, `EMAILJS_PUBLIC_KEY` | Optional | Built-in defaults match the clinic account. |
-| `EMAILJS_TEMPLATE_REGISTRATION_OTP`, `EMAILJS_TEMPLATE_PASSWORD_RESET` | Optional | Override the template IDs above. |
+| `EMAILJS_TEMPLATE_REGISTRATION_OTP`, `EMAILJS_TEMPLATE_PASSWORD_RESET`, `EMAILJS_TEMPLATE_CLINIC_WELCOME` | Optional | Override the template IDs above. |
 | `EMAIL_LOGO_URL` | Optional | Use a different public logo image. |
 
 ## One-time EmailJS dashboard setup

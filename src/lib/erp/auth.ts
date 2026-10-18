@@ -70,7 +70,14 @@ export interface RegisterTenantPayload {
   clinicName: string;
   legalName?: string;
   clinicType: string;
-  vetCouncilRegNo?: string;
+  doctorName: string;
+  doctorRegNo: string;
+  doctorCouncil: string;
+  /** YYYY-MM-DD — "Valid Upto" on the council ID card */
+  doctorRegValidUpto: string;
+  doctorQualification?: string;
+  /** Data URI of the council ID card photo, client-resized before send. */
+  doctorIdCardDataUri: string;
   address: string;
   city: string;
   state: string;

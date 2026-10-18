@@ -5,11 +5,12 @@
  */
 const ENDPOINT = "https://api.emailjs.com/api/v1.0/email/send";
 
-export type EmailQueryType = "registrationOTP" | "passwordReset";
+export type EmailQueryType = "registrationOTP" | "passwordReset" | "clinicWelcome";
 
 const TEMPLATE_ENV: Record<EmailQueryType, string> = {
   registrationOTP: "EMAILJS_TEMPLATE_REGISTRATION_OTP",
   passwordReset: "EMAILJS_TEMPLATE_PASSWORD_RESET",
+  clinicWelcome: "EMAILJS_TEMPLATE_CLINIC_WELCOME",
 };
 
 // Template IDs are not secrets. They match the two templates in the clinic's EmailJS account
@@ -17,6 +18,7 @@ const TEMPLATE_ENV: Record<EmailQueryType, string> = {
 const DEFAULT_TEMPLATE_ID: Record<EmailQueryType, string> = {
   registrationOTP: "template_zo51h1i",
   passwordReset: "template_rep7mlc",
+  clinicWelcome: "template_1s5wswj",
 };
 
 /** .env is only read at server start (and by the DB client); re-read it so EmailJS keys added later are picked up. */
@@ -44,11 +46,23 @@ export function logoUrl(path: string): string {
 
 export const resolveTemplateId = (type: EmailQueryType): string => (ensureEnv(), process.env[TEMPLATE_ENV[type]] || DEFAULT_TEMPLATE_ID[type]);
 
-const cfg = () => (ensureEnv(), {
-  serviceId: process.env["EMAILJS_SERVICE_ID"] || "service_1tmhrq1",
-  publicKey: process.env["EMAILJS_PUBLIC_KEY"] || "LyZojrjx5u929g6eU",
-  privateKey: process.env["EMAILJS_PRIVATE_KEY"] || "",
-});
+// The clinic-welcome template lives in a separate EmailJS account, so it has its own service/keys
+// (EMAILJS_WELCOME_*) — no fallback to the default account, whose service can't send that template.
+const cfg = (type: EmailQueryType) => {
+  ensureEnv();
+  if (type === "clinicWelcome") {
+    return {
+      serviceId: process.env["EMAILJS_WELCOME_SERVICE_ID"] || "",
+      publicKey: process.env["EMAILJS_WELCOME_PUBLIC_KEY"] || "",
+      privateKey: process.env["EMAILJS_WELCOME_PRIVATE_KEY"] || "",
+    };
+  }
+  return {
+    serviceId: process.env["EMAILJS_SERVICE_ID"] || "service_1tmhrq1",
+    publicKey: process.env["EMAILJS_PUBLIC_KEY"] || "LyZojrjx5u929g6eU",
+    privateKey: process.env["EMAILJS_PRIVATE_KEY"] || "",
+  };
+};
 
 export interface SendEmailInput {
   to: string;
@@ -69,7 +83,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   const to = (input.to || "").trim();
   if (!EMAIL_RE.test(to)) return false; // no / invalid address on file — silently skip
-  const c = cfg();
+  const c = cfg(input.queryType);
+  if (!c.serviceId || !c.publicKey) {
+    console.warn(`[email] EmailJS credentials missing for "${input.queryType}" — skipping send.`);
+    return false;
+  }
   const activeTemplateId = input.templateId || resolveTemplateId(input.queryType);
 
   try {

@@ -225,7 +225,7 @@ const registerSchema = z.object({
   email:         z.string().email(),
   password:      z.string().min(6, "Password must be at least 6 characters"),
   phone:         z.string().optional(),
-  clinicSlug:    z.string().min(1, "Clinic identifier is required").optional().default("real_care_ngp"),
+  clinicSlug:    z.string().min(1, "Please select your clinic"),
   clinicName:    z.string().optional(),
   branch:        z.string().optional(),
   roleId:        z.enum(["doctor", "admin", "reception", "accounts", "platform"]).default("doctor"),

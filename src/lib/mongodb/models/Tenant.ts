@@ -27,6 +27,16 @@ export type SubscriptionPlanId = "plan_basic" | "plan_professional" | "plan_ente
 export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "SUSPENDED" | "CANCELLED";
 export type TenantStatus = "ACTIVE" | "SUSPENDED";
 
+/** Official registered-veterinarian entry captured at clinic registration (from the state council ID card). */
+export interface TenantDoctor {
+  fullName: string;
+  councilRegNo: string; // normalised: upper-case, no spaces — unique across tenants
+  councilName: string;
+  regValidUpto: Date;
+  qualification?: string;
+  idCardDataUri: string; // photo of the council ID card, for manual verification
+}
+
 export interface ITenant extends Document {
   tenantId: string; // stable opaque id, also used as the tenantScopePlugin filter value
   slug: string;
@@ -34,6 +44,7 @@ export interface ITenant extends Document {
   legalName?: string;
   clinicType: string;
   vetCouncilRegNo?: string;
+  doctor?: TenantDoctor;
   address: string;
   city: string;
   state: string;
@@ -63,6 +74,19 @@ const TenantSchema = new Schema<ITenant>(
     legalName: { type: String },
     clinicType: { type: String, default: "Small Animal" },
     vetCouncilRegNo: { type: String },
+    doctor: {
+      type: new Schema<TenantDoctor>(
+        {
+          fullName: { type: String, required: true, trim: true },
+          councilRegNo: { type: String, required: true },
+          councilName: { type: String, required: true, trim: true },
+          regValidUpto: { type: Date, required: true },
+          qualification: { type: String },
+          idCardDataUri: { type: String, required: true },
+        },
+        { _id: false },
+      ),
+    },
     address: { type: String, required: true },
     city: { type: String, required: true },
     state: { type: String, required: true },
@@ -83,6 +107,9 @@ const TenantSchema = new Schema<ITenant>(
   },
   { timestamps: true, collection: "tenants" },
 );
+
+// One council registration = one clinic. Partial so legacy tenants without a doctor entry don't collide.
+TenantSchema.index({ "doctor.councilRegNo": 1 }, { unique: true, partialFilterExpression: { "doctor.councilRegNo": { $type: "string" } } });
 
 export const TenantModel =
   (mongoose.models["Tenant"] as mongoose.Model<ITenant>) ??
