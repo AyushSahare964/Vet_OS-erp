@@ -19,6 +19,8 @@ import {
   Award,
   Key,
   Trash2,
+  BarChart3,
+  FileBarChart,
 } from "lucide-react";
 import { Shell } from "@/components/erp/Shell";
 import { HubSkeleton } from "@/components/erp/LoadingSkeletons";
@@ -33,8 +35,15 @@ import { AddEmployeeModal } from "./AddEmployeeModal";
 import { ApproveStaffModal } from "./ApproveStaffModal";
 import { StaffProfileModal } from "./StaffProfileModal";
 import { cn } from "@/lib/utils";
+import { useErp } from "@/lib/erp/store";
+import { AllStaffReportSheet, StaffReportSheet } from "./StaffReportSheet";
 
 export function IdentityAccessHub() {
+  // Staff reports are Admin-only (the report server function enforces the same rule).
+  const { roleId } = useErp();
+  const isAdmin = roleId === "admin";
+  const [reportStaff, setReportStaff] = useState<{ id: string; fullName: string } | null>(null);
+  const [showAllReport, setShowAllReport] = useState(false);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [clearReseedLoading, setClearReseedLoading] = useState(false);
@@ -194,7 +203,7 @@ export function IdentityAccessHub() {
               size="sm"
               onClick={handleClearAndReseed}
               disabled={clearReseedLoading}
-              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:border-destructive font-bold text-xs shadow-xs"
+              className="mr-4 border-destructive/40 text-destructive hover:bg-destructive/10 hover:border-destructive font-bold text-xs shadow-xs"
               title="Wipe all staff data and re-seed only the 2 default system credentials"
             >
               {clearReseedLoading ? (
@@ -203,6 +212,11 @@ export function IdentityAccessHub() {
                 <><Trash2 className="size-3.5 mr-1.5" /> Reset to Defaults</>
               )}
             </Button>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setShowAllReport(true)} className="font-bold text-xs shadow-xs">
+                <BarChart3 className="size-3.5 mr-1.5" /> All Staff Report
+              </Button>
+            )}
             <Button
               onClick={() => setShowAddModal(true)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs shadow-xs"
@@ -476,6 +490,17 @@ export function IdentityAccessHub() {
                             <ShieldCheck className="size-3 mr-1" /> Review
                           </Button>
                         )}
+                        {isAdmin && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setReportStaff({ id: staff.id, fullName: staff.fullName })}
+                            className="h-7 text-[11px] font-semibold px-2.5"
+                            title="View this person's activity report"
+                          >
+                            <FileBarChart className="size-3 mr-1" /> View Report
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -510,6 +535,13 @@ export function IdentityAccessHub() {
             </table>
           </div>
         </div>
+
+        {isAdmin && (
+          <>
+            <StaffReportSheet staff={reportStaff} onClose={() => setReportStaff(null)} />
+            <AllStaffReportSheet open={showAllReport} onClose={() => setShowAllReport(false)} />
+          </>
+        )}
 
         {/* Modals */}
         <AddEmployeeModal
