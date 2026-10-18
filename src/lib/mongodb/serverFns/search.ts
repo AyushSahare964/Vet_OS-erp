@@ -8,6 +8,11 @@ import { ClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
 import { InventoryItem } from "@/lib/mongodb/models/InventoryItem";
 import { Vaccination } from "@/lib/mongodb/models/Vaccination";
 import { BloodTest } from "@/lib/mongodb/models/BloodTest";
+import { SalesDocModel } from "@/lib/mongodb/models/SalesDoc";
+import { PurchaseBillModel } from "@/lib/mongodb/models/PurchaseBill";
+import { SupplierModel } from "@/lib/mongodb/models/Supplier";
+import { ErpRow } from "@/lib/mongodb/models/ErpRow";
+import { User } from "@/lib/mongodb/models/User";
 
 function escapeRx(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -276,7 +281,7 @@ export const searchMasterFn = createServerFn({ method: "GET" })
             title: `${v.petName || "Patient"} · ${
               v.diagnosis || v.vitals?.complaint || "OPD Consultation"
             }`,
-            sub: `Dr. ${v.doctorName || "Attending Vet"} · ${v.date || ""}`,
+            sub: `${/^dr\.?\s/i.test(String(v.doctorName || "")) ? v.doctorName : `Dr. ${v.doctorName || "Attending Vet"}`} · ${v.date || ""}`,
             tag: "Medical",
           })),
         });
@@ -349,6 +354,53 @@ export const searchMasterFn = createServerFn({ method: "GET" })
           })),
         });
       }
+
+      // ── Group 7+: everything else the clinic keeps (all tenant-scoped like the groups above) ──
+      const [salesDocs, purchaseBills, suppliers, appts, labOrders, files, staff] = await Promise.all([
+        SalesDocModel.find({ docType: { $in: ["INVOICE", "CREDIT_NOTE", "QUOTATION"] }, $or: [{ docNumber: rx }, { partyName: rx }, { animalName: rx }] }).sort({ docDate: -1 }).limit(4).lean(),
+        PurchaseBillModel.find({ $or: [{ internalRef: rx }, { billNumber: rx }, { supplierName: rx }] }).sort({ billDate: -1 }).limit(4).lean(),
+        SupplierModel.find({ $or: [{ name: rx }, { contactPerson: rx }, { mobileNo: rx }, { city: rx }] }).limit(3).lean(),
+        ErpRow.find({ moduleId: "appointments", $or: [{ "data.pet": rx }, { "data.owner": rx }, { "data.ownerPhone": rx }, { "data.doctor": rx }, { "data.token": rx }] }).sort({ createdAt: -1 }).limit(4).lean(),
+        ErpRow.find({ moduleId: "lab_orders", $or: [{ "data.orderId": rx }, { "data.pet": rx }, { "data.testName": rx }, { "data.owner": rx }] }).sort({ createdAt: -1 }).limit(4).lean(),
+        ErpRow.find({ moduleId: "patient_files", $or: [{ "data.name": rx }, { "data.category": rx }, { "data.description": rx }] }).select("-data.dataUrl -data.thumbUrl").limit(3).lean(),
+        // staff names are an Admin-only lookup (same rule as the Staff page)
+        ctx.roleId === "admin"
+          ? User.find({ isSystemAccount: { $ne: true }, $or: [{ fullName: rx }, { email: rx }, { roleName: rx }, { phone: rx }] }).limit(3).lean()
+          : Promise.resolve([] as any[]),
+      ]);
+      const more = (heading: string, list: MasterSearchResultItem[]) => list.length > 0 && groups.push({ heading, items: list });
+      const inr2 = (n: unknown) => `₹${Number(n ?? 0).toLocaleString("en-IN")}`;
+      more("Billing documents", salesDocs.map((d: any) => ({
+        key: `sd-${d.docNumber || d._id}`, petId: "", toModule: "billing", icon: "purchase",
+        title: `${d.docType === "QUOTATION" ? "Quotation" : d.docType === "CREDIT_NOTE" ? "Credit note" : "Invoice"} ${d.docNumber}`,
+        sub: `${d.partyName || "Client"}${d.animalName ? ` · ${d.animalName}` : ""} · ${inr2(d.grandTotal)} · ${d.paymentStatus || ""} · ${d.docDate || ""}`, tag: "Billing",
+      })));
+      more("Purchase bills", purchaseBills.map((b: any) => ({
+        key: `pb-${b._id}`, petId: "", toModule: "purchases", icon: "purchase",
+        title: `Purchase bill ${b.billNumber}`, sub: `${b.supplierName} · ${inr2(b.grandTotal)} · ${b.status} · ${b.billDate || ""}`, tag: "Purchase",
+      })));
+      more("Suppliers", suppliers.map((x: any) => ({
+        key: `sup-${x._id}`, petId: "", toModule: "suppliers", icon: "pharmacy",
+        title: x.name, sub: [x.contactPerson, x.mobileNo, x.city].filter(Boolean).join(" · "), tag: "Supplier",
+      })));
+      more("Appointments", appts.map((r: any) => ({
+        key: `ap-${r._id}`, petId: "", toModule: "appointments", icon: "clock",
+        title: `${r.data?.pet || "Patient"} · ${r.data?.type || "Appointment"}`,
+        sub: `${r.data?.appointment_date || r.data?.date || ""} ${r.data?.time || ""} · ${r.data?.doctor || ""} · ${r.data?.status || ""}`, tag: "Appointment",
+      })));
+      more("Lab orders", labOrders.map((r: any) => ({
+        key: `lo-${r._id}`, petId: "", toModule: "laboratory", icon: "lab",
+        title: `${r.data?.testName || r.data?.test || "Lab order"} · ${r.data?.pet || ""}`,
+        sub: `${r.data?.orderId || ""} · ${r.data?.status || ""} · ${r.data?.date || ""}`, tag: "Laboratory",
+      })));
+      more("Documents", files.map((r: any) => ({
+        key: `doc-${r.data?.fileId || r._id}`, petId: String(r.data?.petId || ""), icon: "medical",
+        title: String(r.data?.name || "Document"), sub: `${r.data?.category || ""} · ${r.data?.date || ""}`, tag: "Document",
+      })));
+      more("Staff", staff.map((u: any) => ({
+        key: `staff-${u._id}`, petId: "", toModule: "identity", icon: "paw",
+        title: u.fullName, sub: `${u.roleName || u.roleId} · ${u.email}`, tag: "Staff",
+      })));
 
       return groups;
     })

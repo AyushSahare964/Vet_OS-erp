@@ -9,13 +9,13 @@ import { HomeDashboard } from "@/components/doctor/home/HomeDashboard";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "VetOS ERP — Veterinary Clinic Management Suite" },
+      { title: "VetechIQ — Veterinary Clinic Management Suite" },
       {
         name: "description",
         content:
-          "VetOS ERP clinical operations: appointments, OPD consultation, live inventory Rx, billing, accounting and HRMS in one console.",
+          "VetechIQ clinical operations: appointments, OPD consultation, live inventory Rx, billing, accounting and HRMS in one console.",
       },
-      { property: "og:title", content: "VetOS ERP — Veterinary Clinic Management Suite" },
+      { property: "og:title", content: "VetechIQ — Veterinary Clinic Management Suite" },
       {
         property: "og:description",
         content:

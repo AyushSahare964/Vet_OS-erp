@@ -12,7 +12,7 @@ interface RealCatJumpingWelcomeProps {
 }
 
 // In-browser canvas filter to convert white background JPG to transparent PNG
-function useTransparentCatImage(src: string) {
+export function useTransparentCatImage(src: string) {
   const [transparentDataUrl, setTransparentDataUrl] = useState<string>("");
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { resolveModule } from "@/components/doctor/layout/menuConfig";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { Search, Loader2 } from "lucide-react";
 import { BrandChip } from "../shared/BrandChip";
@@ -6,7 +7,7 @@ import { optionId, type SearchResult, type ResultGroup } from "./searchResults";
 import { SuggestList } from "./SuggestList";
 import { searchMasterFn } from "@/lib/mongodb/serverFns/search";
 
-/** "VetOS Master Search": Live MongoDB-driven search engine scoped to current tenant. */
+/** "VetechIQ Master Search": Live MongoDB-driven search engine scoped to current tenant. */
 export function FetchSearch() {
   const navigate = useNavigate();
   const listId = useId();
@@ -57,9 +58,11 @@ export function FetchSearch() {
     inputRef.current?.blur();
 
     if (item.toModule) {
+      const t = resolveModule(item.toModule);
       navigate({
         to: "/m/$moduleId",
-        params: { moduleId: item.toModule },
+        params: { moduleId: t.moduleId },
+        search: t.search as never,
       });
       return;
     }
@@ -137,7 +140,7 @@ export function FetchSearch() {
           type="search"
           value={query}
           placeholder="Fetch a patient, owner, medicine or invoice"
-          aria-label="VetOS Master Search: find anything in your clinic"
+          aria-label="VetechIQ Master Search: find anything in your clinic"
           autoComplete="off"
           role="combobox"
           aria-expanded={open}

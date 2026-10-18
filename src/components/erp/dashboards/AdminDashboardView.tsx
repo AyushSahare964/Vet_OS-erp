@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { resolveModule } from "@/components/doctor/layout/menuConfig";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -287,11 +288,12 @@ export function AdminDashboardView({
   }, [waitingVisits.length, appointmentsCount, todayAppointments]);
 
   const revMix = useMemo(() => ({
-    Clinical: visits.reduce((s, v) => s + Number(v.amountPaid || (isCompleted(v) ? v.totalAmount : 0) || 0), 0),
+    // only today's visits count towards "Revenue Today"
+    Clinical: visits.filter((v) => String(v.date ?? "").slice(0, 10) === todayStr).reduce((s, v) => s + Number(v.amountPaid || (isCompleted(v) ? v.totalAmount : 0) || 0), 0),
     Lab: labOrders.filter(o => o.status === "Completed").length * 500,
     Boarding: boardingOccupied * 800,
     Swimming: swimCompleted * 600,
-  }), [visits, labOrders, boardingOccupied, swimCompleted]);
+  }), [visits, labOrders, boardingOccupied, swimCompleted, todayStr]);
 
   const revTotal = useMemo(() => Object.values(revMix).reduce((a, b) => a + b, 0), [revMix]);
   const revMax = Math.max(revTotal, 1);
@@ -313,7 +315,7 @@ export function AdminDashboardView({
     {
       label: "Revenue Today",
       value: `₹${revTotal.toLocaleString("en-IN")}`,
-      trend: revTotal > 0 ? `${visits.filter(isCompleted).length} settled visits` : "₹0 collected today",
+      trend: revTotal > 0 ? `${visits.filter((v) => isCompleted(v) && String(v.date ?? "").slice(0, 10) === todayStr).length} settled visits` : "₹0 collected today",
       trendTone: revTotal > 0 ? "up" : "flat",
     },
     {
@@ -528,7 +530,7 @@ export function AdminDashboardView({
                 onClick={onOpenRegisterModal}
                 className="h-9 px-4 gap-2 text-xs font-bold bg-card/90 hover:bg-muted border-border/90 hover:border-primary/40 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
               >
-                <Users className="size-3.5 text-primary" /> Register Client
+                <Users className="size-3.5 text-primary" /> Add New Pet
               </Button>
             </div>
           </div>
@@ -625,7 +627,7 @@ export function AdminDashboardView({
                   size="sm"
                   variant="outline"
                   className="w-full h-8 text-xs font-semibold hover:bg-amber-500/5 hover:text-amber-700 dark:hover:text-amber-400 hover:border-amber-500/40 transition-colors gap-1 group-hover:border-amber-500/30"
-                  onClick={() => void navigate({ to: "/m/$moduleId", params: { moduleId: "lab_orders" } })}
+                  onClick={() => void navigate({ to: "/m/$moduleId", params: { moduleId: "laboratory" } })}
                 >
                   <span>Review</span>
                   <ChevronRight className="size-3 transition-transform group-hover:translate-x-0.5" />
@@ -684,7 +686,7 @@ export function AdminDashboardView({
             </div>
             <div className="flex flex-wrap gap-2.5">
               {[
-                { label: "New Patient", icon: <PlusCircle className="size-4" />, action: onOpenRegisterModal },
+                { label: "Add New Pet", icon: <PlusCircle className="size-4" />, action: onOpenRegisterModal },
                 { label: "Treat Patient", icon: <Stethoscope className="size-4" />, action: onOpenAdmitPicker },
               ].map(q => (
                 <button
@@ -697,7 +699,7 @@ export function AdminDashboardView({
                 </button>
               ))}
               {[
-                { label: "Lab Order", icon: <FlaskConical className="size-4" />, module: "lab_orders" },
+                { label: "Lab Order", icon: <FlaskConical className="size-4" />, module: "laboratory" },
                 { label: "Pharmacy", icon: <Pill className="size-4" />, module: "pharmacy" },
                 { label: "Boarding", icon: <Home className="size-4" />, module: "boarding" },
                 { label: "Swimming", icon: <Waves className="size-4" />, module: "swimming" },
@@ -706,7 +708,8 @@ export function AdminDashboardView({
                 <Link
                   key={q.label}
                   to="/m/$moduleId"
-                  params={{ moduleId: q.module }}
+                  params={{ moduleId: resolveModule(q.module).moduleId }}
+                  search={resolveModule(q.module).search as never}
                   className="flex items-center gap-2 rounded-xl border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground hover:bg-primary/5 hover:border-primary/50 hover:scale-[1.03] active:scale-[0.97] transition-all shadow-xs"
                 >
                   <span className="text-primary">{q.icon}</span>{q.label}
@@ -845,7 +848,7 @@ export function AdminDashboardView({
                 <span className="flex size-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600"><FlaskConical className="size-4" /></span>
                 <div><h3 className="text-sm font-bold text-foreground">Laboratory Analytics</h3><p className="text-[11px] text-muted-foreground">Real-time lab order data</p></div>
               </div>
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void navigate({ to: "/m/$moduleId", params: { moduleId: "lab_orders" } })}>Open Lab <ChevronRight className="size-3 ml-1" /></Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void navigate({ to: "/m/$moduleId", params: { moduleId: "laboratory" } })}>Open Lab <ChevronRight className="size-3 ml-1" /></Button>
             </div>
             <div className="flex flex-wrap gap-3">
               <StatChip label="Samples Today" value={labOrders.length} />
@@ -923,7 +926,7 @@ export function AdminDashboardView({
                 <span className="flex size-7 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600"><Waves className="size-4" /></span>
                 <div><h3 className="text-sm font-bold text-foreground">Swimming & Hydrotherapy</h3><p className="text-[11px] text-muted-foreground">Session schedule and completion</p></div>
               </div>
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void navigate({ to: "/m/$moduleId", params: { moduleId: "swimming" } })}>Open Swimming <ChevronRight className="size-3 ml-1" /></Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void navigate({ to: "/m/$moduleId", params: { moduleId: "boarding" }, search: { tab: "boarding", sub: "swimming" } as never })}>Open Swimming <ChevronRight className="size-3 ml-1" /></Button>
             </div>
             <div className="flex flex-wrap gap-3">
               <StatChip label="Total Today" value={swimToday} />

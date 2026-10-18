@@ -501,6 +501,119 @@
   max-height: calc(100dvh - 210px);
   overflow: auto;
 }
+
+/* History pages: no visible scrollbars (the two thin lines on the right). Scrolling still works
+   with wheel, touch, trackpad and keyboard. */
+.vd .d-body,
+.vd .g-panel {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.vd .d-body::-webkit-scrollbar,
+.vd .g-panel::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* History pages: ONE page scroll, full width.
+   The frame (.vd) is normally a fixed, non-scrolling box and .d-body / .g-panel were two nested
+   scroll areas. On history pages the frame becomes a normal page instead, so the window is the
+   only scroller. The two side bars stay pinned to the screen edges. Other doctor pages (home,
+   patient file) are untouched: every rule is scoped to a frame that holds .vd-main.in-detail. */
+.vd:has(> .vd-main.in-detail) {
+  position: relative;
+  inset: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: visible;
+  background-attachment: fixed; /* pattern stays with the screen; the parallax below drifts it */
+}
+@media (min-width: 761px) {
+  .vd:has(> .vd-main.in-detail) > .vd-dock {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    align-self: start;
+  }
+}
+@media (max-width: 760px) {
+  .vd:has(> .vd-main.in-detail) > .vd-dock-left {
+    position: sticky;
+    top: 0;
+  }
+  .vd:has(> .vd-main.in-detail) > .vd-dock-right {
+    position: sticky;
+    bottom: 0;
+    align-self: end;
+  }
+}
+/* The page's own scrollbar (globally styled in src/styles.css) is hidden on history pages too;
+   scrolling still works. */
+html:has(.vd-main.in-detail) {
+  scrollbar-width: none;
+}
+html:has(.vd-main.in-detail)::-webkit-scrollbar,
+body:has(.vd-main.in-detail)::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
+/* Full width with small side margins (was a centred 1120px column) */
+.vd .detail {
+  flex: none;
+  width: calc(100% - clamp(16px, 2.4vw, 40px));
+  max-width: none;
+}
+.vd .d-body {
+  flex: none;
+  overflow: visible;
+  padding: 2px 0 14px;
+}
+/* Graph panel: sticky beside the records, at its natural height (no inner scroll) */
+.vd .g-panel {
+  top: 12px;
+  max-height: none;
+  overflow: visible;
+}
+/* Too short a screen to keep the whole graph in view: let it scroll with the page instead */
+@media (max-height: 720px) {
+  .vd .g-panel {
+    position: static;
+  }
+}
+/* Small screens: one column, records first, graph below */
+@media (max-width: 900px) {
+  .vd .d-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .vd .g-panel {
+    position: static;
+    order: 0;
+  }
+}
+
+/* History pages: light parallax. The paw / bone pattern drifts at half the speed of the page.
+   Only the background moves: record cards stay put and the graph panel stays sticky. CSS only;
+   browsers without scroll-driven animations keep the static pattern. Off for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .vd:has(> .vd-main.in-detail) {
+      animation: history-pattern-drift linear both;
+      animation-timeline: scroll(root block);
+      /* 0 to 4000px of scrolling moves the pattern 2000px (half speed), then it holds */
+      animation-range: 0px 4000px;
+    }
+    @keyframes history-pattern-drift {
+      from {
+        background-position-y: 0px;
+      }
+      to {
+        background-position-y: -2000px;
+      }
+    }
+  }
+}
 .vd .g-head h3 {
   margin: 0;
   font: 800 20px var(--font-display);
@@ -655,7 +768,6 @@
   .vd .g-panel {
     position: static;
     max-height: none;
-    order: -1;
   }
   .vd .d-crumbs {
     display: none;
