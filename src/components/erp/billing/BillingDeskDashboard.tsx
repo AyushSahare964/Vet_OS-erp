@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye,
+  PackageCheck,
   EyeOff,
   RefreshCw,
   Plus,
@@ -82,7 +83,7 @@ import {
   type DateRange,
 } from "@/components/erp/shared/DateRangeFilter";
 import { StatusPill } from "@/components/erp/StatusPill";
-import { formatDisplayDate } from "@/lib/utils/dateUtils";
+import { daysBetweenISO, formatDisplayDate, formatRangeLabel, todayIST } from "@/lib/utils/dateUtils";
 import { DailySummaryModal } from "./DailySummaryModal";
 import { StockSummaryModal } from "./StockSummaryModal";
 import { QuotationsRegisterView } from "../reports/QuotationsRegisterView";
@@ -106,6 +107,9 @@ import { PurchaseOrderPrintView } from "./PurchaseOrderPrintView";
 import { type ClinicPurchaseOrderRecord } from "./PurchaseOrderModal";
 import { cn } from "@/lib/utils";
 
+export type RegisterTab =
+  | "invoices" | "quotations" | "creditNotes" | "payments" | "purchases" | "purchaseOrders" | "expenses" | "suppliers" | "clients";
+
 interface BillingDeskDashboardProps {
   invoices: any[];
   loading?: boolean;
@@ -116,6 +120,8 @@ interface BillingDeskDashboardProps {
   onNewQuotation: () => void;
   onAddPurchase: () => void;
   onAddPurchaseOrder?: () => void;
+  /** Opens the receive / check-items (GRN) step for a purchase order. */
+  onReceivePurchaseOrder?: (po: ClinicPurchaseOrderRecord) => void;
   onAddExpense: () => void;
   onPaymentIn: (invoiceNo?: string) => void;
   onPaymentOut: () => void;
@@ -130,6 +136,8 @@ interface BillingDeskDashboardProps {
   purchasesRefreshKey?: number;
   suppliersRefreshKey?: number;
   clientsRefreshKey?: number;
+  /** Which register (Purchases, Suppliers, Expenses...) is open first; used by the Inventory and Accounting hubs. */
+  initialRegisterTab?: RegisterTab;
 }
 
 export function BillingDeskDashboard({
@@ -141,6 +149,7 @@ export function BillingDeskDashboard({
   onNewQuotation,
   onAddPurchase,
   onAddPurchaseOrder,
+  onReceivePurchaseOrder,
   onAddExpense,
   onPaymentIn,
   onPaymentOut,
@@ -154,6 +163,7 @@ export function BillingDeskDashboard({
   purchasesRefreshKey = 0,
   suppliersRefreshKey = 0,
   clientsRefreshKey = 0,
+  initialRegisterTab = "invoices",
 }: BillingDeskDashboardProps) {
   const [masked, setMasked] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange());
@@ -172,9 +182,7 @@ export function BillingDeskDashboard({
   const [searchFeedback, setSearchFeedback] = useState<string | null>(null);
 
   // Big Documents Register Tab State
-  const [registerTab, setRegisterTab] = useState<
-    "invoices" | "quotations" | "creditNotes" | "payments" | "purchases" | "purchaseOrders" | "expenses" | "suppliers" | "clients"
-  >("invoices");
+  const [registerTab, setRegisterTab] = useState<RegisterTab>(initialRegisterTab);
 
   // Purchase Orders — stored in localStorage by PurchaseOrderModal
   const [purchaseOrders, setPurchaseOrders] = useState<ClinicPurchaseOrderRecord[]>([]);
@@ -252,6 +260,13 @@ export function BillingDeskDashboard({
       document.getElementById("billing-documents-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [clientsRefreshKey]);
+
+  // Opened from a hub tab (Purchases / Suppliers / Expenses): bring that register into view.
+  useEffect(() => {
+    if (initialRegisterTab === "invoices") return;
+    const t = setTimeout(() => document.getElementById("billing-documents-register")?.scrollIntoView({ behavior: "smooth", block: "start" }), 500);
+    return () => clearTimeout(t);
+  }, []);
 
   // Invoices table search and filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -361,9 +376,16 @@ export function BillingDeskDashboard({
   }
 
   // Compute Primary Hitech Metrics (Matches Quick Info in Screenshot)
+  // Selected date range (drives the register, the mode chart and the settled %)
   const totalSale = filteredInvoices.reduce((s, i) => s + (i.totalAmount || 0), 0);
   const amountReceived = filteredInvoices.reduce((s, i) => s + (i.amountPaid || 0), 0);
-  const amountDue = filteredInvoices.reduce((s, i) => s + invBalance(i), 0);
+  // Quick Info is strictly TODAY (clinic local date), whatever range is selected above
+  const todayStr = todayIST();
+  const todayInvoices = invoices.filter((inv) => (inv.date || inv.createdAt?.slice(0, 10)) === todayStr);
+  const todaySale = todayInvoices.reduce((s, i) => s + (i.totalAmount || 0), 0);
+  const todayReceived = todayInvoices.reduce((s, i) => s + (i.amountPaid || 0), 0);
+  const todayDue = todayInvoices.reduce((s, i) => s + invBalance(i), 0);
+  const rangeLabel = formatRangeLabel(dateRange.from, dateRange.to);
 
   // Masking format helper
   const fmtMoney = (amount: number) => {
@@ -1054,7 +1076,7 @@ export function BillingDeskDashboard({
                 QUICK INFO
               </span>
               <span className="rounded-md bg-[#ffe600] px-2.5 py-0.5 text-[11px] font-black text-black shadow-xs tracking-wider">
-                TODAY
+                TODAY · {formatDisplayDate(todayStr)}
               </span>
             </div>
 
@@ -1064,7 +1086,7 @@ export function BillingDeskDashboard({
                   TOTAL SALE
                 </div>
                 <div className="text-base sm:text-lg font-black font-mono mt-0.5 tracking-tight">
-                  {fmtMoney(totalSale)}
+                  {fmtMoney(todaySale)}
                 </div>
               </div>
 
@@ -1073,7 +1095,7 @@ export function BillingDeskDashboard({
                   AMOUNT RECEIVED
                 </div>
                 <div className="text-base sm:text-lg font-black font-mono mt-0.5 tracking-tight text-emerald-300">
-                  {fmtMoney(amountReceived)}
+                  {fmtMoney(todayReceived)}
                 </div>
               </div>
 
@@ -1082,7 +1104,7 @@ export function BillingDeskDashboard({
                   AMOUNT DUE
                 </div>
                 <div className="text-base sm:text-lg font-black font-mono mt-0.5 tracking-tight text-amber-300">
-                  {fmtMoney(amountDue)}
+                  {fmtMoney(todayDue)}
                 </div>
               </div>
             </div>
@@ -1099,6 +1121,7 @@ export function BillingDeskDashboard({
                   <span className="text-xs font-bold uppercase tracking-wider text-foreground">
                     Collections by Mode
                   </span>
+                  <span className="block text-[10px] font-medium text-muted-foreground">{rangeLabel}</span>
                 </div>
               </div>
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
@@ -2714,7 +2737,7 @@ export function BillingDeskDashboard({
                   className="h-8 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white gap-1.5 shadow-xs"
                 >
                   <Plus className="size-3.5" />
-                  <span>+ Add Client &amp; Pet</span>
+                  <span>Add New Pet</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -2754,7 +2777,7 @@ export function BillingDeskDashboard({
                           className="mt-3 h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
                         >
                           <Plus className="size-3.5" />
-                          <span>Register New Client &amp; Pet</span>
+                          <span>Add New Pet</span>
                         </Button>
                       </td>
                     </tr>
@@ -3035,6 +3058,12 @@ export function BillingDeskDashboard({
                           </td>
                           <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                             {po.deliveryDate ? new Date(po.deliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                            {po.grnDate && po.poDate && (
+                              <div className="text-[10px] font-semibold text-emerald-600">
+                                Delivery time: {Math.max(0, daysBetweenISO(po.poDate.slice(0, 10), po.grnDate.slice(0, 10)))} days
+                              </div>
+                            )}
+                            {po.linkedBillNo && <div className="text-[10px] font-mono text-muted-foreground">Bill {po.linkedBillNo}</div>}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground text-[11px]">
                             {po.transportMode || "—"}
@@ -3065,6 +3094,18 @@ export function BillingDeskDashboard({
                                 <Eye className="size-3.5" />
                                 <span>View</span>
                               </Button>
+                              {po.status !== "CANCELLED" && onReceivePurchaseOrder && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => onReceivePurchaseOrder(po)}
+                                  className="h-6 px-2 text-[10px] font-bold text-primary border-primary/40 hover:bg-primary/5 gap-1"
+                                  title="Check received items and convert to a purchase bill"
+                                >
+                                  <PackageCheck className="size-3" />
+                                  <span>Receive / Check items</span>
+                                </Button>
+                              )}
                               {po.status !== "RECEIVED" && po.status !== "CANCELLED" && (
                                 <Button
                                   size="sm"
@@ -3186,7 +3227,7 @@ export function BillingDeskDashboard({
                     <th className="px-4 py-3 text-right">Total (₹)</th>
                     <th className="px-4 py-3 text-right">Paid (₹)</th>
                     <th className="px-4 py-3 text-right">Due (₹)</th>
-                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-center">Payment status</th>
                     <th className="px-4 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
@@ -3254,7 +3295,23 @@ export function BillingDeskDashboard({
                             {fmtMoney(bal)}
                           </td>
                           <td className="px-4 py-3 text-center whitespace-nowrap">
-                            <StatusPill value={inv.status} />
+                            {(() => {
+                              const paid = Number(inv.amountPaid) || 0;
+                              const st = bal <= 0.005 && (inv.totalAmount || 0) > 0 ? "Paid" : paid > 0.005 ? "Partial" : (inv.totalAmount || 0) > 0 ? "Unpaid" : "—";
+                              return (
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold",
+                                    st === "Paid" && "bg-success-soft text-success",
+                                    st === "Partial" && "bg-warning-soft text-warning",
+                                    st === "Unpaid" && "bg-danger-soft text-destructive",
+                                    st === "—" && "bg-muted text-muted-foreground",
+                                  )}
+                                >
+                                  {st}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td
                             className="px-4 py-3 text-center whitespace-nowrap"

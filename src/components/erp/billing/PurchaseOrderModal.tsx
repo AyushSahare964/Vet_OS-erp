@@ -86,6 +86,13 @@ export interface ClinicPurchaseOrderRecord {
   remarks: string;
   status: "DRAFT" | "ISSUED" | "PENDING_DELIVERY" | "RECEIVED" | "CANCELLED";
   createdAt: string;
+  /** Medical representative of the supplier and the company he represents (optional, shown in the header). */
+  mrName?: string | undefined;
+  companyName?: string | undefined;
+  /** Goods-receipt (GRN) details, added when items are checked in. All optional; the order itself is never overwritten. */
+  grnDate?: string | undefined;
+  linkedBillNo?: string | undefined;
+  receipts?: Record<string, { checked: boolean; receivedQty: number; damagedQty: number }> | undefined;
 }
 
 const GST_RATES = [0, 5, 12, 18, 28];
@@ -115,6 +122,9 @@ const CLINIC_CATEGORIES = [
   "Clinical Nutrition & Food",
   "Antiseptic / Disinfectant",
   "General Veterinary Consumables",
+  "Food",
+  "Supplement",
+  "Accessories",
 ];
 
 const INDIAN_STATES = [
@@ -173,6 +183,8 @@ export function PurchaseOrderModal({
   const [supplierId, setSupplierId] = useState(initialSupplierId || "");
   const [placeOfSupply, setPlaceOfSupply] = useState("Maharashtra");
   const [poNumber, setPoNumber] = useState("");
+  const [mrName, setMrName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [transportMode, setTransportMode] = useState("Cold Chain Medical Express");
   const [deliveryLocation, setDeliveryLocation] = useState("Harmony Vet Hospital - Main Pharmacy & Cold Storage");
 
@@ -257,6 +269,12 @@ export function PurchaseOrderModal({
   }, []);
 
   const selectedSupplier = suppliers.find((s) => s._id === supplierId);
+  // Prefill MR and Company from the supplier master when a supplier is picked (both stay editable)
+  useEffect(() => {
+    if (!selectedSupplier) return;
+    setMrName((v) => v || selectedSupplier.contactPerson || "");
+    setCompanyName((v) => v || selectedSupplier.name || "");
+  }, [selectedSupplier?._id]);
   const isGst = orderType === "GST";
   const isInterState = placeOfSupply !== CLINIC_STATE;
   const effectiveGstPct = isGst ? gstPct : 0;
@@ -283,15 +301,13 @@ export function PurchaseOrderModal({
     if (it.unit || it.purchaseUom) {
       setUom(it.purchaseUom || it.unit);
     }
-    if (it.category) {
-      setCategory(it.category);
-    } else if (it.productType === "MEDICINE") {
-      setCategory("Medicine / Drug");
-    } else if (it.productType === "INJECTION") {
-      setCategory("Injection / IV");
-    } else if (it.productType === "FOOD") {
-      setCategory("Clinical Nutrition & Food");
-    }
+    // The Inventory names its categories "Animal Food" / "Animal Accessories"; the PO list uses its own names,
+    // so map by product type (otherwise the category box stays blank for food and accessories).
+    if (it.productType === "FOOD") setCategory("Food");
+    else if (it.productType === "ACCESSORY") setCategory("Accessories");
+    else if (it.productType === "INJECTION") setCategory("Injection / IV");
+    else if (it.productType === "MEDICINE") setCategory("Medicine / Drug");
+    else if (it.category && CLINIC_CATEGORIES.includes(it.category)) setCategory(it.category);
 
     if (it.medicineDetails?.storageCondition || it.injectionDetails?.storageCondition) {
       const cond = it.medicineDetails?.storageCondition || it.injectionDetails?.storageCondition;
@@ -588,6 +604,8 @@ export function PurchaseOrderModal({
         deliveryDate,
         supplierId,
         supplierName: selectedSupplier?.name || "Supplier",
+        mrName: mrName.trim() || undefined,
+        companyName: companyName.trim() || undefined,
         supplierGstin: selectedSupplier?.gstin,
         supplierPhone: selectedSupplier?.phone || selectedSupplier?.mobileNo,
         supplierAddress: selectedSupplier?.address,
@@ -765,6 +783,20 @@ export function PurchaseOrderModal({
                       </button>
                     </div>
                   </div>
+                </div>
+
+                {/* Header summary: who the order is for */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 rounded-md border border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/30 p-2 text-xs">
+                  <div><span className="block text-[10px] font-bold uppercase text-slate-500">Supplier</span><span className="font-semibold">{selectedSupplier?.name || "—"}</span></div>
+                  <div>
+                    <Label className="block text-[10px] font-bold uppercase text-slate-500">MR / Representative</Label>
+                    <Input value={mrName} onChange={(e) => setMrName(e.target.value)} placeholder="MR name" className="h-6 text-xs bg-white dark:bg-slate-950" />
+                  </div>
+                  <div>
+                    <Label className="block text-[10px] font-bold uppercase text-slate-500">Company</Label>
+                    <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Company name" className="h-6 text-xs bg-white dark:bg-slate-950" />
+                  </div>
+                  <div><span className="block text-[10px] font-bold uppercase text-slate-500">PO Date</span><span className="font-mono font-semibold">{poDate}</span></div>
                 </div>
 
                 {/* Row 2: Place of Supply, P. O. No., Expected Delivery Date */}
@@ -1090,10 +1122,10 @@ export function PurchaseOrderModal({
                       <button
                         type="button"
                         onClick={handleAddLine}
-                        className="h-7 w-full flex items-center justify-center rounded bg-[#2e7d32] hover:bg-[#1b5e20] text-white font-bold shadow-sm transition-transform active:scale-95"
+                        className="h-7 w-full flex items-center justify-center gap-1 rounded bg-[#2e7d32] hover:bg-[#1b5e20] text-white font-bold shadow-sm transition-transform active:scale-95 px-2 text-xs whitespace-nowrap"
                         title="Add item to purchase order"
                       >
-                        <Plus className="size-4 stroke-[3]" />
+                        <Plus className="size-4 stroke-[3]" /> Add product
                       </button>
                     </div>
                   </div>

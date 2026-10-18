@@ -207,6 +207,8 @@ export const createPurchaseBillFn = createServerFn({ method: "POST" })
       attachmentUrl: z.string().optional(),
       paymentNow: z.boolean().default(false),
       paymentLines: z.array(PaymentLineInputZ).optional(),
+      /** Optional: date the money was paid (defaults to the bill date). */
+      paymentDate: z.string().optional(),
       receiveStock: z.boolean().optional(),
     }).parse(raw)
   )
@@ -346,7 +348,7 @@ export const createPurchaseBillFn = createServerFn({ method: "POST" })
         voucherNo,
         supplierId: data.supplierId,
         supplierName,
-        paymentDate: data.billDate,
+        paymentDate: data.paymentDate || data.billDate,
         totalAmount: amountPaid,
         source: "BILL_ENTRY",
         allocationMode: "SELECTED",
@@ -356,7 +358,7 @@ export const createPurchaseBillFn = createServerFn({ method: "POST" })
             purchaseBillId: billId,
             billRef: `${internalRef} (${data.billNumber})`,
             amount: amountPaid,
-            allocatedOn: data.billDate,
+            allocatedOn: data.paymentDate || data.billDate,
           },
         ],
         status: "ACTIVE",

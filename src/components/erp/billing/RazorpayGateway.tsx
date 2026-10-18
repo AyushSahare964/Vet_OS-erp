@@ -199,7 +199,7 @@ function CheckoutModal({
                 </div>
               )}
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Shield className="size-3" /> Secured by Razorpay · VetOS never sees card details
+                <Shield className="size-3" /> Secured by Razorpay · VetechIQ never sees card details
               </div>
             </motion.div>
           )}
@@ -461,7 +461,7 @@ export function RazorpayGateway() {
       <div className="flex items-start gap-2 rounded-xl border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
         <Shield className="size-4 shrink-0 text-emerald-500 mt-0.5" />
         <span>
-          <strong className="text-foreground">PCI Compliance:</strong> Card details never touch VetOS servers. Razorpay Checkout handles all card capture. 
+          <strong className="text-foreground">PCI Compliance:</strong> Card details never touch VetechIQ servers. Razorpay Checkout handles all card capture. 
           API keys stored encrypted in Integration Hub (Module 20) — never exposed to the browser. 
           All webhook payloads are HMAC-verified before trusting status changes.
         </span>

@@ -676,7 +676,7 @@ export function QuotationModal({ open, onClose, onConvertToInvoice }: QuotationM
                         variant="outline"
                         size="icon"
                         onClick={() => setShowRegisterPetModal(true)}
-                        title="Register New Pet & Owner (Direct Intake)"
+                        title="Add New Pet"
                         className="size-7 shrink-0 border-blue-300 text-blue-600 dark:text-blue-400 hover:bg-blue-50"
                       >
                         <Plus className="size-3.5" />

@@ -56,6 +56,7 @@ const SUB_GROUPS = [
   "Supplement",
   "Medicated Shampoo",
   "Shampoo",
+  "Prescription Food",
 ];
 const r2 = (n: number) => Math.round(n * 100) / 100;
 

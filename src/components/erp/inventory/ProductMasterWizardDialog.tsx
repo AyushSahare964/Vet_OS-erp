@@ -164,7 +164,7 @@ const CATEGORY_DEFS: CategoryDef[] = [
     Icon: Bone,
     namePlaceholder: "e.g. Royal Canin Maxi Adult 4kg",
     genericPlaceholder: "e.g. Canine adult large breed diet",
-    subGroupPlaceholder: "e.g. Dog Food, Feline Diet",
+    subGroupPlaceholder: "e.g. Dog Food, Feline Diet, Prescription Food",
     swatch: "bg-amber-500/10 text-amber-600",
     accent: "amber",
   },

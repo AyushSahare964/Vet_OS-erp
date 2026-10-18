@@ -156,7 +156,7 @@ export function BillingDeskShell({
 
             <div className="flex items-center gap-3">
               <Link
-                to="/"
+                to="/clinic"
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="size-3.5" /> Back to Main ERP

@@ -99,7 +99,7 @@ function InventoryHubInner({ initialTab = "catalogue" }: InventoryHubProps) {
             </div>
           </div>
           <Link
-            to="/"
+            to="/clinic"
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="size-3.5" /> Dashboard
