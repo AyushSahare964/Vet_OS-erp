@@ -47,7 +47,7 @@ function clean10DigitPhone(input: string): string {
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "VetOS Cloud — Staff Sign In & Practice Onboarding" },
+      { title: "VetechIQ — Staff Sign In & Practice Onboarding" },
       {
         name: "description",
         content: "Professional veterinary clinic operator sign in and multi-tenant practice registration portal.",
@@ -315,7 +315,7 @@ function AuthPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-lg font-black tracking-tight text-[#001d39] font-['Bricolage_Grotesque',system-ui,sans-serif]">
-                VetOS Cloud
+                VetechIQ
               </span>
               <BrandChip />
             </div>
@@ -537,7 +537,7 @@ function AuthPage() {
                     Register Your Veterinary Clinic
                   </h1>
                   <p className="text-xs text-[#4d6a86] mt-0.5">
-                    Launch an isolated, cloud-hosted VetOS ERP workspace with OPD consultation triage, live Rx inventory, and WhatsApp integration.
+                    Launch an isolated, cloud-hosted VetechIQ workspace with OPD consultation triage, live Rx inventory, and WhatsApp integration.
                   </p>
                 </div>
 
@@ -651,7 +651,7 @@ function AuthPage() {
                 <div>
                   <h1 className="text-xl font-extrabold text-[#001d39] font-['Bricolage_Grotesque',system-ui,sans-serif]">Create Staff Profile</h1>
                   <p className="text-xs text-[#4d6a86]">
-                    Join your clinic's existing VetOS Cloud workspace as staff.
+                    Join your clinic's existing VetechIQ workspace as staff.
                   </p>
                   <p className="text-xs text-[#4d6a86] mt-0.5">
                     New clinic?{" "}
@@ -877,9 +877,8 @@ function AuthPage() {
               <>
                 <div className="flex items-center gap-1.5 font-medium">
                   <Building2 className="size-3 text-[#0a4174]" />
-                  <span>VetOS Multi-Tenant Architecture</span>
+                  <span>VetechIQ</span>
                 </div>
-                <span className="text-[#4d6a86]">MongoDB Atlas Connected</span>
               </>
             )}
           </div>
@@ -889,7 +888,7 @@ function AuthPage() {
 
       {/* Page Footer */}
       <p className="mt-5 text-[0.72rem] text-[#4d6a86] font-medium text-center">
-        By signing in or registering you agree to the VetOS Clinic Compliance & Multi-Tenant Data Policy
+        By signing in or registering you agree to the VetechIQ Compliance & Multi-Tenant Data Policy
       </p>
     </div>
   );

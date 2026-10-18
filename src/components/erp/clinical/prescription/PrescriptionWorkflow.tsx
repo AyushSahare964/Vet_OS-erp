@@ -73,6 +73,8 @@ export interface PrescriptionWorkflowProps {
    *  Billing) and false once every section has settled — lets the parent block Finalize
    *  until the visit document actually has all sections' data, not just what synced first. */
   onBackgroundSyncStateChange?: (syncing: boolean) => void;
+  /** Receptionist "Doctor-Advised Medicine": no treatment (immediate medication) and no injection sections. */
+  advisedMode?: boolean;
 }
 
 const CLINICAL_FINDINGS_OPTIONS = [
@@ -203,6 +205,7 @@ export function PrescriptionWorkflow({
   onVisitUpdated,
   onPrescriptionDataChange,
   onBackgroundSyncStateChange,
+  advisedMode = false,
 }: PrescriptionWorkflowProps) {
   const initialRx: IPrescriptionData = prescriptionData || visit?.prescriptionData || {};
 
@@ -2104,8 +2107,8 @@ export function PrescriptionWorkflow({
               </div>
             </div>
 
-            {/* Subsection A: Immediate Medication */}
-            <InventoryItemSection
+            {/* Subsection A: Immediate Medication (not in advised mode) */}
+            {!advisedMode && <InventoryItemSection
               id="sec-immediate-med"
               section="IMMEDIATE_MED"
               title="Immediate Medication (Administered Now)"
@@ -2124,7 +2127,7 @@ export function PrescriptionWorkflow({
               showRoute={true}
               allowCustomAdd={false}
               isLocked={isSettled}
-            />
+            />}
 
             {/* Subsection B: Prescribed Medicine */}
             <InventoryItemSection
@@ -2149,8 +2152,8 @@ export function PrescriptionWorkflow({
               isLocked={isSettled}
             />
 
-            {/* Subsection C: Injectables */}
-            <InventoryItemSection
+            {/* Subsection C: Injectables (not in advised mode) */}
+            {!advisedMode && <InventoryItemSection
               id="sec-injectables"
               section="INJECTABLE"
               title="Injectable / Vaccine Administration"
@@ -2169,7 +2172,7 @@ export function PrescriptionWorkflow({
               showRoute={true}
               allowCustomAdd={false}
               isLocked={isSettled}
-            />
+            />}
           </div>
 
           {/* 6. Consultation Fee (§7, Phase 4) */}

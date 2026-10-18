@@ -49,8 +49,8 @@ import {
 } from "@/lib/mongodb/serverFns/facilities";
 import { cn } from "@/lib/utils";
 
-export function BoardingSwimmingHub() {
-  const [activeTab, setActiveTab] = useState<"boarding" | "swimming">("boarding");
+export function BoardingSwimmingHub({ initialTab = "boarding" }: { initialTab?: "boarding" | "swimming" } = {}) {
+  const [activeTab, setActiveTab] = useState<"boarding" | "swimming">(initialTab);
   const [boardings, setBoardings] = useState<any[]>([]);
   const [swimmings, setSwimmings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

@@ -127,10 +127,10 @@ export const loginFn = createServerFn({ method: "POST" })
     if (user["tenantId"]) {
       const tenant = await TenantModel.findOne({ tenantId: user["tenantId"] }).lean();
       if (tenant?.status === "SUSPENDED") {
-        return { success: false, message: "This clinic's VetOS Cloud subscription is currently suspended. Please contact support." };
+        return { success: false, message: "This clinic's VetechIQ subscription is currently suspended. Please contact support." };
       }
       if (tenant?.subscriptionStatus === "CANCELLED") {
-        return { success: false, message: "This clinic's VetOS Cloud subscription has been cancelled." };
+        return { success: false, message: "This clinic's VetechIQ subscription has been cancelled." };
       }
       tenantSlug = tenant?.slug;
     }
@@ -328,7 +328,7 @@ export const registerFn = createServerFn({ method: "POST" })
       return { success: false, message: "Clinic not found. Check the clinic identifier and try again." };
     }
     if (tenant.status === "SUSPENDED") {
-      return { success: false, message: "This clinic's VetOS Cloud subscription is currently suspended." };
+      return { success: false, message: "This clinic's VetechIQ subscription is currently suspended." };
     }
 
     const cleanEmail = data.email.toLowerCase().trim();
@@ -793,7 +793,7 @@ export const listApprovedDoctorsFn = createServerFn({ method: "GET" })
       if (doctors.length > 0) {
         return doctors.map((d: any) => ({
           id: String(d._id),
-          name: d.fullName.startsWith("Dr.") ? d.fullName : `Dr. ${d.fullName}`,
+          name: /^dr\.?\s/i.test(d.fullName) ? d.fullName : `Dr. ${d.fullName}`, // "Dr Anita" and "Dr. Anita" are both already titled
           specialty: d.specialty || d.qualification || d.department || "Consultant Vet",
           licenseNumber: d.licenseNumber || undefined,
         }));

@@ -5,7 +5,7 @@
 
 export const CLINIC_CONFIG = {
   /** Short name shown in sidebar / mobile header fallback */
-  shortName: "VetOS Clinic",
+  shortName: "VetechIQ",
   /** Full name shown in invoices and prescriptions fallback */
   fullName: "Veterinary Care & Animal Hospital",
   /** Sub-brand fallback */

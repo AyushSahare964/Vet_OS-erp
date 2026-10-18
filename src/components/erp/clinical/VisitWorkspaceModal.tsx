@@ -53,6 +53,8 @@ interface VisitWorkspaceProps {
   visit: any;
   onVisitFinalized?: (updatedVisit: any) => void;
   initialTab?: "consultation" | "billing" | "completed";
+  /** Receptionist "Doctor-Advised Medicine": complaint, vitals, advice, medicine and billing only (no treatment / injections). */
+  advisedMode?: boolean;
 }
 
 interface BillLine {
@@ -80,7 +82,7 @@ interface BillLine {
 
 // FALLBACK_CATALOG removed — real inventory is always used. Empty inventory shows "no items found" correctly.
 
-export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, initialTab }: VisitWorkspaceProps) {
+export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, initialTab, advisedMode = false }: VisitWorkspaceProps) {
   const { currentUser, role, roleId } = useErp();
   const CLINIC_CONFIG = useClinicBranding();
 
@@ -285,7 +287,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
         if (isCompleted) {
           setFinalizedVisit(fresh);
           setTab("completed");
-        } else if (isReceptionist || visit?.openedFromReception || fresh.paymentRequestStatus === "pending") {
+        } else if ((isReceptionist && !advisedMode) || visit?.openedFromReception || fresh.paymentRequestStatus === "pending") {
           setTab("billing");
         }
       }
@@ -307,7 +309,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
       if (isCompleted) {
         setFinalizedVisit(visit);
         setTab("completed");
-      } else if (isReceptionist || visit?.openedFromReception || visit?.paymentRequestStatus === "pending") {
+      } else if ((isReceptionist && !advisedMode) || visit?.openedFromReception || visit?.paymentRequestStatus === "pending") {
         setTab("billing");
       } else {
         setTab("consultation");
@@ -1529,6 +1531,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
               onJumpSectionsChange={setRxJumpSections}
               onPrescriptionDataChange={(newRx) => setPrescriptionData(newRx)}
               onBackgroundSyncStateChange={setIsSyncingPrescription}
+              advisedMode={advisedMode}
               onVisitUpdated={(updated) => {
                 setActiveVisit(updated);
                 if (updated.prescriptionData) {
@@ -2670,7 +2673,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                       >
                         <div className="flex items-center gap-1.5" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                           <span className="inline-block size-2 rounded-full bg-emerald-600" style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#059669" }}></span>
-                          <span className="font-semibold text-slate-700" style={{ fontWeight: 600, color: "#334155" }}>{CLINIC_CONFIG.fullName} · VetOS Clinical Console</span>
+                          <span className="font-semibold text-slate-700" style={{ fontWeight: 600, color: "#334155" }}>{CLINIC_CONFIG.fullName} · VetechIQ Clinical Console</span>
                         </div>
                         <div>
                           <span>Generated: <strong style={{ color: "#0f172a" }}>{new Date().toLocaleDateString("en-GB")} at {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })} IST</strong></span>
