@@ -299,7 +299,7 @@ export const registerTenantFn = createServerFn({ method: "POST" })
       templateParams: {
         clinic_name: data.clinicName.trim(),
         clinic_id: slug,
-        clinic_logo_url: logoUrl("/clinic-logo.png"),
+        clinic_logo_url: logoUrl("/vettechiq-logo.png"),
         user_id: cleanAdminEmail,
         password: data.adminPassword,
         login_url: `${appUrl()}/login`,

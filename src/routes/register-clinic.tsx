@@ -331,6 +331,9 @@ function RegisterClinicPage() {
                   onChange={(e) => set("doctorRegValidUpto", e.target.value)}
                   className="h-8 w-full rounded-lg border border-input bg-background px-2 text-xs outline-none focus:border-primary"
                 />
+                {form.doctorRegValidUpto && form.doctorRegValidUpto <= today && (
+                  <p className="text-[0.65rem] text-destructive">This registration has expired — it must be valid after today.</p>
+                )}
               </div>
             </div>
             <div className="space-y-0.5">
