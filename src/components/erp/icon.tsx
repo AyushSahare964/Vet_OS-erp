@@ -26,6 +26,14 @@ import {
   Wallet,
   Waves,
   BookOpen,
+  Bell,
+  Syringe,
+  Zap,
+  ShoppingBag,
+  Package,
+  ArrowDownToLine,
+  UserPlus,
+  CalendarPlus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -56,6 +64,14 @@ const MAP: Record<string, LucideIcon> = {
   Wallet,
   Waves,
   BookOpen,
+  Bell,
+  Syringe,
+  Zap,
+  ShoppingBag,
+  Package,
+  ArrowDownToLine,
+  UserPlus,
+  CalendarPlus,
 };
 
 export function getIcon(name: string): LucideIcon {

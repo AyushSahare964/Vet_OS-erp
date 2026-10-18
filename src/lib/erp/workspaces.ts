@@ -310,7 +310,7 @@ export const WORKSPACES: Record<string, Workspace> = {
     ],
     statusKey: "status",
     rows: [],
-    createLabel: "Register Pet",
+    createLabel: "Add New Pet",
     fields: [
       { key: "petId", label: "Pet ID", type: "text", required: true, placeholder: "PET00000" },
       { key: "pet", label: "Pet name", type: "text", required: true },
