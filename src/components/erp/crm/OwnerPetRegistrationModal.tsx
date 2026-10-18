@@ -145,6 +145,7 @@ export const DEFAULT_PET_DRAFT = (): PetDraft => ({
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** @deprecated kept so old callers still compile; there is one flow ("Add New Pet") and this is ignored. */
   initialMode?: "new-all" | "new-pet-only";
   preselectedOwner?: any;
   onRegistered?: (result: { owner: any; pets: any[] }) => void;
@@ -160,7 +161,6 @@ interface Props {
 export function OwnerPetRegistrationModal({
   open,
   onClose,
-  initialMode = "new-all",
   preselectedOwner = null,
   onRegistered,
   onAdmitToOpd,
@@ -170,10 +170,11 @@ export function OwnerPetRegistrationModal({
 }: Props) {
   const { currentUser } = useErp();
   const [step, setStep] = useState<"owner" | "pets" | "success">("owner");
-  const [mode, setMode] = useState<"new-all" | "new-pet-only">(initialMode);
   const [searchQuery, setSearchQuery] = useState("");
   const [existingOwners, setExistingOwners] = useState<any[]>([]);
   const [selectedOwner, setSelectedOwner] = useState<any | null>(preselectedOwner);
+  // One flow: pick or enter the owner, then the pet. An owner already chosen skips the owner fields.
+  const mode: "new-all" | "new-pet-only" = selectedOwner ? "new-pet-only" : "new-all";
 
   // Auto-ID previews
   const [previewOwnerId, setPreviewOwnerId] = useState<string>("OWN-0001");
@@ -219,20 +220,15 @@ export function OwnerPetRegistrationModal({
       void loadOwners();
       if (preselectedOwner) {
         setSelectedOwner(preselectedOwner);
-        setMode("new-pet-only");
         setStep("pets");
         if (prefillPetName) setPets([{ ...DEFAULT_PET_DRAFT(), name: prefillPetName }]);
-      } else if (initialMode === "new-pet-only") {
-        setMode("new-pet-only");
-        setStep("owner");
       } else {
-        setMode("new-all");
         setStep("owner");
         if (prefillOwnerName) setOwnerName(prefillOwnerName);
         if (prefillPetName) setPets([{ ...DEFAULT_PET_DRAFT(), name: prefillPetName }]);
       }
     }
-  }, [open, preselectedOwner, initialMode]);
+  }, [open, preselectedOwner]);
 
   const loadPreviews = async () => {
     try {
@@ -257,6 +253,47 @@ export function OwnerPetRegistrationModal({
     setSearchQuery(q);
     void loadOwners(q);
   };
+
+  // ── Duplicate check while typing: same name + surname (any order) or same mobile as an existing client ──
+  const [dupOwners, setDupOwners] = useState<any[]>([]);
+  const [dupDismissed, setDupDismissed] = useState("");
+  const nameTokens = ownerName.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const dupKey = `${nameTokens.join(" ")}|${ownerPhone}`;
+  useEffect(() => {
+    if (!open || mode !== "new-all" || step !== "owner") {
+      setDupOwners([]);
+      return;
+    }
+    const hasName = nameTokens.length >= 2;
+    const hasPhone = ownerPhone.length === 10;
+    if (!hasName && !hasPhone) {
+      setDupOwners([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const queries = [hasName ? nameTokens[nameTokens.length - 1]! : "", hasPhone ? ownerPhone : ""].filter(Boolean);
+        const found = (await Promise.all(queries.map((q) => searchOwnersFn({ data: q })))).flat();
+        const seen = new Set<string>();
+        const same = (n: string) => {
+          const t2 = String(n || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+          return t2.length === nameTokens.length && t2.every((x) => nameTokens.includes(x));
+        };
+        const last10 = (p: string) => String(p || "").replace(/\D/g, "").slice(-10);
+        setDupOwners(
+          found.filter((o: any) => {
+            if (!o?.ownerId || seen.has(o.ownerId)) return false;
+            seen.add(o.ownerId);
+            return (hasName && same(o.name)) || (hasPhone && last10(o.phone) === ownerPhone);
+          }),
+        );
+      } catch {
+        setDupOwners([]);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, step, dupKey]);
 
   const handleSelectOwner = (owner: any) => {
     setSelectedOwner(owner);
@@ -468,7 +505,6 @@ export function OwnerPetRegistrationModal({
 
   const handleResetAndClose = () => {
     setStep("owner");
-    setMode("new-all");
     setSearchQuery("");
     setSelectedOwner(null);
     setOwnerName("");
@@ -511,17 +547,11 @@ export function OwnerPetRegistrationModal({
                 </span>
                 <div>
                   <DialogTitle className="text-base font-bold text-foreground">
-                    {step === "owner"
-                      ? mode === "new-all"
-                        ? "Register New Pet & Owner"
-                        : "Select Existing Owner"
-                      : step === "pets"
-                        ? "Patient Registration"
-                        : "Registration Complete"}
+                    {step === "success" ? "Pet Added" : "Add New Pet"}
                   </DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                     {step === "owner"
-                      ? "Onboard a new client or attach new patients to an existing account."
+                      ? "Find the pet's owner, or enter a new owner. Then add the pet."
                       : step === "pets"
                         ? `Registering patient(s) under ${selectedOwner?.name || ownerName || "Client"}. One owner can have multiple pets.`
                         : "Client & patient records have been successfully saved."}
@@ -529,32 +559,6 @@ export function OwnerPetRegistrationModal({
                 </div>
               </div>
 
-              {step === "owner" && !selectedOwner && (
-                <div className="flex rounded-lg bg-muted p-0.5 text-xs">
-                  <button
-                    onClick={() => setMode("new-all")}
-                    className={cn(
-                      "px-3 py-1 font-semibold rounded-md transition-all",
-                      mode === "new-all"
-                        ? "bg-card text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    + New Pet &amp; Owner
-                  </button>
-                  <button
-                    onClick={() => setMode("new-pet-only")}
-                    className={cn(
-                      "px-3 py-1 font-semibold rounded-md transition-all",
-                      mode === "new-pet-only"
-                        ? "bg-card text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    + New Pet Only
-                  </button>
-                </div>
-              )}
             </div>
           </DialogHeader>
         </div>
@@ -562,20 +566,20 @@ export function OwnerPetRegistrationModal({
         {/* ── STEP 1: OWNER INTAKE / SELECTION ─────────────────────────────────── */}
         {step === "owner" && (
           <div className="p-6 space-y-5">
-            {mode === "new-pet-only" ? (
+            <>{(
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold text-foreground">
-                    Search Existing Pet Parent
+                    Find existing owner (name, mobile, email)
                   </Label>
                   <span className="text-[11px] text-muted-foreground font-mono">
-                    Select client to link new pets
+                    Not found? Fill in a new owner below
                   </span>
                 </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by owner name, mobile, email, or UID (e.g. Atul, 98230...)"
+                    placeholder="Find existing owner (name, mobile, email)"
                     value={searchQuery}
                     onChange={(e) => handleSearch(e.target.value)}
                     className="pl-9 text-sm h-10"
@@ -583,13 +587,10 @@ export function OwnerPetRegistrationModal({
                   />
                 </div>
 
-                <div className="max-h-64 overflow-y-auto space-y-2 rounded-xl border border-border p-2 bg-muted/20">
+                <div className="max-h-48 overflow-y-auto space-y-2 rounded-xl border border-border p-2 bg-muted/20">
                   {existingOwners.length === 0 ? (
                     <div className="py-8 text-center space-y-2">
-                      <p className="text-xs text-muted-foreground">No matching clients found.</p>
-                      <Button variant="outline" size="sm" onClick={() => setMode("new-all")}>
-                        <UserPlus className="mr-1.5 size-3.5" /> Register as New Client Instead
-                      </Button>
+                      <p className="text-xs text-muted-foreground">No matching owner found. Enter a new owner below.</p>
                     </div>
                   ) : (
                     existingOwners.map((o) => (
@@ -640,7 +641,7 @@ export function OwnerPetRegistrationModal({
                             variant="ghost"
                             className="h-7 text-xs font-semibold group-hover:bg-primary group-hover:text-primary-foreground"
                           >
-                            Select →
+                            Use this owner
                           </Button>
                         </div>
                       </div>
@@ -648,7 +649,8 @@ export function OwnerPetRegistrationModal({
                   )}
                 </div>
               </div>
-            ) : (
+            )}
+            {(
               /* New Owner Form */
               <div className="space-y-4">
                 <div className="flex items-center justify-between rounded-xl bg-primary-soft/30 px-3.5 py-2.5 border border-primary/20">
@@ -663,6 +665,35 @@ export function OwnerPetRegistrationModal({
                     Assigned automatically on save
                   </span>
                 </div>
+
+                {dupOwners.length > 0 && dupDismissed !== dupKey && (
+                  <div role="alert" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+                    <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                      Possible duplicate: this client may already be registered
+                    </p>
+                    {dupOwners.map((o) => (
+                      <div key={o.ownerId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-card border border-border px-3 py-2 text-xs">
+                        <span>
+                          <strong>{o.name}</strong> · {o.phone} · {o.ownerId}
+                          {o.pets?.length ? ` · Pets: ${o.pets.map((p: any) => p.name).join(", ")}` : ""}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs font-semibold"
+                          onClick={() => {
+                            handleSelectOwner(o);
+                          }}
+                        >
+                          Use this existing client
+                        </Button>
+                      </div>
+                    ))}
+                    <Button size="sm" variant="ghost" className="h-7 text-xs font-semibold" onClick={() => setDupDismissed(dupKey)}>
+                      Continue anyway
+                    </Button>
+                  </div>
+                )}
 
                 {/* Section 1: Client & Contact */}
                 <div className="rounded-xl border border-border bg-card p-4 space-y-3.5 shadow-2xs">
@@ -967,14 +998,7 @@ export function OwnerPetRegistrationModal({
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setMode("new-pet-only")}
-                    className="text-xs"
-                  >
-                    Search Existing Client Instead
-                  </Button>
+                  <span className="text-[11px] text-muted-foreground">New owner: fill the details, then add the pet.</span>
                   <Button
                     size="sm"
                     onClick={handleProceedNewOwner}
@@ -984,7 +1008,7 @@ export function OwnerPetRegistrationModal({
                   </Button>
                 </div>
               </div>
-            )}
+            )}</>
           </div>
         )}
 
@@ -1181,6 +1205,13 @@ export function OwnerPetRegistrationModal({
                     className="text-sm h-9 font-medium"
                     autoFocus
                   />
+                  {mode === "new-pet-only" &&
+                    activePet.name.trim() &&
+                    (selectedOwner?.pets ?? []).some((p: any) => String(p.name || "").trim().toLowerCase() === activePet.name.trim().toLowerCase()) && (
+                      <p role="alert" className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                        {selectedOwner?.name} already has a pet named {activePet.name.trim()}. Continue only if this is a different pet.
+                      </p>
+                    )}
                 </div>
 
                 <div className="space-y-1">
@@ -1328,8 +1359,8 @@ export function OwnerPetRegistrationModal({
 
             {/* Bottom Actions */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
-              <Button variant="ghost" size="sm" onClick={() => setStep("owner")}>
-                ← Back to Owner Details
+              <Button variant="ghost" size="sm" onClick={() => { setSelectedOwner(null); setStep("owner"); }}>
+                ← Change owner
               </Button>
 
               <div className="flex items-center gap-2">

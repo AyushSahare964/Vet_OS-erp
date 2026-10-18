@@ -83,7 +83,6 @@ export function PetOwnerCrmHub() {
 
   // Modals state
   const [showRegModal, setShowRegModal] = useState(false);
-  const [regMode, setRegMode] = useState<"new-all" | "new-pet-only">("new-all");
   const [selectedOwnerForNewPet, setSelectedOwnerForNewPet] = useState<any | null>(null);
 
   // Patient profile drawer / modal
@@ -201,13 +200,11 @@ export function PetOwnerCrmHub() {
 
   const handleOpenNewPetAndOwner = () => {
     setSelectedOwnerForNewPet(null);
-    setRegMode("new-all");
     setShowRegModal(true);
   };
 
   const handleOpenNewPetOnly = (owner?: any) => {
     setSelectedOwnerForNewPet(owner || null);
-    setRegMode("new-pet-only");
     setShowRegModal(true);
   };
 
@@ -339,22 +336,13 @@ export function PetOwnerCrmHub() {
               <Download className="size-3.5" /> Export
             </Button>
 
-            {/* Quick Action Buttons */}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleOpenNewPetOnly()}
-              className="gap-1.5 text-xs font-bold h-9 border-primary/30 text-primary hover:bg-primary-soft"
-            >
-              <Plus className="size-3.5" /> + New Pet Only
-            </Button>
-
+            {/* One way to create a pet: the owner is chosen or entered inside the same form */}
             <Button
               size="sm"
               onClick={handleOpenNewPetAndOwner}
               className="gap-1.5 text-xs font-bold h-9 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
             >
-              <Plus className="size-4" /> + Register Pet / New Owner
+              <Plus className="size-4" /> Add New Pet
             </Button>
           </div>
         </div>
@@ -414,23 +402,6 @@ export function PetOwnerCrmHub() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleOpenNewPetOnly()}
-              className="text-xs h-8 gap-1 font-semibold"
-            >
-              <Plus className="size-3.5" /> + New Pet Only
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleOpenNewPetAndOwner}
-              className="text-xs h-8 gap-1 font-bold bg-primary text-primary-foreground"
-            >
-              <UserPlus className="size-3.5" /> + New Pet &amp; Owner
-            </Button>
-          </div>
         </div>
 
         {/* ── TAB 1: PATIENTS / PETS VIEW (Screenshot 1) ───────────────────────── */}
@@ -749,7 +720,6 @@ export function PetOwnerCrmHub() {
             setShowRegModal(false);
             setSelectedOwnerForNewPet(null);
           }}
-          initialMode={regMode}
           preselectedOwner={selectedOwnerForNewPet}
           onRegistered={() => {
             void loadData();

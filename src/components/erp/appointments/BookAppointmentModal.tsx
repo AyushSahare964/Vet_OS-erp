@@ -38,11 +38,13 @@ import {
 import { toast } from "sonner";
 import { listPetsWithOwnersFn, updatePetFn } from "@/lib/mongodb/serverFns/crm";
 import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
-import { createAppointmentFn, updateAppointmentFn } from "@/lib/mongodb/serverFns/appointments";
+import { Calendar as DayCalendar } from "@/components/ui/calendar";
+import { createAppointmentFn, updateAppointmentFn, listAppointmentsFn } from "@/lib/mongodb/serverFns/appointments";
 import { admitPatientFn } from "@/lib/mongodb/serverFns/clinical";
 import { OwnerPetRegistrationModal } from "@/components/erp/crm/OwnerPetRegistrationModal";
 import { Patient360Profile } from "@/components/erp/crm/Patient360Profile";
 import { cn } from "@/lib/utils";
+import { formatDisplayDate, todayIST } from "@/lib/utils/dateUtils";
 
 /* ── Constants ────────────────────────────────────────────────────────── */
 
@@ -169,6 +171,29 @@ export function BookAppointmentModal({
   const [token, setToken] = useState("");
   const [date, setDate] = useState("");
   const [timeSlot, setTimeSlot] = useState("11:30 AM");
+  // Slots already taken for the chosen date and doctor (cancelled / no-show bookings free their slot)
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  useEffect(() => {
+    if (!open || !date) return;
+    let live = true;
+    listAppointmentsFn()
+      .then((rows) => {
+        if (!live) return;
+        const mine = appointmentToEdit?.token != null ? String(appointmentToEdit.token) : "";
+        setBookedSlots(
+          (rows ?? [])
+            .filter((a: any) => String(a.appointment_date || a.date || "").slice(0, 10) === date)
+            .filter((a: any) => !doctor || String(a.doctor || "") === doctor)
+            .filter((a: any) => !["cancelled", "no-show", "no show"].includes(String(a.status || "").toLowerCase()))
+            .filter((a: any) => String(a.token) !== mine)
+            .map((a: any) => String(a.slot || a.time || "")),
+        );
+      })
+      .catch(() => live && setBookedSlots([]));
+    return () => {
+      live = false;
+    };
+  }, [open, date, doctor, appointmentToEdit?.token]);
   const [useManualTime, setUseManualTime] = useState(false);
   const [customTimeRaw, setCustomTimeRaw] = useState("");
   const [category, setCategory] = useState<string>("");
@@ -214,7 +239,7 @@ export function BookAppointmentModal({
     setWeightKg("");
     setTempC("");
     setToken(`A-${Math.floor(100 + Math.random() * 900)}`);
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(todayIST());
     setTimeSlot("11:30 AM");
     setUseManualTime(false);
     setCustomTimeRaw("");
@@ -242,7 +267,7 @@ export function BookAppointmentModal({
         setDate(
           appointmentToEdit.appointment_date ||
             appointmentToEdit.date ||
-            new Date().toISOString().slice(0, 10),
+            todayIST(),
         );
         setCategory(
           (appointmentToEdit.appointment_category || appointmentToEdit.category || "") as string,
@@ -314,7 +339,7 @@ export function BookAppointmentModal({
         void loadDoctors(appointmentToEdit.doctor);
       } else if (initialFollowUp) {
         setToken(`A-${Math.floor(100 + Math.random() * 900)}`);
-        setDate(initialFollowUp.nextVisitDate || new Date().toISOString().slice(0, 10));
+        setDate(initialFollowUp.nextVisitDate || todayIST());
         setCategory("call");
         setTimeSlot("10:30 AM");
         setUseManualTime(false);
@@ -534,13 +559,13 @@ export function BookAppointmentModal({
   /* ── Final Booking / Submit ─────────────────────────────────────────── */
   const handleBook = async () => {
     if (patientMode === "new" && !selectedPet) {
-      toast.error("Please complete the new patient registration form first");
+      toast.error("Please finish the Add New Pet form first");
       return;
     }
     const effectivePetName = (selectedPet?.name || searchPetQuery).trim();
 
     if (!selectedPet && !effectivePetName) {
-      toast.error("Please select an existing patient, or register a new one");
+      toast.error("Please select a pet, or use Add New Pet");
       return;
     }
     if (!selectedPet) {
@@ -548,7 +573,7 @@ export function BookAppointmentModal({
       // patient must come from the registration form so it gets one permanent
       // Patient ID and the complete Patient 360° record, not a half-filled one.
       toast.error(
-        `"${effectivePetName}" is not a registered patient. Use "Register New" to add them.`,
+        `"${effectivePetName}" is not a registered pet. Use "Add New Pet" to add it.`,
       );
       return;
     }
@@ -769,49 +794,14 @@ export function BookAppointmentModal({
                     1. Pet &amp; Parent Details
                   </h3>
                 </div>
-
-                {/* Mode Toggle: Existing Patient vs Register New */}
-                {!appointmentToEdit && (
-                  <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPatientMode("existing");
-                      }}
-                      className={cn(
-                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1",
-                        patientMode === "existing"
-                          ? "bg-card text-foreground shadow-2xs font-bold"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Search className="size-3" /> Existing Patient
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPatientMode("new");
-                        setSelectedPet(null);
-                        setShowFullRegistration(true);
-                      }}
-                      className={cn(
-                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1",
-                        patientMode === "new"
-                          ? "bg-primary text-primary-foreground shadow-2xs font-bold"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Plus className="size-3" /> Register New
-                    </button>
-                  </div>
-                )}
               </div>
 
-              {/* Mode A: Search & Select Existing Patient */}
+              {/* One patient search; "Add New Pet" opens the same Add New Pet flow */}
               {patientMode === "existing" && (
                 <div className="space-y-3">
                   {/* Search Bar */}
-                  <div className="relative">
+                  <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       placeholder="Search patient by name, UID (e.g. PET-0001), or owner phone..."
@@ -831,6 +821,20 @@ export function BookAppointmentModal({
                         ✕
                       </button>
                     )}
+                  </div>
+                  {!appointmentToEdit && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setPetName(searchPetQuery.trim());
+                        setShowFullRegistration(true);
+                      }}
+                      className="h-9 shrink-0 gap-1.5 text-xs font-bold"
+                    >
+                      <Plus className="size-3.5" /> Add New Pet
+                    </Button>
+                  )}
                   </div>
 
                   {/* Selected Patient Highlight Card */}
@@ -895,13 +899,12 @@ export function BookAppointmentModal({
                             <button
                               type="button"
                               onClick={() => {
-                                setPatientMode("new");
                                 setPetName(searchPetQuery.trim());
                                 setShowFullRegistration(true);
                               }}
                               className="text-primary font-bold hover:underline ml-1 inline-flex items-center gap-0.5"
                             >
-                              + Register &ldquo;{searchPetQuery.trim() || "new patient"}&rdquo;
+                              + Add New Pet &ldquo;{searchPetQuery.trim() || "new pet"}&rdquo;
                             </button>
                           </div>
                         ) : (
@@ -1240,64 +1243,77 @@ export function BookAppointmentModal({
                   />
                 </div>
 
-                {/* Appointment Date */}
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-foreground">Appointment Date</Label>
-                  <Input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="text-xs h-9 bg-background"
-                  />
-                </div>
-
-                {/* Time Slot */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-foreground">Time Slot</Label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUseManualTime((prev) => {
-                          const next = !prev;
-                          if (next) setCustomTimeRaw(to24h(timeSlot));
-                          return next;
-                        });
+                {/* Appointment date (calendar) and time slots for that date */}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-xs font-semibold text-foreground">Appointment Date and Time</Label>
+                  <div className="flex flex-wrap items-start gap-4 rounded-xl border border-border bg-background p-3">
+                    <DayCalendar
+                      mode="single"
+                      selected={date ? new Date(`${date}T00:00:00`) : undefined}
+                      onSelect={(d) => {
+                        if (d) setDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
                       }}
-                      className="text-[10px] font-semibold text-primary hover:underline"
-                    >
-                      {useManualTime ? "Use preset" : "Enter manually"}
-                    </button>
-                  </div>
-                  {useManualTime ? (
-                    <Input
-                      type="time"
-                      value={customTimeRaw}
-                      onChange={(e) => {
-                        setCustomTimeRaw(e.target.value);
-                        setTimeSlot(to12h(e.target.value));
-                      }}
-                      className="text-xs h-9 bg-background"
+                      className="rounded-md border border-border"
                     />
-                  ) : (
-                    <Select value={timeSlot} onValueChange={setTimeSlot}>
-                      <SelectTrigger className="text-xs h-9 bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="09:30 AM">09:30 AM (Morning OPD)</SelectItem>
-                        <SelectItem value="10:00 AM">10:00 AM</SelectItem>
-                        <SelectItem value="10:30 AM">10:30 AM</SelectItem>
-                        <SelectItem value="11:00 AM">11:00 AM</SelectItem>
-                        <SelectItem value="11:30 AM">11:30 AM</SelectItem>
-                        <SelectItem value="12:00 PM">12:00 PM</SelectItem>
-                        <SelectItem value="04:30 PM">04:30 PM (Evening OPD)</SelectItem>
-                        <SelectItem value="05:30 PM">05:30 PM</SelectItem>
-                        <SelectItem value="06:30 PM">06:30 PM</SelectItem>
-                        <SelectItem value="07:30 PM">07:30 PM</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
+                    <div className="min-w-[220px] flex-1 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground">
+                          Slots on {date ? formatDisplayDate(date) : "—"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUseManualTime((prev) => {
+                              const next = !prev;
+                              if (next) setCustomTimeRaw(to24h(timeSlot));
+                              return next;
+                            });
+                          }}
+                          className="text-[10px] font-semibold text-primary hover:underline"
+                        >
+                          {useManualTime ? "Use slots" : "Enter time manually"}
+                        </button>
+                      </div>
+                      {useManualTime ? (
+                        <Input
+                          type="time"
+                          value={customTimeRaw}
+                          onChange={(e) => {
+                            setCustomTimeRaw(e.target.value);
+                            setTimeSlot(to12h(e.target.value));
+                          }}
+                          className="text-xs h-9 bg-background"
+                        />
+                      ) : (
+                        <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Time slot">
+                          {PRESET_TIME_SLOTS.map((t) => {
+                            const taken = bookedSlots.includes(t);
+                            return (
+                              <button
+                                key={t}
+                                type="button"
+                                role="radio"
+                                aria-checked={timeSlot === t}
+                                disabled={taken}
+                                onClick={() => setTimeSlot(t)}
+                                title={taken ? "Already booked" : undefined}
+                                className={cn(
+                                  "rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-all",
+                                  timeSlot === t && !taken
+                                    ? "border-primary bg-primary text-primary-foreground shadow-xs"
+                                    : "border-border bg-card text-foreground hover:border-primary/50",
+                                  taken && "cursor-not-allowed border-dashed bg-muted text-muted-foreground line-through opacity-60",
+                                )}
+                              >
+                                {t}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">Crossed-out slots are already booked for {doctor || "this doctor"}.</p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Appointment Category — with Walk-in */}
@@ -1683,7 +1699,6 @@ export function BookAppointmentModal({
           setShowFullRegistration(false);
           setPatientMode("existing");
         }}
-        initialMode="new-all"
         registrationSource="Appointment"
         prefillOwnerName={ownerName.trim() || undefined}
         prefillPetName={(petName || searchPetQuery).trim() || undefined}

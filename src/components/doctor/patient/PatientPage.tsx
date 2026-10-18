@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, PawPrint, ShieldCheck, Syringe, User, Phone, MapPin, Mail, ShoppingCart } from "lucide-react";
+import { ArrowLeft, PawPrint, ShieldCheck, Stethoscope, Syringe, User, Phone, MapPin, Mail, ShoppingCart } from "lucide-react";
 import type { Pet, Section } from "@/data/doctor/types";
+import { useErp } from "@/lib/erp/store";
+import { VisitWorkspaceModal } from "@/components/erp/clinical/VisitWorkspaceModal";
 import { BrandChip } from "../shared/BrandChip";
 import { SECTION_ICON } from "../shared/sectionIcons";
 import { StatusCard } from "./StatusCard";
@@ -31,6 +34,55 @@ export function PatientPage({ pet, p360 }: PatientPageProps) {
   const ownerId = owner?.ownerId;
   const balance = Number(owner?.outstandingBalance || 0);
 
+  // Start Consultation: same behaviour as "Admit" on the Clinic Dashboard
+  // (ClinicDashboard.handleAdmitPetDirectly): reopen the pet's active visit if there is one,
+  // otherwise open the workspace with a new admitted-visit draft.
+  const { currentUser, role } = useErp();
+  const [workspaceVisit, setWorkspaceVisit] = useState<any | null>(null);
+  const activeDoctorName = currentUser?.fullName || role.person || "Attending Veterinarian";
+
+  const startConsultation = () => {
+    const p = p360?.pet;
+    if (!p) return;
+    const visits: any[] = Array.isArray(p360?.visits) ? p360.visits : [];
+    const existingActiveVisit = visits.find(
+      (v) =>
+        v.petId === p.petId &&
+        v.status !== "Paid" &&
+        v.status !== "Settled" &&
+        v.status !== "Completed"
+    );
+    if (existingActiveVisit) {
+      setWorkspaceVisit({ ...existingActiveVisit, doctorName: existingActiveVisit.doctorName || activeDoctorName });
+      return;
+    }
+    setWorkspaceVisit({
+      visitId: `V-${Math.floor(1000 + Math.random() * 9000)}`,
+      prescriptionNo: `RX-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: new Date().toISOString().slice(0, 10),
+      branch: "Main Clinic",
+      billType: "GST",
+      petId: p.petId,
+      petName: p.name,
+      species: p.species,
+      breed: p.breed,
+      ownerId: owner?.ownerId || p.ownerId,
+      ownerName: owner?.name || "Client",
+      ownerPhone: owner?.phone || "N/A",
+      doctorName: activeDoctorName,
+      vitals: {
+        weightKg: p.weightKg || 25,
+        tempC: 38.5,
+        complaint: p.allergies?.length ? `History: ${p.allergies.join(", ")}` : "OPD Consultation",
+      },
+      status: "Admitted",
+      items: [],
+      subtotal: 0,
+      totalAmount: 0,
+      amountPaid: 0,
+    });
+  };
+
   return (
     <>
       <Link to="/" className="p-back home-btn">
@@ -46,7 +98,30 @@ export function PatientPage({ pet, p360 }: PatientPageProps) {
             <div className="p-file">
               <BrandChip /> {isWalkIn ? "Walk-in Counter File" : "Patient File"} · <span className="font-mono text-xs opacity-75">{pet.id}</span>
             </div>
-            <h2>{pet.name}</h2>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+              <h2>{pet.name}</h2>
+              {!isWalkIn && p360?.pet && (
+                <button
+                  type="button"
+                  onClick={startConsultation}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    height: "40px",
+                    padding: "0 18px",
+                    borderRadius: "999px",
+                    border: "none",
+                    background: "var(--brand-deep)",
+                    color: "#fff",
+                    font: "700 14px var(--font-display)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Stethoscope size={17} aria-hidden="true" /> Start Consultation
+                </button>
+              )}
+            </div>
             <p>
               {pet.breed} · {pet.age} · {pet.sex}
             </p>
@@ -221,6 +296,16 @@ export function PatientPage({ pet, p360 }: PatientPageProps) {
           })}
         </div>
       </section>
+      {workspaceVisit && (
+        <VisitWorkspaceModal
+          open
+          onClose={() => setWorkspaceVisit(null)}
+          visit={workspaceVisit}
+          onVisitFinalized={(updated) => {
+            if (updated) setWorkspaceVisit(updated);
+          }}
+        />
+      )}
     </>
   );
 }
