@@ -168,7 +168,7 @@ export const getPatient360Fn = createServerFn({ method: "GET" })
         ClinicalVisit.find({
           $or: [
             { petId: pet.petId },
-            ...(pet.ownerId ? [{ ownerId: pet.ownerId }] : []),
+            ...(pet.ownerId && !pet._id ? [{ ownerId: pet.ownerId }] : []), // owner-wide only for synthetic profiles, never a real pet
           ],
         })
           .sort({ date: -1, createdAt: -1 })

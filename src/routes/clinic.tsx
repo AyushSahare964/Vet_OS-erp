@@ -5,11 +5,11 @@ import { ClinicDashboard } from "@/components/clinic/ClinicDashboard";
 export const Route = createFileRoute("/clinic")({
   head: () => ({
     meta: [
-      { title: "Clinic Dashboard — VetOS ERP" },
+      { title: "Clinic Dashboard — VetechIQ" },
       {
         name: "description",
         content:
-          "VetOS ERP clinical operations: appointments, OPD consultation, live inventory Rx, billing, accounting and HRMS in one console.",
+          "VetechIQ clinical operations: appointments, OPD consultation, live inventory Rx, billing, accounting and HRMS in one console.",
       },
     ],
   }),

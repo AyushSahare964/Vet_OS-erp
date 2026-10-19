@@ -288,7 +288,7 @@ function ResetPasswordPage() {
       {/* Security footnote */}
       <p className="mt-6 text-center text-[0.68rem] text-muted-foreground flex items-center gap-1.5">
         <ShieldCheck className="size-3.5 text-slate-400" />
-        <span>Protected by VetOS ERP Clinic Security & End-to-End Encryption</span>
+        <span>Protected by VetechIQ Clinic Security & End-to-End Encryption</span>
       </p>
     </div>
   );

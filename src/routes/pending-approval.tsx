@@ -25,7 +25,7 @@ import { useErp } from "@/lib/erp/store";
 export const Route = createFileRoute("/pending-approval")({
   head: () => ({
     meta: [
-      { title: "Registration Pending Approval — VetOS Cloud" },
+      { title: "Registration Pending Approval — VetechIQ" },
       {
         name: "description",
         content: "Staff account authorization preview and clinic approval status.",

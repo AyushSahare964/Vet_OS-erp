@@ -42,6 +42,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { STATE_CODES } from "@/lib/finance/stateCodes";
 import { todayIST } from "@/lib/utils/dateUtils";
+import { SplitPaymentInput, type PaymentAccount, type PaymentLine, type PaymentMode } from "@/components/erp/shared/SplitPaymentInput";
+import { listPaymentAccountsFn } from "@/lib/mongodb/serverFns/masters";
 import { roundMoney } from "@/lib/utils/moneyUtils";
 import { computeDocument, type TaxDocInput } from "@/lib/finance/taxEngine";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
@@ -88,6 +90,7 @@ const CLINIC_STAFF_OPTIONS = [
 ];
 
 const ITEM_CATEGORIES = [
+  { id: "RETAIL", label: "Food, Supplement, Accessories, Grooming" },
   { id: "ALL", label: "All Categories" },
   { id: "MEDICINE", label: "Medicines & Rx" },
   { id: "INJECTION", label: "Injections & Vaccines" },
@@ -136,7 +139,8 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
   // ── 2. Inventory Items & Category Selection ──
   const [inventoryItems, setInventoryItems] = useState<InventoryItemRow[]>([]);
-  const [itemCategory, setItemCategory] = useState<string>("ALL");
+  // Invoices are for items that need no consultation, so browsing starts on Food / Supplement / Accessories / Grooming
+  const [itemCategory, setItemCategory] = useState<string>("RETAIL");
   // The inventory item the current entry row is linked to (null = free-typed)
   const [selectedItem, setSelectedItem] = useState<InventoryItemRow | null>(null);
 
@@ -164,6 +168,23 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [paymentMode, setPaymentMode] = useState<"Cash" | "Cheque" | "Card" | "Mobile Wallet" | "Demand Draft" | "Bank Transfer">("Cash");
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "UNPAID">("FULL");
   const [paidAmount, setPaidAmount] = useState<number>(0);
+  // Split payment: one line per mode (e.g. Cash 900 + UPI 20); the lines must add up to "Amount received"
+  const [payLines, setPayLines] = useState<PaymentLine[]>([]);
+  const [payAccounts, setPayAccounts] = useState<PaymentAccount[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    listPaymentAccountsFn()
+      .then((a: any[]) => setPayAccounts(a && a.length ? a : []))
+      .catch(() => setPayAccounts([]));
+    setPayLines([]);
+  }, [open]);
+  // A clinic with no payment accounts configured still gets Cash and Bank lines
+  const splitAccounts: PaymentAccount[] = payAccounts.length
+    ? payAccounts
+    : [
+        { _id: "cash", name: "Cash in Hand", type: "CASH", isDefault: true },
+        { _id: "bank", name: "Bank", type: "BANK", isDefault: true },
+      ];
   const [deliveryTerms, setDeliveryTerms] = useState("");
   const [remarksPrivate, setRemarksPrivate] = useState("");
 
@@ -295,6 +316,14 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
     if (itemCategory !== "ALL") {
       list = list.filter((i) => {
+        if (itemCategory === "RETAIL") {
+          const sub = `${(i as any).subGroup ?? ""} ${i.name ?? ""}`.toLowerCase();
+          return (
+            i.productType === "FOOD" ||
+            i.productType === "ACCESSORY" ||
+            /supplement|shampoo|groom/.test(sub)
+          );
+        }
         if (itemCategory === "MEDICINE") {
           return i.productType === "MEDICINE" || i.category?.toLowerCase().includes("med");
         }
@@ -646,6 +675,17 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
           ? "Cheque"
           : "Cash";
 
+      const toServerMode = (m: PaymentMode) =>
+        m === "CASH" ? "Cash" : m === "UPI" ? "UPI" : m === "CARD" ? "Card" : m === "CHEQUE" ? "Cheque" : "NetBanking";
+      const usedLines = paymentType === "UNPAID" ? [] : payLines.filter((l) => (Number(l.amount) || 0) > 0);
+      const linesTotal = roundMoney(usedLines.reduce((t, l) => t + (Number(l.amount) || 0), 0));
+      if (usedLines.length > 0 && Math.abs(linesTotal - roundMoney(effectivePaidAmount)) > 0.01) {
+        toast.error(`Payment lines add up to ₹${linesTotal.toFixed(2)} but Amount received is ₹${roundMoney(effectivePaidAmount).toFixed(2)}.`);
+        setSaving(false);
+        return;
+      }
+      const firstMode = usedLines[0] ? toServerMode(usedLines[0].mode) : null;
+
       const effectiveDoctorName = soldBy === "Other" ? customSoldBy.trim() || "Staff" : soldBy;
 
       const paymentStatus: "Full" | "Partial" | "Unpaid" =
@@ -681,7 +721,11 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
           const discAmt = (gross * discPct) / 100;
           const taxable = Math.max(0, gross - discAmt);
           return {
-            lineType: "Pharmacy" as const,
+            // food and accessories are billed as such, not as pharmacy
+            lineType: ((): "Pharmacy" | "Food" | "Accessory" => {
+              const t = inventoryItems.find((x) => x.itemCode === l.itemCode)?.productType;
+              return t === "FOOD" ? "Food" : t === "ACCESSORY" ? "Accessory" : "Pharmacy";
+            })(),
             name: l.itemName + (l.itemDescription ? ` (${l.itemDescription})` : "") + (l.baseLabel ? ` [${l.uom}]` : ""),
             ...(l.itemCode ? { itemCode: l.itemCode, unit: l.uom, quantityBase: l.quantityBase } : {}),
             quantity: l.quantity > 0 ? l.quantity : 1,
@@ -704,7 +748,16 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         amountPaid: effectivePaidAmount,
         pendingAmount: balanceDue,
         paymentStatus,
-        paymentMode: mappedPaymentMode,
+        paymentMode: (paymentType === "UNPAID" ? mappedPaymentMode : (firstMode ?? mappedPaymentMode)) as typeof mappedPaymentMode,
+        ...(usedLines.length > 0
+          ? {
+              paymentSplits: usedLines.map((l) => ({
+                mode: toServerMode(l.mode),
+                amount: roundMoney(Number(l.amount) || 0),
+                ...(l.referenceNo ? { trxRef: l.referenceNo } : {}),
+              })),
+            }
+          : {}),
         trxRef: hasInvoiceRef ? invoiceRefNo : undefined,
       };
 
@@ -1003,7 +1056,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                       variant="outline"
                       size="icon"
                       onClick={() => setShowRegisterPetModal(true)}
-                      title="Register New Pet & Owner (Client Intake)"
+                      title="Add New Pet"
                       className="size-8 shrink-0 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50"
                     >
                       <Plus className="size-3.5" />
@@ -1063,9 +1116,12 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 <Label className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
                   Inventory Category:
                 </Label>
+                <span className="max-w-[220px] text-[10px] leading-tight italic text-muted-foreground" title="Consultation, medicines and injections are billed from the consultation.">
+                  Consultation, medicines and injections are billed from the consultation.
+                </span>
                 <div className="flex items-center gap-1.5">
                   <Select value={itemCategory} onValueChange={setItemCategory}>
-                    <SelectTrigger className="h-7 text-xs bg-background w-40 font-medium">
+                    <SelectTrigger className="h-7 text-xs bg-background w-56 font-medium">
                       <SelectValue placeholder="Select Category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1593,11 +1649,11 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
               <fieldset className="rounded-xl border border-border bg-card/60 p-3 space-y-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <legend className="px-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Payment Details
+                    Payment status
                   </legend>
 
                   {/* Payment Type Selection: Full Payment / Partial Payment / Credit Unpaid */}
-                  <div className="inline-flex rounded-lg bg-muted p-0.5 text-[11px] font-semibold">
+                  <div role="radiogroup" aria-label="Payment status: Paid in full, Partly paid or Unpaid" className="inline-flex rounded-lg bg-muted p-0.5 text-[11px] font-semibold">
                     <button
                       type="button"
                       onClick={() => {
@@ -1611,7 +1667,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      Full Payment
+                      Paid in full
                     </button>
                     <button
                       type="button"
@@ -1626,7 +1682,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      Partial Payment
+                      Partly paid
                     </button>
                     <button
                       type="button"
@@ -1641,27 +1697,9 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      Credit / Unpaid
+                      Unpaid
                     </button>
                   </div>
-                </div>
-
-                {/* Radio Payment Mode */}
-                <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs pt-1">
-                  {(["Cash", "Cheque", "Card", "Mobile Wallet", "Demand Draft", "Bank Transfer"] as const).map(
-                    (m) => (
-                      <label key={m} className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="paymentMode"
-                          checked={paymentMode === m}
-                          onChange={() => setPaymentMode(m)}
-                          className="size-3.5 text-primary"
-                        />
-                        <span>{m}</span>
-                      </label>
-                    )
-                  )}
                 </div>
 
                 {/* Amount Paid Now Input & Partial Payment Information */}
@@ -1721,6 +1759,17 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                       </div>
                     )}
                   </div>
+
+                  {paymentType !== "UNPAID" && effectivePaidAmount > 0 && (
+                    <SplitPaymentInput
+                      total={roundMoney(effectivePaidAmount)}
+                      lines={payLines}
+                      onChange={setPayLines}
+                      accounts={splitAccounts}
+                      requireExactMatch
+                      defaultMode="UPI"
+                    />
+                  )}
 
                   {/* Partial Payment Notice / Breakdown */}
                   {paymentType === "PARTIAL" && balanceDue > 0 && (

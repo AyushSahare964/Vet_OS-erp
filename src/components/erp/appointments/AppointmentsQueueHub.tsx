@@ -447,7 +447,7 @@ export function AppointmentsQueueHub() {
                 setSelectedFollowUp(null);
                 setShowBookModal(true);
               }}
-              className="gap-1.5 text-xs font-bold h-9 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs cursor-pointer"
+              className="order-first gap-2 px-5 text-sm font-bold h-10 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md cursor-pointer"
             >
               <Plus className="size-4" /> Book Appointment
             </Button>

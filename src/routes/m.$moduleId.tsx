@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -28,6 +28,8 @@ import { ClinicalReportsHub } from "@/components/erp/reports/ClinicalReportsHub"
 import { IdentityAccessHub } from "@/components/erp/identity/IdentityAccessHub";
 import { PlatformTenantsHub } from "@/components/erp/platform/PlatformTenantsHub";
 import { KpiCard } from "@/components/erp/KpiCard";
+import { HubPage, hubItemFor } from "@/components/erp/hubs/HubPage";
+import { MENU, MODULE_ALIASES } from "@/components/doctor/layout/menuConfig";
 
 
 
@@ -62,10 +64,23 @@ import {
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/m/$moduleId")({
+  // Old URLs keep working: every alias in menuConfig.ts redirects to its new hub and tab (query params are kept).
+  beforeLoad: ({ params, search }) => {
+    const a = MODULE_ALIASES[params.moduleId];
+    if (a) {
+      throw redirect({
+        to: "/m/$moduleId",
+        params: { moduleId: a.moduleId },
+        search: { ...(search as object), ...(a.tab ? { tab: a.tab } : {}), ...(a.sub ? { sub: a.sub } : {}) } as never,
+        replace: true,
+      });
+    }
+  },
   head: ({ params }) => {
     const ws = getWorkspace(params.moduleId);
-    const title = ws ? `${ws.title} — VetOS ERP` : "Module — VetOS ERP";
-    const description = ws?.subtitle ?? "VetOS ERP veterinary clinic management module.";
+    const hub = MENU.find((m) => m.to.kind === "module" && m.to.moduleId === params.moduleId);
+    const title = hub ? `${hub.label} — VetechIQ` : ws ? `${ws.title} — VetechIQ` : "Module — VetechIQ";
+    const description = ws?.subtitle ?? "VetechIQ veterinary clinic management module.";
     return {
       meta: [
         { title },
@@ -110,6 +125,11 @@ function ModulePage() {
       return matchQ && matchS;
     });
   }, [rows, query, filter, ws]);
+
+  // ── New hub pages (Consultation, Vaccination, Boarding+Food, Communication, Business, Inventory+Purchases,
+  //    Accounting, Hospital, Staff): one generic page driven by menuConfig.ts ──
+  const hub = hubItemFor(moduleId);
+  if (hub) return <HubPage item={hub} />;
 
   // ── Inventory module & sub-modules → dedicated InventoryHub with sub-module tabs ──
   if (

@@ -6,7 +6,7 @@ import { InventoryProvider } from "@/components/erp/inventory/useInventoryStore"
 import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
 // One-Page Dashboard Component & Right Rail
-import { BillingDeskDashboard } from "./BillingDeskDashboard";
+import { BillingDeskDashboard, type RegisterTab } from "./BillingDeskDashboard";
 import { RightRail } from "./RightRail";
 
 // Modals
@@ -23,9 +23,12 @@ import { SupplierLedgerModal } from "@/components/erp/accounting/SupplierLedgerM
 import { type SupplierMasterRow } from "@/lib/mongodb/serverFns/masters";
 import { DailySummaryModal } from "./DailySummaryModal";
 import { StockSummaryModal } from "./StockSummaryModal";
-import { PurchaseOrderModal } from "./PurchaseOrderModal";
+import { PurchaseOrderModal, type ClinicPurchaseOrderRecord } from "./PurchaseOrderModal";
+import { PurchaseOrderReceiveModal, patchPurchaseOrder, type ReceivedLine } from "./PurchaseOrderReceiveModal";
+import { type BillPrefill } from "@/components/erp/accounting/SupplierBillFormModal";
+import { daysBetweenISO } from "@/lib/utils/dateUtils";
 
-function PatientBillingHubInner() {
+function PatientBillingHubInner({ initialRegisterTab }: { initialRegisterTab?: RegisterTab }) {
   const CLINIC_CONFIG = useClinicBranding();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +38,10 @@ function PatientBillingHubInner() {
   const [showQuotationModal, setShowQuotationModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showPurchaseBillModal, setShowPurchaseBillModal] = useState(false);
+  // Receive / check a purchase order, then convert the checked lines to a purchase bill
+  const [receivePO, setReceivePO] = useState<ClinicPurchaseOrderRecord | null>(null);
+  const [billPrefill, setBillPrefill] = useState<BillPrefill | null>(null);
+  const [billPO, setBillPO] = useState<{ po: ClinicPurchaseOrderRecord; lines: ReceivedLine[] } | null>(null);
   const [purchasesRefreshKey, setPurchasesRefreshKey] = useState(0);
   const [suppliersRefreshKey, setSuppliersRefreshKey] = useState(0);
   const [clientsRefreshKey, setClientsRefreshKey] = useState(0);
@@ -140,10 +147,12 @@ function PatientBillingHubInner() {
             purchasesRefreshKey={purchasesRefreshKey}
             suppliersRefreshKey={suppliersRefreshKey}
             clientsRefreshKey={clientsRefreshKey}
+            {...(initialRegisterTab ? { initialRegisterTab } : {})}
             onNewInvoice={() => setShowNewInvoiceModal(true)}
             onNewQuotation={() => setShowQuotationModal(true)}
             onAddPurchase={() => setShowPurchaseBillModal(true)}
             onAddPurchaseOrder={() => setShowPurchaseOrderModal(true)}
+            onReceivePurchaseOrder={(po) => setReceivePO(po)}
             onAddExpense={() => setShowExpenseModal(true)}
             onPaymentIn={(invoiceNo) => {
               setPayInvoiceNo(invoiceNo);
@@ -226,8 +235,43 @@ function PatientBillingHubInner() {
         {/* ── 5. Add Supplier Purchase Bill Modal (Matches Image 2) ── */}
         <SupplierBillFormModal
           open={showPurchaseBillModal}
-          onClose={() => setShowPurchaseBillModal(false)}
+          onClose={() => {
+            setShowPurchaseBillModal(false);
+            setBillPrefill(null);
+            setBillPO(null);
+          }}
           onSuccess={() => setPurchasesRefreshKey((k) => k + 1)}
+          prefill={billPrefill ?? undefined}
+          onSaved={(billNo) => {
+            // Keep the PO and link it to the bill; mark it received only when every line arrived in full
+            if (!billPO) return;
+            const { po, lines } = billPO;
+            const full = po.items.every((it) => {
+              const r = po.receipts?.[it.id];
+              return r?.checked && r.receivedQty - r.damagedQty >= it.quantity;
+            });
+            patchPurchaseOrder(po.id, { linkedBillNo: billNo, status: full ? "RECEIVED" : "PENDING_DELIVERY" });
+            setPurchasesRefreshKey((k) => k + 1);
+            void lines;
+          }}
+        />
+
+        <PurchaseOrderReceiveModal
+          open={!!receivePO}
+          po={receivePO}
+          onClose={() => setReceivePO(null)}
+          onConvert={(po, lines, grnDate) => {
+            const days = po.poDate ? Math.max(0, daysBetweenISO(po.poDate.slice(0, 10), grnDate)) : null;
+            setBillPO({ po, lines });
+            setBillPrefill({
+              supplierId: po.supplierId,
+              poNumber: po.poNumber,
+              remarks: `Against PO ${po.poNumber}. Ordered ${po.poDate}, received ${grnDate}${days !== null ? ` (delivery time ${days} day${days === 1 ? "" : "s"})` : ""}.`,
+              lines,
+            });
+            setReceivePO(null);
+            setShowPurchaseBillModal(true);
+          }}
         />
 
         {/* ── 6. Add Clinic Expense Modal ── */}
@@ -306,10 +350,10 @@ function PatientBillingHubInner() {
   );
 }
 
-export function PatientBillingHub() {
+export function PatientBillingHub({ initialRegisterTab }: { initialRegisterTab?: RegisterTab } = {}) {
   return (
     <InventoryProvider>
-      <PatientBillingHubInner />
+      <PatientBillingHubInner {...(initialRegisterTab ? { initialRegisterTab } : {})} />
     </InventoryProvider>
   );
 }

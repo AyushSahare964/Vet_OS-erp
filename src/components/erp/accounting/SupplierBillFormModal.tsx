@@ -4,6 +4,7 @@ import {
   FileSpreadsheet,
   Plus,
   Trash2,
+  Pencil,
   Bell,
   Save,
   ChevronDown,
@@ -20,7 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { todayIST } from "@/lib/utils/dateUtils";
-import { listSuppliersFn, type SupplierMasterRow } from "@/lib/mongodb/serverFns/masters";
+import { listSuppliersFn, listPaymentAccountsFn, type SupplierMasterRow } from "@/lib/mongodb/serverFns/masters";
+import { SplitPaymentInput, type PaymentAccount, type PaymentLine } from "@/components/erp/shared/SplitPaymentInput";
 import { getItemsFn, type InventoryItemRow } from "@/lib/mongodb/serverFns/inventory";
 import { createPurchaseBillFn } from "@/lib/mongodb/serverFns/purchaseBills";
 import { BillingReminderModal } from "@/components/erp/billing/BillingReminderModal";
@@ -36,6 +38,17 @@ interface SupplierBillFormModalProps {
   initialSupplierId?: string;
   /** Pre-fills the particulars row with this item (used right after creating an item) */
   initialItem?: InventoryItemRow | undefined;
+  /** Pre-fills supplier, PO number and the received lines (Convert to Purchase Bill from a checked Purchase Order). */
+  prefill?: BillPrefill | undefined;
+  /** Called with the supplier bill number after the bill is saved. */
+  onSaved?: ((billNumber: string) => void) | undefined;
+}
+
+export interface BillPrefill {
+  supplierId: string;
+  poNumber: string;
+  remarks?: string | undefined;
+  lines: Array<{ productName: string; itemCode?: string | undefined; quantity: number; unit?: string | undefined; gstPct?: number | undefined; hsnCode?: string | undefined; purchasePrice?: number | undefined; mrp?: number | undefined }>;
 }
 
 interface PurchaseLine {
@@ -57,13 +70,18 @@ interface PurchaseLine {
   expiry?: string | undefined;
   mrp: number;
   freeQty: number;
+  /** Disc 1 % (applied first) */
   discountPct: number;
+  /** Disc 2 % (applied on the amount left after Disc 1) */
+  discount2Pct?: number;
 }
 
 const GST_RATES = [0, 5, 12, 18, 28];
 // Clinic's home state: same-state purchase = CGST+SGST, otherwise IGST.
 const CLINIC_STATE = "Maharashtra";
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const combinedDiscPct = (l: { discountPct: number; discount2Pct?: number | undefined }) =>
+  Math.round((1 - (1 - (l.discountPct || 0) / 100) * (1 - (l.discount2Pct || 0) / 100)) * 1e6) / 1e4;
 
 const COMMON_UOMS = [
   "PCS",
@@ -132,6 +150,8 @@ export function SupplierBillFormModal({
   onSuccess,
   initialSupplierId,
   initialItem,
+  prefill,
+  onSaved,
 }: SupplierBillFormModalProps) {
   const [suppliers, setSuppliers] = useState<SupplierMasterRow[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItemRow[]>([]);
@@ -158,6 +178,9 @@ export function SupplierBillFormModal({
   const [mrp, setMrp] = useState<number>(0);
   const [freeQty, setFreeQty] = useState<number>(0);
   const [discountPct, setDiscountPct] = useState<number>(0);
+  const [discount2Pct, setDiscount2Pct] = useState<number>(0);
+  /** Index of the line being edited (the entry row holds its values until Update). */
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const isGst = purchaseType === "GST";
   const isInterState = placeOfSupply !== CLINIC_STATE;
 
@@ -174,6 +197,19 @@ export function SupplierBillFormModal({
   const [receiveStock, setReceiveStock] = useState(false);
   const [shippingCost, setShippingCost] = useState<number>(0);
   const [remarks, setRemarks] = useState("");
+
+  // Payment right away (optional): status + one line per mode + date
+  const [payStatus, setPayStatus] = useState<"UNPAID" | "PARTIAL" | "PAID">("UNPAID");
+  const [payNow, setPayNow] = useState<number>(0);
+  const [payLines, setPayLines] = useState<PaymentLine[]>([]);
+  const [payDate, setPayDate] = useState(todayIST());
+  const [payAccounts, setPayAccounts] = useState<PaymentAccount[]>([]);
+  const splitAccounts: PaymentAccount[] = payAccounts.length
+    ? payAccounts
+    : [
+        { _id: "cash", name: "Cash in Hand", type: "CASH", isDefault: true },
+        { _id: "bank", name: "Bank", type: "BANK", isDefault: true },
+      ];
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showNewSupplierModal, setShowNewSupplierModal] = useState(false);
   const [showNewItemModal, setShowNewItemModal] = useState(false);
@@ -228,17 +264,57 @@ export function SupplierBillFormModal({
     setReceiveStock(false);
     setFreeQty(0);
     setDiscountPct(0);
+    setDiscount2Pct(0);
+    setEditingIdx(null);
+
+    setPayStatus("UNPAID");
+    setPayNow(0);
+    setPayLines([]);
+    setPayDate(todayIST());
+    listPaymentAccountsFn().then((a: any[]) => setPayAccounts(a || [])).catch(() => setPayAccounts([]));
 
     Promise.all([listSuppliersFn(), getItemsFn({ data: { status: "Active" } })])
       .then(([sups, invItems]) => {
         setSuppliers(sups || []);
         setInventoryItems(invItems || []);
         if (initialItem) handleSelectProduct(initialItem);
+        if (prefill) {
+          // Received lines from a checked Purchase Order. Rate and MRP come from the product's previous purchase
+          // and stay editable; Bill No., Batch and Expiry are entered by staff (pencil on each row).
+          setSupplierId(prefill.supplierId);
+          setPoNumber(prefill.poNumber);
+          setReceiveStock(true);
+          if (prefill.remarks) setRemarks(prefill.remarks);
+          setLines(
+            prefill.lines.map((l, i) => {
+              const it = (invItems || []).find((x) => x.itemCode && x.itemCode === l.itemCode) as any;
+              const price = l.purchasePrice ?? it?.lastPurchaseRate ?? it?.defaultPurchasePrice ?? 0;
+              const gst = l.gstPct ?? it?.gstRate ?? 0;
+              return {
+                id: `line_po_${Date.now()}_${i}`,
+                sNo: i + 1,
+                serialNo: `SR-${String(i + 1).padStart(3, "0")}`,
+                productName: l.productName,
+                quantity: l.quantity,
+                unit: l.unit || it?.purchaseUom || it?.unit || "PCS",
+                purchasePrice: price,
+                amount: Math.max(0, Math.round(l.quantity * price * 100) / 100),
+                gstPct: gst,
+                itemCode: l.itemCode,
+                hsnCode: l.hsnCode || it?.hsnCode || undefined,
+                mrp: l.mrp ?? it?.mrp ?? 0,
+                freeQty: 0,
+                discountPct: 0,
+                discount2Pct: 0,
+              } as PurchaseLine;
+            }),
+          );
+        }
       })
       .catch((err) => {
         console.error("Failed to load bill masters:", err);
       });
-  }, [open]);
+  }, [open, prefill]);
 
   // Click outside listener for custom dropdown
   useEffect(() => {
@@ -273,8 +349,9 @@ export function SupplierBillFormModal({
   const calculatedParticularsAmount = useMemo(() => {
     const qty = quantity || 0;
     const price = purchasePrice || 0;
-    return Math.max(0, r2(qty * price * (1 - (discountPct || 0) / 100)));
-  }, [quantity, purchasePrice, discountPct]);
+    // Disc 1 then Disc 2, one after the other (not added together)
+    return Math.max(0, r2(qty * price * (1 - (discountPct || 0) / 100) * (1 - (discount2Pct || 0) / 100)));
+  }, [quantity, purchasePrice, discountPct, discount2Pct]);
 
   const effectiveGstPct = isGst ? (gstPct ?? 0) : 0;
   const calculatedParticularsTax = r2((calculatedParticularsAmount * effectiveGstPct) / 100);
@@ -293,7 +370,10 @@ export function SupplierBillFormModal({
   const igstTotal = isInterState ? gstTotal : 0;
 
   const shipping = addShipping ? Math.max(0, shippingCost || 0) : 0;
-  const totalAmount = r2(subTotal + gstTotal + shipping);
+  const totalBeforeRound = r2(subTotal + gstTotal + shipping);
+  // Whole-rupee total with an explicit Round Off line
+  const totalAmount = Math.round(totalBeforeRound);
+  const roundOffAmt = r2(totalAmount - totalBeforeRound);
 
   // Select an item from combobox
   const handleSelectProduct = (item: InventoryItemRow) => {
@@ -359,11 +439,18 @@ export function SupplierBillFormModal({
       mrp: mrp || 0,
       freeQty: freeQty || 0,
       discountPct: discountPct || 0,
+      discount2Pct: discount2Pct || 0,
       baseLabel: baseLabelFor(quantity || 1, uom || "PCS"),
     };
 
-    setLines((prev) => [...prev, newLine]);
-    toast.success(`Added ${newLine.productName} to Purchase Bill`);
+    if (editingIdx !== null) {
+      setLines((prev) => prev.map((l, i) => (i === editingIdx ? { ...newLine, id: l.id, sNo: l.sNo, serialNo: l.serialNo } : l)));
+      toast.success(`Updated ${newLine.productName}`);
+    } else {
+      setLines((prev) => [...prev, newLine]);
+      toast.success(`Added ${newLine.productName} to Purchase Bill`);
+    }
+    setEditingIdx(null);
 
     // Reset entry row for fast next entry
     setProductName("");
@@ -378,10 +465,32 @@ export function SupplierBillFormModal({
     setExpiry("");
     setFreeQty(0);
     setDiscountPct(0);
+    setDiscount2Pct(0);
+  };
+
+  // Load a line back into the entry row so it can be changed without deleting and re-adding
+  const handleEditLine = (idx: number) => {
+    const l = lines[idx];
+    if (!l) return;
+    setSelectedItem(inventoryItems.find((it) => it.itemCode === l.itemCode) ?? null);
+    setProductName(l.productName);
+    setUom(l.unit);
+    setQuantity(l.quantity);
+    setPurchasePrice(l.purchasePrice);
+    setMrp(l.mrp);
+    setHsnCode(l.hsnCode ?? "");
+    setGstPct(l.gstPct);
+    setBatchNo(l.batchNo ?? "");
+    setExpiry(l.expiry ?? "");
+    setFreeQty(l.freeQty);
+    setDiscountPct(l.discountPct);
+    setDiscount2Pct(l.discount2Pct ?? 0);
+    setEditingIdx(idx);
   };
 
   // Remove line
   const handleRemoveLine = (idx: number) => {
+    setEditingIdx(null);
     setLines((prev) => {
       const filtered = prev.filter((_, i) => i !== idx);
       return filtered.map((l, i) => ({ ...l, sNo: i + 1 }));
@@ -413,6 +522,23 @@ export function SupplierBillFormModal({
       }
     }
 
+    const usedPay = payStatus === "UNPAID" ? [] : payLines.filter((l) => (Number(l.amount) || 0) > 0);
+    const paidTotal = r2(usedPay.reduce((t, l) => t + (Number(l.amount) || 0), 0));
+    if (payStatus !== "UNPAID") {
+      if (paidTotal <= 0) {
+        toast.error("Enter the payment amount, or choose Unpaid.");
+        return;
+      }
+      if (payStatus === "PAID" && Math.abs(paidTotal - totalAmount) > 0.01) {
+        toast.error(`Payment lines add up to ₹${paidTotal.toFixed(2)} but the bill total is ₹${totalAmount.toFixed(2)}.`);
+        return;
+      }
+      if (payStatus === "PARTIAL" && paidTotal >= totalAmount) {
+        toast.error("For a partial payment the amount must be less than the bill total.");
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const res = await createPurchaseBillFn({
@@ -434,9 +560,23 @@ export function SupplierBillFormModal({
           otherCharges: shipping,
           shippingAmount: shipping,
           receiveStock: postStock,
-          roundOff: 0,
+          roundOff: roundOffAmt,
           grandTotal: totalAmount,
           remarks: remarks.trim() || undefined,
+          ...(usedPay.length > 0
+            ? {
+                paymentNow: true,
+                paymentDate: payDate || undefined,
+                paymentLines: usedPay.map((l) => ({
+                  mode: l.mode,
+                  accountId: l.accountId,
+                  accountName: splitAccounts.find((a) => a._id === l.accountId)?.name ?? (l.mode === "CASH" ? "Cash in Hand" : "Bank"),
+                  amount: r2(Number(l.amount) || 0),
+                  ...(l.referenceNo ? { referenceNo: l.referenceNo } : {}),
+                  ...(l.chequeDate ? { chequeDate: l.chequeDate } : {}),
+                })),
+              }
+            : {}),
           items: lines.map((l, idx) => ({
             lineNo: idx + 1,
             itemType: l.itemCode ? ("INVENTORY" as const) : ("NON_INVENTORY" as const),
@@ -450,7 +590,8 @@ export function SupplierBillFormModal({
             unit: l.unit,
             purchaseRate: l.purchasePrice,
             mrp: l.mrp || undefined,
-            discountPct: l.discountPct,
+            // one combined % keeps the stored taxable amount identical to Disc 1 then Disc 2
+            discountPct: combinedDiscPct(l),
             gstPct: lineGst(l),
             taxableAmount: l.amount,
             taxAmount: lineTax(l),
@@ -466,6 +607,7 @@ export function SupplierBillFormModal({
         toast.success(`Stock received for ${res.stockPosted} item(s).`);
       }
       onSuccess?.();
+      onSaved?.(purchaseBillNo.trim());
       onClose();
     } catch (err: any) {
       console.error("[SupplierBillFormModal] Save failed:", err);
@@ -869,7 +1011,7 @@ export function SupplierBillFormModal({
                         type="button"
                         onClick={handleAddLine}
                         className="h-7 w-8 flex shrink-0 items-center justify-center rounded bg-[#2e7d32] hover:bg-[#1b5e20] text-white font-bold shadow-sm transition-transform active:scale-95"
-                        title="Add Line"
+                        title={editingIdx !== null ? "Update this line" : "Add Line"}
                       >
                         <Plus className="size-4 stroke-[3]" />
                       </button>
@@ -885,7 +1027,8 @@ export function SupplierBillFormModal({
                     ["Expiry", "month", expiry, (v: string) => setExpiry(v)],
                     ["MRP", "number", mrp || "", (v: string) => setMrp(parseFloat(v) || 0)],
                     ["Free Qty", "number", freeQty || "", (v: string) => setFreeQty(parseFloat(v) || 0)],
-                    ["Disc %", "number", discountPct || "", (v: string) => setDiscountPct(Math.min(100, parseFloat(v) || 0))],
+                    ["Disc 1 %", "number", discountPct || "", (v: string) => setDiscountPct(Math.min(100, parseFloat(v) || 0))],
+                    ["Disc 2 %", "number", discount2Pct || "", (v: string) => setDiscount2Pct(Math.min(100, parseFloat(v) || 0))],
                   ] as const).map(([label, type, value, onChange]) => (
                     <div key={label} className="col-span-6 md:col-span-2 space-y-1">
                       <Label className="text-xs text-slate-700 dark:text-slate-300">{label}</Label>
@@ -924,11 +1067,11 @@ export function SupplierBillFormModal({
                       <th className="py-2 px-4 w-24 text-center border-r border-blue-500/30">Unit</th>
                       <th className="py-2 px-4 w-24 text-right border-r border-blue-500/30">MRP</th>
                       <th className="py-2 px-4 w-32 text-right border-r border-blue-500/30">Purchase Price</th>
-                      <th className="py-2 px-4 w-20 text-right border-r border-blue-500/30">Disc %</th>
+                      <th className="py-2 px-4 w-20 text-right border-r border-blue-500/30">Disc 1 + 2 %</th>
                       <th className="py-2 px-4 w-32 text-right border-r border-blue-500/30">Taxable</th>
                       <th className="py-2 px-4 w-28 text-right border-r border-blue-500/30">GST</th>
                       <th className="py-2 px-4 w-32 text-right border-r border-blue-500/30">Amount</th>
-                      <th className="py-2 px-2 w-12 text-center">Action</th>
+                      <th className="py-2 px-2 w-16 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -970,6 +1113,7 @@ export function SupplierBillFormModal({
                           </td>
                           <td className="py-2 px-4 text-right font-mono text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-800">
                             {line.discountPct.toFixed(2)}
+                            {line.discount2Pct ? <span className="text-slate-400"> + {line.discount2Pct.toFixed(2)}</span> : null}
                           </td>
                           <td className="py-2 px-4 text-right font-mono text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-800">
                             {line.amount.toFixed(2)}
@@ -982,6 +1126,15 @@ export function SupplierBillFormModal({
                             {r2(line.amount + lineTax(line)).toFixed(2)}
                           </td>
                           <td className="py-2 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleEditLine(idx)}
+                              className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                              title="Edit row"
+                              aria-label="Edit row"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleRemoveLine(idx)}
@@ -1100,6 +1253,13 @@ export function SupplierBillFormModal({
                     </div>
                   )}
 
+                  {roundOffAmt !== 0 && (
+                    <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+                      <span>Round Off</span>
+                      <span className="font-mono">{roundOffAmt > 0 ? "+" : ""}₹ {roundOffAmt.toFixed(2)}</span>
+                    </div>
+                  )}
+
                   <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex items-center justify-between text-slate-900 dark:text-white">
                     <span className="text-xs font-black uppercase tracking-wider">TOTAL AMOUNT</span>
                     <span className="text-base font-black font-mono text-blue-600 dark:text-blue-400">
@@ -1107,6 +1267,53 @@ export function SupplierBillFormModal({
                     </span>
                   </div>
                 </div>
+
+                {/* Payment right away (optional) */}
+                <fieldset className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 space-y-2 shadow-xs">
+                  <legend className="px-1 text-[10px] font-black uppercase tracking-wider text-slate-500">Payment status</legend>
+                  <div role="radiogroup" aria-label="Payment status: Unpaid, Partly paid or Paid in full" className="inline-flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 text-[11px] font-semibold">
+                    {([["UNPAID", "Unpaid", "bg-rose-600"], ["PARTIAL", "Partly paid", "bg-amber-600"], ["PAID", "Paid in full", "bg-emerald-600"]] as const).map(([id, label, on]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="radio"
+                        aria-checked={payStatus === id}
+                        onClick={() => {
+                          setPayStatus(id);
+                          if (id === "PAID") setPayNow(totalAmount);
+                          if (id === "UNPAID") setPayLines([]);
+                        }}
+                        className={`px-2.5 py-1 rounded-md transition-all ${payStatus === id ? `${on} text-white shadow-xs` : "text-slate-500 hover:text-slate-800"}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {payStatus !== "UNPAID" && (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-3 text-xs">
+                        {payStatus === "PARTIAL" && (
+                          <label className="flex items-center gap-1.5">
+                            Paying now ₹
+                            <Input type="number" min="0" step="any" value={payNow || ""} onChange={(e) => setPayNow(parseFloat(e.target.value) || 0)} className="h-7 w-28 text-xs font-mono" />
+                          </label>
+                        )}
+                        <label className="flex items-center gap-1.5">
+                          Payment date
+                          <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="h-7 w-36 text-xs font-mono" />
+                        </label>
+                      </div>
+                      <SplitPaymentInput
+                        total={payStatus === "PAID" ? totalAmount : r2(payNow)}
+                        lines={payLines}
+                        onChange={setPayLines}
+                        accounts={splitAccounts}
+                        requireExactMatch
+                        defaultMode="UPI"
+                      />
+                    </div>
+                  )}
+                </fieldset>
 
                 {/* Save Button matching reference screenshot */}
                 <div className="flex items-center justify-end">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { todayIST } from "@/lib/utils/dateUtils";
 import {
   Pill,
   Syringe,
@@ -280,7 +281,7 @@ export function NewRetailSaleModal({ open, onClose, onSaleCompleted }: Props) {
         trxRef: trxRef || undefined,
         customer: customerType === "registered" && selectedPet ? `${selectedPet.owner?.name} (${selectedPet.name})` : customerName,
         customerPhone: customerType === "registered" && selectedPet ? selectedPet.owner?.phone : customerPhone,
-        date: new Date().toISOString().slice(0, 10),
+        date: todayIST(), // clinic (IST) date, not the UTC date
         status: "Completed",
       };
       toast.success(`Retail Bill ${billNo} generated & payment of ₹${totals.grandTotal} collected!`);

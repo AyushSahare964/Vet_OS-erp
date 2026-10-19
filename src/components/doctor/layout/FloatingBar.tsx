@@ -1,8 +1,10 @@
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { getIcon } from "@/components/erp/icon";
 import barCss from "./floating-bar.css?url";
 import type { BarItem } from "./barItems";
+import { itemForPath, QUICK_ACTIONS, type QuickAction } from "./menuConfig";
+import { openQuickAction } from "./quickActions";
 
 // Bar outline: flat on the screen edge, S-curved neck at the top and bottom, rounded inner side.
 const W = 64;
@@ -31,22 +33,21 @@ interface FloatingBarProps {
   badge: ReactNode;
   badgeClass?: string;
   items: BarItem[];
+  /** Quick Actions the signed-in role may use (the "Quick Action" item opens a flyout with these). */
+  quickActions?: QuickAction[];
 }
-
-const isCurrent = (item: BarItem, pathname: string) =>
-  item.to === "/" || item.to === "/clinic"
-    ? pathname === item.to
-    : pathname === `/m/${item.to.moduleId}`;
 
 /**
  * Slim side bar, flush with the screen edge. Plain at rest (the current page has a small dot).
  * Hovering or focusing an icon slides the glowing pocket to it and shows its short name underneath.
  */
-export function FloatingBar({ side, label, badge, badgeClass = "", items }: FloatingBarProps) {
+export function FloatingBar({ side, label, badge, badgeClass = "", items, quickActions = QUICK_ACTIONS }: FloatingBarProps) {
   const uid = useId().replace(/:/g, "");
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const pillRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const itemRefs = useRef<(HTMLElement | null)[]>([]);
+  const [flyOpen, setFlyOpen] = useState(false);
+  const currentItem = itemForPath(items, pathname);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
   const [lit, setLit] = useState<number | null>(null);
   // Last pocket position is kept while hidden, so the next hover slides from there.
@@ -81,6 +82,20 @@ export function FloatingBar({ side, label, badge, badgeClass = "", items }: Floa
     e.preventDefault();
     itemRefs.current[(cur + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
   };
+
+  useEffect(() => {
+    if (!flyOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!pillRef.current?.contains(e.target as Node)) setFlyOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && setFlyOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [flyOpen]);
 
   const shape = shapePath(height);
 
@@ -137,13 +152,15 @@ export function FloatingBar({ side, label, badge, badgeClass = "", items }: Floa
         <div className="vd-items">
           {items.map((item, i) => {
             const Icon = getIcon(item.icon);
-            const current = isCurrent(item, pathname);
+            const current = currentItem?.id === item.id;
+            const isAction = item.to.kind === "action";
             const props = {
-              ref: (el: HTMLAnchorElement | null) => {
+              ref: (el: HTMLElement | null) => {
                 itemRefs.current[i] = el;
               },
-              className: `vd-it${lit === i ? " is-lit" : ""}${current ? " is-current" : ""}`,
-              "aria-label": item.name,
+              className: `vd-it${lit === i ? " is-lit" : ""}${current ? " is-current" : ""}${isAction && flyOpen ? " is-open" : ""}`,
+              "aria-label": item.label,
+              title: item.label,
               "aria-current": current ? ("page" as const) : undefined,
               onMouseEnter: () => light(i),
               onFocus: () => light(i),
@@ -156,19 +173,56 @@ export function FloatingBar({ side, label, badge, badgeClass = "", items }: Floa
                 </span>
               </>
             );
-            if (typeof item.to === "object")
+            if (item.to.kind === "action")
               return (
-                <Link
-                  key={item.key}
-                  {...props}
-                  to="/m/$moduleId"
-                  params={{ moduleId: item.to.moduleId }}
-                >
+                <div key={item.id} className="vd-it-wrap">
+                  <button
+                    type="button"
+                    {...props}
+                    aria-haspopup="menu"
+                    aria-expanded={flyOpen}
+                    onClick={() => setFlyOpen((o) => !o)}
+                  >
+                    {inner}
+                  </button>
+                  {flyOpen && (
+                    <div className="vd-fly" role="menu" aria-label="Quick actions">
+                      {quickActions.map((a) => {
+                        const AIcon = getIcon(a.icon);
+                        return (
+                          <button
+                            key={a.id}
+                            type="button"
+                            role="menuitem"
+                            className="vd-fly-it"
+                            onClick={() => {
+                              setFlyOpen(false);
+                              openQuickAction(a.id);
+                            }}
+                          >
+                            <AIcon aria-hidden="true" /> {a.label}
+                            {a.shortcut && pathname === "/m/billing" && <kbd className="vd-fly-kbd">{a.shortcut}</kbd>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            if (item.to.kind === "path")
+              return (
+                <Link key={item.id} {...props} to={item.to.path}>
                   {inner}
                 </Link>
               );
             return (
-              <Link key={item.key} {...props} to={item.to}>
+              <Link
+                key={item.id}
+                {...props}
+                to="/m/$moduleId"
+                params={{ moduleId: item.to.moduleId }}
+                search={(item.to.tab ? { tab: item.to.tab } : {}) as never}
+              >
                 {inner}
               </Link>
             );

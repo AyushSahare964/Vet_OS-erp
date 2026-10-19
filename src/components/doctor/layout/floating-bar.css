@@ -94,7 +94,7 @@
 .vd-badge.is-vet {
   background: radial-gradient(circle at 35% 30%, #49769f, #0a4174);
   color: #fff;
-  font: 800 10.5px "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  font: 800 7.6px "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
@@ -113,7 +113,13 @@
 .vd-it {
   position: relative;
   width: 56px;
-  height: clamp(36px, 6.2vh, 52px);
+  height: clamp(46px, 7vh, 54px);
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -129,18 +135,18 @@
   transition: transform 0.3s;
 }
 .vd-lb {
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 600;
   line-height: 1.1;
-  max-height: 0;
-  opacity: 0;
+  opacity: 0.88;
+  max-width: 100%;
   overflow: hidden;
-  margin-top: 0;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  transition:
-    max-height 0.25s,
-    opacity 0.25s,
-    margin 0.25s;
+  letter-spacing: 0.01em;
+}
+.vd-it-wrap {
+  position: relative;
 }
 .vd-it.is-lit {
   color: #fff;
@@ -149,25 +155,77 @@
   transform: translateY(-1px);
 }
 .vd-it.is-lit .vd-lb {
-  max-height: 12px;
   opacity: 1;
-  margin-top: 2px;
 }
-/* Current page: small sky-blue dot under the icon at rest */
-.vd-it.is-current::after {
-  content: "";
+/* Current page (also while inside any of its tabs): tinted tile with a sky-blue edge */
+.vd-it.is-current {
+  color: #fff;
+  background: rgb(123 189 232 / 0.16);
+  box-shadow: inset 0 0 0 1px rgb(123 189 232 / 0.5);
+}
+.vd-it.is-current .vd-lb {
+  opacity: 1;
+}
+.vd-it.is-open {
+  color: #fff;
+}
+/* Quick Action flyout (opens beside the bar) */
+.vd-fly {
   position: absolute;
-  left: 50%;
-  bottom: 2px;
-  width: 5px;
-  height: 5px;
-  margin-left: -2.5px;
-  border-radius: 50%;
-  background: #7bbde8;
-  transition: opacity 0.2s;
+  z-index: 300;
+  top: 50%;
+  left: calc(100% + 14px);
+  transform: translateY(-50%);
+  min-width: 190px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #00305c, #001d39);
+  border: 1px solid rgb(189 216 233 / 0.28);
+  box-shadow: 0 10px 24px rgb(0 29 57 / 0.4), 0 2px 4px rgb(0 29 57 / 0.3);
 }
-.vd-it.is-current.is-lit::after {
-  opacity: 0;
+/* the bar holding an open flyout sits above page panels */
+.vd-dock:has(.vd-fly) {
+  z-index: 300 !important;
+}
+.vd-fly-kbd {
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgb(123 189 232 / 0.18);
+  color: #bdd8e9;
+  font: 600 10px ui-monospace, monospace;
+}
+.vd-dock-right .vd-fly {
+  left: auto;
+  right: calc(100% + 14px);
+}
+.vd-fly-it {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #e6f1f9;
+  font: 600 13px "Figtree", system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+.vd-fly-it svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: #7bbde8;
+}
+.vd-fly-it:hover,
+.vd-fly-it:focus-visible {
+  background: rgb(123 189 232 / 0.2);
+  outline: none;
 }
 .vd-it:focus-visible {
   outline: 2px solid #7bbde8;
@@ -233,6 +291,18 @@
   }
   .vd-it.is-lit {
     background: rgb(123 189 232 / 0.2);
+  }
+  .vd-it-wrap {
+    flex: 1;
+    display: flex;
+  }
+  .vd-fly,
+  .vd-dock-right .vd-fly {
+    top: auto;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
   }
   .vd-shell {
     padding: 0 0 80px;

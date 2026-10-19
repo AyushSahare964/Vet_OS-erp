@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/register-clinic")({
   head: () => ({
-    meta: [{ title: "Register Your Clinic — VetOS Cloud" }],
+    meta: [{ title: "Register Your Clinic — VetechIQ" }],
   }),
   component: RegisterClinicPage,
 });
@@ -221,8 +221,8 @@ function RegisterClinicPage() {
     <div className="min-h-screen w-full bg-gradient-to-b from-slate-100/90 via-slate-50 to-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-10">
       <div className="mb-6 flex items-center justify-between w-full max-w-2xl px-2">
         <Link to="/login" className="flex items-center gap-2.5 group">
-          <img src={CLINIC_CONFIG.logoPath} alt="VetOS Cloud" className="h-10 w-auto object-contain" />
-          <span className="text-base font-bold tracking-tight text-navy">VetOS Cloud</span>
+          <img src={CLINIC_CONFIG.logoPath} alt="VetechIQ" className="h-10 w-auto object-contain" />
+          <span className="text-base font-bold tracking-tight text-navy">VetechIQ</span>
         </Link>
         <Link to="/login" className="text-xs font-semibold text-primary hover:underline">
           Already have a clinic? Sign in →
@@ -235,7 +235,7 @@ function RegisterClinicPage() {
           <h1 className="text-lg font-bold text-navy">Register Your Clinic</h1>
         </div>
         <p className="text-xs text-muted-foreground mb-5">
-          Get your own isolated VetOS Cloud workspace in minutes — no card required, 14-day free trial.
+          Get your own isolated VetechIQ workspace in minutes — no card required, 14-day free trial.
         </p>
 
         {/* Step indicator */}

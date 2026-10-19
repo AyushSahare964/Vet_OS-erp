@@ -367,6 +367,10 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
                 <p>• This is a computer-generated tax invoice.</p>
               </div>
 
+              {visit?.clinicalNotes && /Doctor contacted:/i.test(String(visit.clinicalNotes)) && (
+                <p className="mb-2 text-[11px] font-semibold text-gray-700">{String(visit.clinicalNotes).match(/Doctor contacted:.*?order\./i)?.[0] ?? ""}</p>
+              )}
+
               {/* Right: Dual signature block */}
               <div className="flex gap-10 items-end shrink-0">
                 {/* Doctor Signature */}

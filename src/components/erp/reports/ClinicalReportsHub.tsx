@@ -82,9 +82,9 @@ const ANALYTICS_TABS: { id: AnalyticsTabId; label: string; icon: any }[] = [
   { id: "cross-module", label: "Cross-Module Audit", icon: Link2 },
 ];
 
-export function ClinicalReportsHub() {
+export function ClinicalReportsHub({ initialMode = "analytics", initialTab = "all-reports" }: { initialMode?: HubMode; initialTab?: ReportsTab } = {}) {
   // Top-Level Mode: Analytics vs Medical Records
-  const [hubMode, setHubMode] = useState<HubMode>("analytics");
+  const [hubMode, setHubMode] = useState<HubMode>(initialMode);
 
   // ── ANALYTICS STATE ──────────────────────────────────────────────────────────
   const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTabId>("overview");
@@ -98,7 +98,7 @@ export function ClinicalReportsHub() {
   const [drilldownTarget, setDrilldownTarget] = useState<DrilldownTarget | null>(null);
 
   // ── CLINICAL REPORTS STATE (100% Preserved) ──────────────────────────────────
-  const [activeTab, setActiveTab] = useState<ReportsTab>("all-reports");
+  const [activeTab, setActiveTab] = useState<ReportsTab>(initialTab);
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");

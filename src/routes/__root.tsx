@@ -78,13 +78,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "VetOS ERP — Veterinary Clinic Management Suite" },
+      { title: "VetechIQ — Veterinary Clinic Management Suite" },
       {
         name: "description",
         content:
           "Role-based ERP for veterinary clinics: appointments, OPD, lab, boarding, pharmacy, billing and finance.",
       },
-      { property: "og:title", content: "VetOS ERP" },
+      { property: "og:title", content: "VetechIQ" },
       { property: "og:description", content: "Veterinary clinic ERP console." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

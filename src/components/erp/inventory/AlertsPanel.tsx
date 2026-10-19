@@ -4,7 +4,7 @@
  * Filterable across Medicines, Animal Food, and Pet Accessories
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -156,7 +156,11 @@ function ExpiryCard({ batch, med }: { batch: Batch; med: Medicine }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function AlertsPanel() {
-  const { medicines, getBatches, getTotalQty, getStockStatus, getExpiryStatus } = useInventory();
+  const { medicines, getBatches, getTotalQty, getStockStatus, getExpiryStatus, refetchBatches } = useInventory();
+  // Batches are otherwise only loaded per item on demand, so expiry alerts need them fetched here.
+  useEffect(() => {
+    void Promise.all(medicines.map((m) => refetchBatches(m.itemCode)));
+  }, [medicines, refetchBatches]);
   const [categoryFilter, setCategoryFilter] = useState<"ALL" | ProductType>("ALL");
 
   const activeMeds = useMemo(() => {

@@ -7,7 +7,7 @@ import { RequireLogin } from "@/components/doctor/layout/RequireLogin";
 // Sample data only (src/data/doctor); no API calls.
 export const Route = createFileRoute("/patient/$id")({
   head: () => ({
-    meta: [{ title: "VetOS · Patient file" }],
+    meta: [{ title: "VetechIQ · Patient file" }],
     links: doctorHeadLinks,
   }),
   component: PatientShell,

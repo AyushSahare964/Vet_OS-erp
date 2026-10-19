@@ -1,3 +1,4 @@
+import { hubModuleIds } from "@/components/doctor/layout/menuConfig";
 export type RoleId = "doctor" | "admin" | "reception" | "accounts" | "platform";
 
 export type Accent = "blue" | "green" | "amber" | "red";
@@ -180,7 +181,7 @@ export const ROLES: Record<RoleId, RoleConfig> = {
     name: "Platform Administrator",
     person: "Ishaan Verma",
     initials: "IV",
-    scope: "VetOS Cloud",
+    scope: "VetechIQ",
     scopeCaption: "Production · ap-south-1",
     greeting: "Platform control plane across all clinic tenants.",
     kpis: [
@@ -614,6 +615,24 @@ export const ROLES: Record<RoleId, RoleConfig> = {
 
 export const ROLE_ORDER: RoleId[] = ["doctor", "admin", "reception", "accounts", "platform"];
 
+/** The role's own dashboard cards, i.e. the modules it had before the hub pages existed. */
+export function baseModuleIds(role: RoleConfig): Set<string> {
+  return new Set(role.blocks.flatMap((b) => b.cards).map((c) => c.module));
+}
+
+/**
+ * Modules a role may open: its dashboard cards plus the new hub pages (consultation, accounts, ...)
+ * that only wrap modules the role already holds (see hubModuleIds in menuConfig.ts).
+ */
 export function roleModules(role: RoleConfig): Flashcard[] {
-  return role.blocks.flatMap((b) => b.cards);
+  const base = role.blocks.flatMap((b) => b.cards);
+  const hubs: Flashcard[] = hubModuleIds(role.id, baseModuleIds(role)).map((module) => ({
+    module,
+    icon: "LayoutGrid",
+    title: module,
+    subtitle: "",
+    metricLabel: "",
+    metricValue: "",
+  }));
+  return [...base, ...hubs];
 }

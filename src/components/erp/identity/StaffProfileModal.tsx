@@ -367,7 +367,7 @@ export function StaffProfileModal({ open, staff, onClose, onUpdated, onDeleted }
                       className="size-4 rounded text-primary focus:ring-primary accent-primary"
                     />
                     <label htmlFor="isActiveToggle" className="text-xs text-foreground font-medium cursor-pointer">
-                      Allow this staff member to log in to VetOS ERP
+                      Allow this staff member to log in to VetechIQ
                     </label>
                   </div>
                 </div>

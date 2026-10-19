@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { resolveModule } from "@/components/doctor/layout/menuConfig";
 import { ArrowDownRight, ArrowUpRight, ChevronRight, SearchCode } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,8 @@ export function ModuleFlashcard({ card, index = 0 }: { card: FlashcardData; inde
     >
       <Link
         to="/m/$moduleId"
-        params={{ moduleId: card.module }}
+        params={{ moduleId: resolveModule(card.module).moduleId }}
+        search={resolveModule(card.module).search as never}
         className="erp-card erp-flashcard group flex h-full flex-col p-5"
       >
         <div className="flex items-start justify-between gap-3">

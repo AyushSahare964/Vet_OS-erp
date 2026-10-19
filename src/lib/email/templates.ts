@@ -1,5 +1,5 @@
 /**
- * Unified Email Templates for VetOS Clinic ERP
+ * Unified Email Templates for VetechIQ
  * Single-file template engine combining HTML structure, inlined CSS, and JS/TS template builders.
  * Supports individual EmailJS templates per query and master template fallback.
  */

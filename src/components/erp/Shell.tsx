@@ -18,7 +18,7 @@ import {
   CalendarClock,
   Receipt,
 } from "lucide-react";
-import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, useContext, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ import { getIcon } from "./icon";
 import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
 import { getMongoStatusFn, type MongoStatusRow } from "@/lib/mongodb/serverFns/status";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
+import { searchMasterFn, type MasterSearchResultGroup, type MasterSearchResultItem } from "@/lib/mongodb/serverFns/search";
 import { settleReminderFn } from "@/lib/mongodb/serverFns/reminders";
 import { getNotificationsFn, type NotificationRow, type NotificationCategory } from "@/lib/mongodb/serverFns/notifications";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -41,7 +42,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { SideBar } from "@/components/doctor/layout/SideBar";
-import { sidebarModules } from "@/components/doctor/layout/barItems";
+import { ShellEmbedContext } from "@/components/erp/shellEmbed";
+import { resolveModule } from "@/components/doctor/layout/menuConfig";
 
 /** true: slim floating side bars (same frame as the doctor home). false: the old 260px white sidebar. */
 export const USE_FLOATING_SHELL = true;
@@ -50,7 +52,7 @@ function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
   const { role, currentUser, clinicBranding } = useErp();
   const isPlatform = role.id === "platform" || currentUser?.roleId === "platform";
   const displayName = isPlatform
-    ? (currentUser?.clinicName || "VetOS Cloud")
+    ? (currentUser?.clinicName || "VetechIQ")
     : (clinicBranding?.clinicName || currentUser?.clinicName || CLINIC_CONFIG.shortName);
   const displayPerson = isPlatform
     ? (currentUser?.fullName || "Platform Admin")
@@ -142,7 +144,7 @@ function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
           </span>
         </div>
         <p className="mt-1 text-sm font-semibold leading-tight text-foreground truncate">
-          {isPlatform ? (currentUser?.clinicName || "VetOS Cloud") : (currentUser?.branch || currentUser?.clinicName || role.scope)}
+          {isPlatform ? (currentUser?.clinicName || "VetechIQ") : (currentUser?.branch || currentUser?.clinicName || role.scope)}
         </p>
         <p className="text-xs text-muted-foreground truncate">
           {isPlatform ? "Platform Systems Administration" : (currentUser?.branch || role.scopeCaption)}
@@ -229,13 +231,42 @@ function NavRow({ module, icon, label, active, onNavigate }: NavRowProps) {
   );
 }
 
-function GlobalSearch() {
+export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [pets, setPets] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [focused, setFocused] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Everything else the master search finds (invoices, purchase bills, suppliers, lab orders, appointments, staff,
+  // documents, stock...) is listed under the patient matches.
+  const [extras, setExtras] = useState<MasterSearchResultGroup[]>([]);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setExtras([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      searchMasterFn({ data: { q } })
+        .then((g) => setExtras((g ?? []).filter((x) => x.heading !== "Pets and owners")))
+        .catch(() => setExtras([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+  const goExtra = (it: MasterSearchResultItem) => {
+    setFocused(false);
+    setQuery("");
+    if (it.toModule) {
+      const t = resolveModule(it.toModule);
+      void navigate({ to: "/m/$moduleId", params: { moduleId: t.moduleId }, search: t.search as never });
+    } else if (it.section && it.petId) {
+      void navigate({ to: "/patient/$id/$section", params: { id: it.petId, section: it.section } });
+    } else if (it.petId) {
+      void navigate({ to: "/patient/$id", params: { id: it.petId } });
+    }
+  };
 
   // Load all pets once on first focus
   const load = async () => {
@@ -281,7 +312,7 @@ function GlobalSearch() {
         value={query}
         onChange={e => setQuery(e.target.value)}
         onFocus={() => { setFocused(true); void load(); }}
-        placeholder="Search patients, owners, pet IDs…"
+        placeholder="Search patients, owners, bills, stock, labs, staff…"
         className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none transition-all placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/10"
       />
       <AnimatePresence>
@@ -293,8 +324,8 @@ function GlobalSearch() {
             transition={{ duration: 0.15 }}
             className="absolute left-0 right-0 top-full mt-2 z-50 rounded-xl border border-border bg-card shadow-xl overflow-hidden"
           >
-            {results.length === 0 ? (
-              <div className="px-4 py-3 text-xs text-muted-foreground italic">No matching patients found.</div>
+            {results.length === 0 && extras.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-muted-foreground italic">Nothing found.</div>
             ) : (
               <div className="divide-y divide-border/50 max-h-80 overflow-y-auto">
                 {results.map(p => (
@@ -347,7 +378,8 @@ function GlobalSearch() {
                             e.stopPropagation();
                             setFocused(false);
                             setQuery("");
-                            void navigate({ to: "/m/$moduleId", params: { moduleId: lnk.module }, search: { petId: p.petId, petName: p.name } as any });
+                            const t = resolveModule(lnk.module, { petId: p.petId, petName: p.name });
+                            void navigate({ to: "/m/$moduleId", params: { moduleId: t.moduleId }, search: t.search as any });
                           }}
                           className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 transition-colors cursor-pointer"
                         >
@@ -355,6 +387,17 @@ function GlobalSearch() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                ))}
+                {extras.map((g) => (
+                  <div key={g.heading} className="px-3 py-2">
+                    <p className="section-label mb-1">{g.heading}</p>
+                    {g.items.map((it) => (
+                      <button key={it.key} type="button" onClick={() => goExtra(it)} className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-muted">
+                        <span className="block text-xs font-semibold text-foreground">{it.title}</span>
+                        <span className="block truncate text-[11px] text-muted-foreground">{it.sub}</span>
+                      </button>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -388,7 +431,7 @@ function BranchStatus() {
         </span>
       </div>
       <p className="mt-1 text-sm font-semibold leading-tight text-foreground truncate">
-        {isPlatform ? (currentUser?.clinicName || "VetOS Cloud") : (currentUser?.branch || currentUser?.clinicName || role.scope)}
+        {isPlatform ? (currentUser?.clinicName || "VetechIQ") : (currentUser?.branch || currentUser?.clinicName || role.scope)}
       </p>
       <p className="text-xs text-muted-foreground truncate">
         {isPlatform ? "Platform Systems Administration" : (currentUser?.branch || role.scopeCaption)}
@@ -414,7 +457,7 @@ function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | unde
   const { role, roleId, setRoleId, currentUser, clinicBranding, logout } = useErp();
   const isPlatform = role.id === "platform" || currentUser?.roleId === "platform";
   const displayName = isPlatform
-    ? (currentUser?.clinicName || "VetOS Cloud")
+    ? (currentUser?.clinicName || "VetechIQ")
     : (clinicBranding?.clinicName || currentUser?.clinicName || CLINIC_CONFIG.shortName);
 
   const [notifOpen, setNotifOpen] = useState(false);
@@ -543,7 +586,8 @@ function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | unde
                         <div className="flex items-center gap-3 pt-0.5">
                           <Link
                             to="/m/$moduleId"
-                            params={{ moduleId: n.moduleId }}
+                            params={{ moduleId: resolveModule(n.moduleId).moduleId }}
+                            search={resolveModule(n.moduleId).search as never}
                             onClick={() => setNotifOpen(false)}
                             className="text-[11px] font-semibold text-primary hover:underline"
                           >
@@ -659,6 +703,8 @@ function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | unde
 }
 
 export function Shell({ title, children }: { title: string; children: ReactNode }) {
+  // Inside a hub tab the nested page renders bare: the hub page already provides the frame.
+  const embedded = useContext(ShellEmbedContext);
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { isAuthenticated, isLoadingAuth, role } = useErp();
@@ -688,6 +734,8 @@ export function Shell({ title, children }: { title: string; children: ReactNode 
       navigate({ to: "/" });
     }
   }, [isLoadingAuth, isAuthenticated, moduleId, isModuleAllowed, navigate]);
+
+  if (embedded) return <>{children}</>;
 
   // 1. Still checking session — show a short branded loading screen.
   if (isLoadingAuth) {

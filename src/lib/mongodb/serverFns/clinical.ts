@@ -155,6 +155,10 @@ const FinalizeVisitInputZ = z.object({
   paymentStatus: z.enum(["Full", "Partial", "Unpaid"]).optional(),
   paymentMode: z.enum(["UPI", "Cash", "Card", "NetBanking", "Cheque", "Account Due"]).default("UPI"),
   trxRef: z.string().optional(),
+  /** Optional: several payment lines (mode + amount) for one bill. Their total must equal amountPaid. */
+  paymentSplits: z
+    .array(z.object({ mode: z.enum(["UPI", "Cash", "Card", "NetBanking", "Cheque"]), amount: z.number().positive(), trxRef: z.string().optional() }))
+    .optional(),
   notes: z.string().optional(),
   recordedBy: z.string().optional(),
 });
@@ -1216,9 +1220,15 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
           }
 
           const remainingQty = batch ? Math.max(0, batch.qty - item.quantity) : 0;
+          const deducted = batch ? Math.min(batch.qty, item.quantity) : 0;
           if (batch) {
             batch.qty = remainingQty;
             await batch.save();
+          }
+          // Keep the item's own stock total in step with its batches (as adjustStockFn does), otherwise the
+          // Inventory page / low-stock alerts keep showing the pre-sale quantity.
+          if (item.itemCode && batch) {
+            await InventoryItem.updateOne({ itemCode: item.itemCode }, { $inc: { currentStock: -deducted } });
           }
 
           // Create inventory ledger entry so the inventory usage history accurately reflects this OPD consumption
@@ -1368,7 +1378,19 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     visit.paymentStatus = paymentStatus;
     visit.paymentMode = data.paymentMode;
     
-    if (data.amountPaid > 0) {
+    const splitTotal = (data.paymentSplits ?? []).reduce((t, x) => t + x.amount, 0);
+    const useSplits = !!data.paymentSplits?.length && Math.abs(splitTotal - data.amountPaid) < 0.01 && (visit.payments || []).length === 0;
+    if (useSplits) {
+      // One payment record per mode so each mode reaches the "Collections by mode" totals
+      visit.payments = data.paymentSplits!.map((x, i) => ({
+        ...paymentRecord,
+        id: `${paymentRecord.id}-${i + 1}`,
+        paymentId: `${paymentRecord.paymentId}-${i + 1}`,
+        mode: x.mode,
+        amount: x.amount,
+        trxRef: x.trxRef || undefined,
+      })) as any;
+    } else if (data.amountPaid > 0) {
       const existingPayments = visit.payments || [];
       const sumExisting = existingPayments.reduce((s: number, p: any) => s + (p.amount || 0), 0);
       if (sumExisting < data.amountPaid) {

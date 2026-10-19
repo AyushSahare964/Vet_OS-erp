@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { resolveModule } from "@/components/doctor/layout/menuConfig";
 import { Link } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -95,18 +96,6 @@ export function RightRail({
 
   const isExpanded = pinned || hovered;
 
-  const createActions = [
-    { label: "New Invoice", icon: Receipt, shortcut: "F2", action: onNewInvoice, color: "text-emerald-600 dark:text-emerald-400" },
-    { label: "New Quotation", icon: FileText, shortcut: "Alt+Q", action: onNewQuotation, color: "text-indigo-600 dark:text-indigo-400" },
-    { label: "Add Purchase", icon: ShoppingBag, shortcut: "Alt+P", action: onAddPurchase, color: "text-blue-600 dark:text-blue-400" },
-    { label: "Purchase Order", icon: ClipboardList, shortcut: "Alt+O", action: onPurchaseOrder, color: "text-orange-600 dark:text-orange-400" },
-    { label: "Add Expense", icon: Wallet, shortcut: "Alt+E", action: onAddExpense, color: "text-amber-600 dark:text-amber-400" },
-    { label: "Add Client", icon: UserPlus, shortcut: "Alt+C", action: onAddCustomer, color: "text-purple-600 dark:text-purple-400" },
-    { label: "Add Reminder", icon: Bell, shortcut: "Alt+R", action: onAddReminder, color: "text-sky-600 dark:text-sky-400" },
-    { label: "Payment In", icon: ArrowDownCircle, shortcut: "Alt+I", action: onPaymentIn, color: "text-teal-600 dark:text-teal-400" },
-    { label: "Payment Out", icon: ArrowUpCircle, shortcut: "", action: onPaymentOut, color: "text-rose-600 dark:text-rose-400" },
-  ];
-
   const tools = [
     { label: "GST Calculator", icon: Calculator, shortcut: "Alt+G", action: onOpenGstCalc, color: "text-primary" },
     { label: "Daily Summary", icon: Calendar, shortcut: "", action: onOpenDailySummary, color: "text-foreground" },
@@ -187,50 +176,7 @@ export function RightRail({
 
           {/* Action Items List */}
           <div className="flex-1 overflow-y-auto px-1.5 py-2 space-y-3.5 scrollbar-thin">
-          {/* Section: Create Documents */}
-          <div className="space-y-0.5">
-            {isExpanded && (
-              <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Create
-              </div>
-            )}
-            {createActions.map((item) => (
-              <Tooltip key={item.label}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={item.action}
-                    className={cn(
-                      "flex items-center gap-2.5 w-full rounded-xl p-2 text-xs font-semibold transition-all group",
-                      "hover:bg-primary/10 hover:text-primary text-foreground"
-                    )}
-                  >
-                    <div className={cn("size-5 shrink-0 flex items-center justify-center transition-transform group-hover:scale-110", item.color)}>
-                      <item.icon className="size-4" />
-                    </div>
-                    {isExpanded && (
-                      <div className="flex items-center justify-between flex-1 min-w-0">
-                        <span className="truncate text-xs">{item.label}</span>
-                        {item.shortcut && (
-                          <kbd className="ml-1 text-[10px] font-mono text-muted-foreground/70 bg-muted/60 px-1 py-0.2 rounded">
-                            {item.shortcut}
-                          </kbd>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                </TooltipTrigger>
-                {!isExpanded && (
-                  <TooltipContent side="left" className="text-xs font-semibold">
-                    {item.label} {item.shortcut ? `(${item.shortcut})` : ""}
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            ))}
-          </div>
-
-          <Separator className="bg-border/60" />
-
+          {/* Create actions now live in the right bar's Quick Action menu (shortcuts F2, Alt+Q/P/O/E/C/R/I still work). */}
           {/* Section: Tools */}
           <div className="space-y-0.5">
             {isExpanded && (
@@ -286,7 +232,9 @@ export function RightRail({
               <Tooltip key={item.label}>
                 <TooltipTrigger asChild>
                   <Link
-                    to={item.href}
+                    to="/m/$moduleId"
+                    params={{ moduleId: resolveModule(item.href.slice(3)).moduleId }}
+                    search={resolveModule(item.href.slice(3)).search as never}
                     className={cn(
                       "flex items-center gap-2.5 w-full rounded-xl p-2 text-xs font-semibold transition-all group",
                       "hover:bg-muted text-muted-foreground hover:text-foreground"

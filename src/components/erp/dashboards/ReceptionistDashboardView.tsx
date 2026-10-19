@@ -758,7 +758,6 @@ export function ReceptionistDashboardView({ role, onOpenConsultation }: Props) {
       <OwnerPetRegistrationModal
         open={showRegisterModal}
         onClose={() => setShowRegisterModal(false)}
-        initialMode="new-all"
         registrationSource="Reception"
         onRegistered={() => {
           void loadData();

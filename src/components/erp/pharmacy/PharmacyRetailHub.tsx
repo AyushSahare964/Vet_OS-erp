@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { todayIST } from "@/lib/utils/dateUtils";
 
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -55,8 +56,10 @@ function PharmacyRetailHubInner() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
-  const totalSales = useMemo(() => bills.reduce((acc, b) => acc + (Number(b.amount) || 0), 0), [bills]);
-  const billsToday = bills.length;
+  // "Today" = bills dated today (clinic local date), not every bill ever saved
+  const todayBills = useMemo(() => bills.filter((b) => String(b.date ?? "").slice(0, 10) === todayIST()), [bills]);
+  const totalSales = useMemo(() => todayBills.reduce((acc, b) => acc + (Number(b.amount) || 0), 0), [todayBills]);
+  const billsToday = todayBills.length;
   const avgBill = billsToday > 0 ? Math.round(totalSales / billsToday) : 0;
 
   // Modals state
