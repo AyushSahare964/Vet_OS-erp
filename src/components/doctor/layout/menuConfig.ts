@@ -2,6 +2,8 @@
 // Change a label, icon, mapping or role here and the bars, hubs, route guard and links follow.
 // No React imports here: src/lib/erp/config.ts imports this file (type-only import of RoleId back, so no cycle).
 import type { RoleId } from "@/lib/erp/config";
+import { ACCOUNT_REPORTS } from "@/components/erp/accounts/reports";
+import { LEDGER_TYPES } from "@/components/erp/ledgers/ledgerTypes";
 
 export type MenuSide = "left" | "right";
 
@@ -16,6 +18,16 @@ export interface HubTab {
   to?: { moduleId: string; tab?: string };
   /** Short line shown by the shared "Coming soon" component. */
   soon?: string;
+}
+
+/** A branch of the bar's flyout tree: opens a hub tab, optionally with child views (?sub=). */
+export interface MenuBranch {
+  id: string;
+  label: string;
+  icon: string;
+  /** Hub tab it opens; the branch shows only if the role sees that tab. */
+  tab: string;
+  children?: { id: string; label: string }[];
 }
 
 export type MenuTarget =
@@ -43,6 +55,8 @@ export interface MenuItem {
   /** One-line subtitle for hub pages. */
   subtitle?: string;
   tabs?: HubTab[];
+  /** When set, the bar button opens a branch-style flyout instead of going straight to the hub. */
+  tree?: MenuBranch[];
 }
 
 const ALL: RoleId[] = ["doctor", "admin", "reception", "accounts", "platform"];
@@ -86,12 +100,15 @@ export const MENU: MenuItem[] = [
       { id: "suppliers", label: "Suppliers", requires: ["billing"] },
     ] },
   { id: "shop", side: "right", label: "Pet Shop & Product Sales", short: "Shop", icon: "ShoppingBag", to: { kind: "module", moduleId: "pharmacy" }, roles: ["doctor", "admin"], requires: ["pharmacy"], match: ["pharmacy"] },
-  { id: "accounts", side: "right", label: "Accounting & Reports", short: "Accounts", icon: "BookOpen", to: { kind: "module", moduleId: "accounts" }, roles: ALL, requires: ["accounts", "ledgers", "reports", "clinical-records", "discount-schemes", "reports-finance", "reports-platform", "payroll"], match: ["accounts", "ledgers", "discount-schemes", "reports", "reports-finance", "reports-platform", "payroll"], subtitle: "Reports, ledgers, expenses and offers.",
+  { id: "accounts", side: "right", label: "Accounting & Reports", short: "Accounts", icon: "BookOpen", to: { kind: "module", moduleId: "accounts" }, roles: ALL, requires: ["accounts", "ledgers", "reports", "clinical-records", "discount-schemes", "reports-finance", "reports-platform", "payroll"], match: ["accounts", "ledgers", "discount-schemes", "reports", "reports-finance", "reports-platform", "payroll"], subtitle: "Account statements, ledgers and discount schemes.",
+    tree: [
+      { id: "statements", label: "Account Statements", icon: "Landmark", tab: "statements", children: ACCOUNT_REPORTS.map((r) => ({ id: r.id, label: r.label })) },
+      { id: "ledgers", label: "Ledgers", icon: "BookOpen", tab: "ledgers", children: LEDGER_TYPES.map((t) => ({ id: t.id, label: t.label })) },
+      { id: "discounts", label: "Discount Schemes", icon: "BadgePercent", tab: "discounts" },
+    ],
     tabs: [
-      { id: "reports", label: "Reports & Analysis", requires: ["reports", "clinical-records", "reports-platform"] },
       { id: "statements", label: "Account Statements", requires: ["accounts"] },
       { id: "ledgers", label: "Ledgers", requires: ["ledgers"] },
-      { id: "expenses", label: "Expenses", requires: ["billing"] },
       { id: "discounts", label: "Discount Schemes", requires: ["discount-schemes"] },
       { id: "finance", label: "Finance Reports", requires: ["reports-finance"], legacy: "reports-finance" },
       { id: "payroll", label: "Payroll", requires: ["payroll"], legacy: "payroll" },
@@ -170,8 +187,8 @@ export const MODULE_ALIASES: Record<string, { moduleId: string; tab?: string; su
   nutrition_plans: { moduleId: "boarding", tab: "food" },
   ledgers: { moduleId: "accounts", tab: "ledgers" },
   "discount-schemes": { moduleId: "accounts", tab: "discounts" },
-  reports: { moduleId: "accounts", tab: "reports" },
-  "reports-platform": { moduleId: "accounts", tab: "reports" },
+  reports: { moduleId: "business" },
+  "reports-platform": { moduleId: "business" },
   "clinical-records": { moduleId: "communication", tab: "documents" },
   documents: { moduleId: "communication", tab: "documents" },
   "clinical-reports": { moduleId: "communication", tab: "reports" },
@@ -184,7 +201,7 @@ export const MODULE_ALIASES: Record<string, { moduleId: string; tab?: string; su
   stock: { moduleId: "inventory", tab: "inventory", sub: "stock" },
   purchases: { moduleId: "inventory", tab: "purchases" },
   suppliers: { moduleId: "inventory", tab: "suppliers" },
-  expenses: { moduleId: "accounts", tab: "expenses" },
+  expenses: { moduleId: "billing" },
   crm: { moduleId: "crm-pets" },
   sales: { moduleId: "billing" },
   invoices: { moduleId: "billing" },
@@ -215,7 +232,12 @@ export function menuFor(roleId: RoleId, held: ReadonlySet<string>): { left: Menu
     if (m.tabs) return tabsFor(m, held).length > 0;
     return true;
   });
-  return { left: visible.filter((m) => m.side === "left"), right: visible.filter((m) => m.side === "right") };
+  const shown = visible.map((m) => {
+    if (!m.tree) return m;
+    const tabs = tabsFor(m, held);
+    return { ...m, tree: m.tree.filter((b) => tabs.some((t) => t.id === b.tab)) };
+  });
+  return { left: shown.filter((m) => m.side === "left"), right: shown.filter((m) => m.side === "right") };
 }
 
 /** Quick actions a role may use (it must hold a required module, and match the action's role list if it has one). */

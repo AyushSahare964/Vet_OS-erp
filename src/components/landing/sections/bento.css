@@ -1,0 +1,57 @@
+/* ---- 1 · bento (ported from design-reference/vetrix-site/index-v2.html, site brand colours) ---- */
+.vx-wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+
+.tagpill { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600; background: #F4EEFC; color: #4F26D9; }
+.tile { background: #fff; border: 1px solid #ECE6FF; border-radius: 24px; box-shadow: 0 20px 44px -30px rgba(30, 21, 56, .4); }
+
+/* pop-in */
+.pop { opacity: 0; transform: translateY(22px) scale(.98); transition: opacity .6s ease, transform .6s cubic-bezier(.2, .8, .2, 1); }
+.pop.in { opacity: 1; transform: none; }
+
+.bento { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; padding-top: 90px; padding-bottom: 40px; scroll-margin-top: 40px; }
+.b-head { grid-column: span 6; grid-row: span 2; padding: 34px 34px 30px; position: relative; background: linear-gradient(140deg, #EFE8FF, #FFFFFF 70%); }
+.b-head h2 { max-width: 480px; font-size: clamp(30px, 3.4vw, 50px); line-height: 1.06; letter-spacing: -0.025em; font-weight: 800; margin: 12px 0; color: #1E1538; }
+.b-head .lead { font-size: 17px; line-height: 1.6; color: #5E5478; margin: 0 0 16px; max-width: 640px; font-weight: 500; }
+/* keep the lead clear of the kitten's corner (below 640px the tile gets bottom room instead) */
+@media (min-width: 641px) { .b-head .lead { max-width: min(640px, calc(100% - 170px)); } }
+
+.stat { grid-column: span 3; padding: 22px 22px 18px; position: relative; overflow: hidden; container-type: inline-size; }
+.stat .k { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #5B32E8; }
+.stat .v { font-size: clamp(30px, 3vw, 40px); font-weight: 800; letter-spacing: -0.03em; margin: 8px 0 4px; color: #1E1538; white-space: nowrap; }
+/* sized from the tile's own width so "08 Modules" stays on one line at every breakpoint */
+@supports (font-size: 1cqw) { .stat .v { font-size: clamp(30px, 13cqw, 48px); } }
+.stat .d { font-size: 13.5px; color: #5E5478; font-weight: 500; line-height: 1.45; }
+.spark { width: 100%; height: 30px; margin-top: 10px; }
+.spark path { fill: none; stroke: #5B32E8; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 200; stroke-dashoffset: 200; transition: stroke-dashoffset 1.6s ease .3s; }
+.stat.in .spark path { stroke-dashoffset: 0; }
+.dots8 { display: flex; gap: 6px; margin-top: 12px; }
+.dots8 i { width: 14px; height: 14px; border-radius: 4px; background: #5B32E8; opacity: .15; transition: opacity .3s; }
+.stat.in .dots8 i { opacity: 1; transition-delay: var(--d, 0ms); }
+.bar { height: 8px; border-radius: 99px; background: #EDE7FF; margin-top: 14px; overflow: hidden; }
+.bar b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #8B5CF6, #5B32E8); border-radius: 99px; transition: width 1.4s ease .3s; }
+.stat.in .bar b { width: var(--w); }
+
+.mod { grid-column: span 4; padding: 22px 22px 20px; }
+/* hover lift only once the tile has popped in (its own transition would otherwise delay the pop) */
+.mod.in { transition: transform .25s ease, box-shadow .25s ease; transition-delay: 0ms !important; }
+.mod.in:hover { transform: translateY(-4px); box-shadow: 0 26px 50px -30px rgba(91, 50, 232, .55); }
+.mod .ic { display: inline-grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: #fff; color: #5B32E8; box-shadow: 0 6px 14px -8px rgba(30, 21, 56, .35); }
+.mod .ic .material-symbols-outlined { font-size: 24px; }
+.mod h4 { margin: 12px 0 6px; font-size: 18px; font-weight: 700; color: #1E1538; }
+.mod p { margin: 0; font-size: 14px; line-height: 1.55; color: #5E5478; }
+.c1 { background: #F1EBFF; } .c2 { background: #FFEAF2; } .c3 { background: #E5F7EE; }
+.c4 { background: #E6F2FF; } .c5 { background: #FFF1E3; } .c6 { background: #F4ECFF; }
+
+/* kitten guide */
+.kitty { position: absolute; pointer-events: none; right: 26px; bottom: -6px; height: 150px; opacity: 0; transform: translateY(30px); transition: all .7s cubic-bezier(.2, .9, .3, 1.2) .3s; }
+.b-head.in .kitty { opacity: 1; transform: none; }
+
+@media (max-width: 1000px) {
+  .b-head { grid-column: span 12; } .stat { grid-column: span 6; } .mod { grid-column: span 6; }
+}
+@media (max-width: 640px) {
+  .vx-wrap { padding: 0 16px; } .stat, .mod { grid-column: span 12; } .b-head { padding: 26px 22px 104px; } .kitty { height: 100px; right: 14px; }   /* kitten gets its own corner below the text */
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop, .kitty { opacity: 1 !important; transform: none !important; transition: none !important; }
+}

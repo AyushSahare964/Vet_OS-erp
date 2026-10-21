@@ -319,3 +319,31 @@
     width: auto;
   }
 }
+
+/* branch-style flyout (Accounts): a parent row expands its child views, indented under a guide line */
+.vd-fly-chev {
+  margin-left: auto;
+  transition: transform 0.15s;
+}
+.vd-fly-chev.is-open {
+  transform: rotate(90deg);
+}
+.vd-fly-sub {
+  margin-left: 18px;
+  width: calc(100% - 18px);
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-left: 1px solid rgb(123 189 232 / 0.35);
+  border-radius: 0 10px 10px 0;
+}
+.vd-fly-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.vd-fly-branch .vd-fly-it,
+a.vd-fly-it {
+  white-space: nowrap;
+  text-decoration: none;
+}

@@ -1,0 +1,17 @@
+/* ---- footer (ported from design-reference/vetrix-site/index-v2.html, site brand colours) ---- */
+.foot { position: relative; background: #EFEAFB; padding: 64px 32px 0; overflow: hidden; }
+.foot .cols { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+.foot h5 { font-size: 13px; font-weight: 700; letter-spacing: .04em; margin: 0 0 14px; color: #1E1538; }
+.foot .cols a { display: block; color: #5E5478; font-size: 14px; margin-bottom: 12px; font-weight: 500; transition: color .2s ease; }
+.foot a:hover { color: #5B32E8; }
+.foot .legal { max-width: 1240px; margin: 26px auto 0; padding-top: 22px; border-top: 1px solid #DDD3F7; display: flex; justify-content: space-between;
+               gap: 14px; flex-wrap: wrap; font-size: 13px; color: #5E5478; font-weight: 500; }
+.foot .legal a { display: inline; font-size: 13px; margin: 0; color: #5E5478; }
+.foot .legal b { color: #1E1538; }
+.foot-word { font-family: 'Anton', 'Impact', sans-serif; font-size: clamp(120px, 22vw, 340px); line-height: .85; text-align: center;
+             color: rgba(91, 46, 224, 0.1); margin-top: 20px; transform: translateY(14%); user-select: none; pointer-events: none; }
+
+@media (max-width: 640px) {
+  .foot { padding: 48px 16px 0; }
+  .foot .cols { grid-template-columns: 1fr 1fr; }
+}

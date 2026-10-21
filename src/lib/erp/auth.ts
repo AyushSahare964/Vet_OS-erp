@@ -89,7 +89,9 @@ export interface RegisterTenantPayload {
   gstin?: string;
   pan?: string;
   isCompositionDealer?: boolean;
-  planId: "plan_basic" | "plan_professional" | "plan_enterprise";
+  planId: "plan_starter" | "plan_basic" | "plan_professional" | "plan_enterprise";
+  /** Razorpay payment id from the pricing page; required for the Pro plan. */
+  paymentId?: string;
   adminFullName: string;
   adminEmail: string;
   adminPassword: string;

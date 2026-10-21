@@ -12,6 +12,7 @@ import { MENU, tabsFor, type MenuItem } from "@/components/doctor/layout/menuCon
 import { InventoryHub } from "@/components/erp/inventory/InventoryHub";
 import { AccountsHub } from "@/components/erp/accounts/AccountsHub";
 import { LedgersHub } from "@/components/erp/ledgers/LedgersHub";
+import { isLedgerType } from "@/components/erp/ledgers/ledgerTypes";
 import { DiscountSchemesHub } from "@/components/erp/discounts/DiscountSchemesHub";
 import { PatientBillingHub } from "@/components/erp/billing/PatientBillingHub";
 import { BoardingSwimmingHub } from "@/components/erp/boarding/BoardingSwimmingHub";
@@ -70,10 +71,8 @@ function TabBody({ hubId, tab, sub, go, goSub }: { hubId: string; tab: string; s
     case "inventory:inventory": return <InventoryHub key={sub} initialTab={(INV_SUBS.includes(sub ?? "") ? sub : "catalogue") as InvSub} />;
     case "inventory:purchases": return <PatientBillingHub initialRegisterTab="purchases" />;
     case "inventory:suppliers": return <PatientBillingHub initialRegisterTab="suppliers" />;
-    case "accounts:reports": return <ClinicalReportsHub initialMode="analytics" />;
     case "accounts:statements": return <AccountsHub report={sub} />;
-    case "accounts:ledgers": return <LedgersHub />;
-    case "accounts:expenses": return <PatientBillingHub initialRegisterTab="expenses" />;
+    case "accounts:ledgers": return <LedgersHub ledger={isLedgerType(sub) ? sub : undefined} onClear={() => go("ledgers")} />;
     case "accounts:discounts": return <DiscountSchemesHub />;
     case "hospital:hospital": return <HospitalProfile />;
     case "hospital:tenants": return <PlatformTenantsHub />;

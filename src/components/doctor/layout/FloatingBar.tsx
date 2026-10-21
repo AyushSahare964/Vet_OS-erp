@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
 import { getIcon } from "@/components/erp/icon";
 import barCss from "./floating-bar.css?url";
 import type { BarItem } from "./barItems";
@@ -46,7 +47,11 @@ export function FloatingBar({ side, label, badge, badgeClass = "", items, quickA
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const pillRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
-  const [flyOpen, setFlyOpen] = useState(false);
+  // Which item's flyout is open (the quick-actions item or a tree item), and which tree branch is expanded.
+  const [flyId, setFlyId] = useState<string | null>(null);
+  const [branch, setBranch] = useState<string | null>(null);
+  const flyOpen = flyId !== null;
+  const setFlyOpen = (o: boolean) => setFlyId(o ? flyId : null);
   const currentItem = itemForPath(items, pathname);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
   const [lit, setLit] = useState<number | null>(null);
@@ -158,7 +163,7 @@ export function FloatingBar({ side, label, badge, badgeClass = "", items, quickA
               ref: (el: HTMLElement | null) => {
                 itemRefs.current[i] = el;
               },
-              className: `vd-it${lit === i ? " is-lit" : ""}${current ? " is-current" : ""}${isAction && flyOpen ? " is-open" : ""}`,
+              className: `vd-it${lit === i ? " is-lit" : ""}${current ? " is-current" : ""}${(isAction || item.tree) && flyId === item.id ? " is-open" : ""}`,
               "aria-label": item.label,
               title: item.label,
               "aria-current": current ? ("page" as const) : undefined,
@@ -180,12 +185,12 @@ export function FloatingBar({ side, label, badge, badgeClass = "", items, quickA
                     type="button"
                     {...props}
                     aria-haspopup="menu"
-                    aria-expanded={flyOpen}
-                    onClick={() => setFlyOpen((o) => !o)}
+                    aria-expanded={flyId === item.id}
+                    onClick={() => setFlyId((o) => (o === item.id ? null : item.id))}
                   >
                     {inner}
                   </button>
-                  {flyOpen && (
+                  {flyId === item.id && (
                     <div className="vd-fly" role="menu" aria-label="Quick actions">
                       {quickActions.map((a) => {
                         const AIcon = getIcon(a.icon);
@@ -203,6 +208,49 @@ export function FloatingBar({ side, label, badge, badgeClass = "", items, quickA
                             <AIcon aria-hidden="true" /> {a.label}
                             {a.shortcut && pathname === "/m/billing" && <kbd className="vd-fly-kbd">{a.shortcut}</kbd>}
                           </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            if (item.tree)
+              return (
+                <div key={item.id} className="vd-it-wrap">
+                  <button
+                    type="button"
+                    {...props}
+                    aria-haspopup="menu"
+                    aria-expanded={flyId === item.id}
+                    onClick={() => setFlyId((o) => (o === item.id ? null : item.id))}
+                  >
+                    {inner}
+                  </button>
+                  {flyId === item.id && (
+                    <div className="vd-fly" role="menu" aria-label={item.label}>
+                      {item.tree.map((b) => {
+                        const BIcon = getIcon(b.icon);
+                        const moduleId = item.to.kind === "module" ? item.to.moduleId : item.id;
+                        if (!b.children)
+                          return (
+                            <Link key={b.id} role="menuitem" className="vd-fly-it" to="/m/$moduleId" params={{ moduleId }} search={{ tab: b.tab } as never} onClick={() => setFlyId(null)}>
+                              <BIcon aria-hidden="true" /> {b.label}
+                            </Link>
+                          );
+                        const open = branch === b.id;
+                        return (
+                          <div key={b.id} className="vd-fly-branch">
+                            <button type="button" role="menuitem" className="vd-fly-it" aria-expanded={open} onClick={() => setBranch(open ? null : b.id)}>
+                              <BIcon aria-hidden="true" /> {b.label}
+                              <ChevronRight className={`vd-fly-chev${open ? " is-open" : ""}`} aria-hidden="true" />
+                            </button>
+                            {open &&
+                              b.children.map((c) => (
+                                <Link key={c.id} role="menuitem" className="vd-fly-it vd-fly-sub" to="/m/$moduleId" params={{ moduleId }} search={{ tab: b.tab, sub: c.id } as never} onClick={() => setFlyId(null)}>
+                                  {c.label}
+                                </Link>
+                              ))}
+                          </div>
                         );
                       })}
                     </div>

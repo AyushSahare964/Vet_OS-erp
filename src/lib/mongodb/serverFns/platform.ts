@@ -3,7 +3,7 @@
  * provisioning, and the platform-admin tenant control plane.
  *
  * ponytail: no Razorpay integration (no live payment provider key available)
- * — every registration starts a 14-day TRIAL with the chosen plan's features
+ * — every registration starts a TRIAL_DAYS (30-day) TRIAL with the chosen plan's features
  * active immediately, no payment step blocks first use. Add real recurring
  * billing when a Razorpay key is provided.
  */
@@ -26,7 +26,8 @@ import { seedExpenseCategories } from "@/lib/mongodb/models/ExpenseCategory";
 import { seedPaymentAccounts } from "@/lib/mongodb/models/PaymentAccount";
 import { ClinicConfigModel } from "@/lib/mongodb/models/ClinicConfig";
 import { signAccessToken, signRefreshToken, hashToken } from "@/lib/mongodb/tokens";
-import { SUBSCRIPTION_PLANS } from "@/lib/erp/features";
+import { SUBSCRIPTION_PLANS, TRIAL_DAYS } from "@/lib/erp/features";
+import { PlanPaymentModel } from "@/lib/mongodb/models/PlanPayment";
 import { ROLES } from "@/lib/erp/config";
 import type { AuthResponse, UserProfile } from "@/lib/erp/auth";
 import { appUrl, logoUrl, sendEmail } from "@/lib/email/emailjs";
@@ -34,7 +35,6 @@ import { appUrl, logoUrl, sendEmail } from "@/lib/email/emailjs";
 const SALT_ROUNDS = 12;
 const COOKIE_NAME = "vetos_refresh";
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const TRIAL_DAYS = 14;
 
 const STATE_NAME_TO_CODE: Record<string, string> = {
   "maharashtra": "27", "karnataka": "29", "delhi": "07", "uttar pradesh": "09",
@@ -103,7 +103,9 @@ const registerTenantSchema = z.object({
   gstin: z.string().optional(),
   pan: z.string().optional(),
   isCompositionDealer: z.boolean().optional().default(false),
-  planId: z.enum(["plan_basic", "plan_professional", "plan_enterprise"]).default("plan_professional"),
+  // Only Starter (free trial) and Pro (paid first) can be registered; Basic/Max are not on sale.
+  planId: z.enum(["plan_starter", "plan_professional"]).default("plan_starter"),
+  paymentId: z.string().max(80).optional(),
   adminFullName: z.string().min(2),
   adminEmail: z.string().email(),
   adminPassword: z.string().min(6),
@@ -128,6 +130,18 @@ export const registerTenantFn = createServerFn({ method: "POST" })
     const existingUser = await User.findOne({ email: cleanAdminEmail }).lean();
     if (existingUser) {
       return { success: false, message: "An account with this admin email already exists." };
+    }
+
+    // Pro is paid first: the payment must be verified, for this plan, and not used by another clinic.
+    const paid = data.planId === "plan_professional";
+    let subscriptionId = "";
+    if (paid) {
+      const pay = data.paymentId
+        ? await PlanPaymentModel.findOne({ paymentId: data.paymentId, planId: data.planId, status: "PAID" }).lean()
+        : null;
+      if (!pay) return { success: false, message: "Payment is required for the Pro plan. Please complete payment from the pricing page." };
+      if (pay.usedByTenantId) return { success: false, message: "This payment has already been used to register a clinic." };
+      subscriptionId = pay.subscriptionId;
     }
 
     const doctorRegNo = data.doctorRegNo.replace(/\s+/g, "").toUpperCase();
@@ -234,6 +248,14 @@ export const registerTenantFn = createServerFn({ method: "POST" })
       },
     );
 
+    // Atomically claim the payment so two simultaneous registrations cannot both use it.
+    if (paid) {
+      const claimed = await PlanPaymentModel.findOneAndUpdate(
+        { paymentId: data.paymentId ?? "", status: "PAID", usedByTenantId: { $exists: false } },
+        { usedByTenantId: tenantId },
+      );
+      if (!claimed) return { success: false, message: "This payment has already been used to register a clinic." };
+    }
     await TenantModel.create({
       tenantId,
       slug,
@@ -262,10 +284,15 @@ export const registerTenantFn = createServerFn({ method: "POST" })
       ...(data.pan?.trim() ? { pan: data.pan.trim() } : {}),
       adminUserId: String(user._id),
       planId: data.planId,
-      subscriptionStatus: "TRIAL",
-      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+      ...(paid
+        ? { subscriptionStatus: "ACTIVE" as const, razorpaySubscriptionId: subscriptionId, paidUntil: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000) }
+        : { subscriptionStatus: "TRIAL" as const, trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000) }),
       features: plan.features,
       status: "ACTIVE",
+    }).catch(async (e: unknown) => {
+      // give the payment back so the customer can retry
+      if (paid) await PlanPaymentModel.updateOne({ paymentId: data.paymentId ?? "" }, { $unset: { usedByTenantId: 1 } });
+      throw e;
     });
 
     setCookie(COOKIE_NAME, refreshToken, {
@@ -319,7 +346,9 @@ export const registerTenantFn = createServerFn({ method: "POST" })
       success: true,
       user: profile,
       accessToken,
-      message: `Welcome to VetTechIQ, ${data.clinicName.trim()}! Your 14-day ${plan.name} trial is live.`,
+      message: paid
+        ? `Welcome to VetTechIQ, ${data.clinicName.trim()}! Your ${plan.name} plan is active.`
+        : `Welcome to VetTechIQ, ${data.clinicName.trim()}! Your ${TRIAL_DAYS}-day ${plan.name} trial is live.`,
     };
   });
 

@@ -23,9 +23,10 @@ interface TenantRow {
 }
 
 const PLAN_LABEL: Record<string, string> = {
+  plan_starter: "Starter",
   plan_basic: "Basic",
-  plan_professional: "Professional",
-  plan_enterprise: "Enterprise",
+  plan_professional: "Pro",
+  plan_enterprise: "Max",
 };
 
 export function PlatformTenantsHub() {

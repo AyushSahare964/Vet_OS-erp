@@ -12,7 +12,7 @@ export function LedgersHub({
 }) {
   return (
     <Shell title="Ledgers">
-      <div className="mx-auto max-w-[1100px] space-y-4">
+      <div className="space-y-4">
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <BookOpen className="size-3.5 text-primary" />
           <span>Ledgers</span>

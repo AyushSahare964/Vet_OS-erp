@@ -187,12 +187,12 @@ export function LedgerReportDialog({ type, onClose }: Props) {
     <section
       aria-label={`${config.title} ledger`}
       className={cn(
-        "mx-auto flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs",
-        needsPicker ? "max-w-3xl" : "max-w-6xl"
+        "flex w-full flex-col",
+        !needsPicker && "overflow-hidden rounded-xl border border-border bg-card shadow-xs"
       )}
     >
         {/* Header */}
-        <header className="border-b px-5 py-3.5 bg-muted/20">
+        <header className={cn("border-b", needsPicker ? "pb-4" : "bg-muted/20 px-5 py-3.5")}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl border", config.color)}>
@@ -249,7 +249,7 @@ export function LedgerReportDialog({ type, onClose }: Props) {
 
         {/* ─── PARTY PICKER VIEW ─────────────────────────────────────── */}
         {needsPicker ? (
-          <div className="flex flex-col gap-3 p-5 overflow-hidden">
+          <div className="flex flex-col gap-3 pt-4">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
@@ -277,7 +277,7 @@ export function LedgerReportDialog({ type, onClose }: Props) {
               <span className="hidden sm:inline">Click to open ledger statement</span>
             </div>
 
-            <div className="max-h-[60vh] overflow-y-auto divide-y rounded-xl border border-border bg-card">
+            <div className="min-h-[40vh] max-h-[calc(100vh-24rem)] overflow-y-auto divide-y rounded-xl border border-border bg-card">
               {loadingSubjects ? (
                 <div className="py-12 text-center text-xs text-muted-foreground animate-pulse">
                   Searching accounts…

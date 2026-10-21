@@ -1,0 +1,78 @@
+import { TRIAL_DAYS } from '@/lib/erp/features'
+
+export const MONTHLY_PRICE = 2000
+export const GST_NOTE = '+ GST'
+
+// Each plan maps to an ERP plan id (src/lib/erp/features.ts). to: where the card button goes.
+export const PLANS = [
+  {
+    id: 'starter',
+    erpPlan: 'plan_starter',
+    name: 'Starter',
+    price: '₹0',
+    period: `for ${TRIAL_DAYS} days`,
+    description: `Try VetechIQ in your clinic, free for ${TRIAL_DAYS} days.`,
+    cta: 'Start Free Trial',
+    to: { to: '/register-clinic', search: { plan: 'plan_starter' } },
+    features: [
+      'Pet and owner records with full visit history',
+      'Appointment calendar, time slots and live queue',
+      'Consultation with vitals, diagnosis and prescriptions',
+      'Lab orders and printable lab reports',
+      'Pharmacy and stock with batch and expiry alerts',
+      'GST invoices with split payments',
+      'Roles for Admin, Doctor, Receptionist and Accountant',
+    ],
+  },
+  {
+    id: 'pro',
+    erpPlan: 'plan_professional',
+    name: 'Pro',
+    badge: 'Recommended',
+    highlighted: true,
+    price: `₹${MONTHLY_PRICE.toLocaleString('en-IN')}`,
+    period: `${GST_NOTE} per month`,
+    description: 'The complete VetechIQ for your whole clinic.',
+    cta: 'Pay & Register',
+    pay: true,
+    note: `Secure monthly billing with Razorpay: ₹${(MONTHLY_PRICE * 1.18).toLocaleString('en-IN')} a month (₹${MONTHLY_PRICE.toLocaleString('en-IN')} + 18% GST), charged today and then every month. You register your clinic right after paying.`,
+    features: [
+      'Everything in Starter',
+      'Full pharmacy and inventory with purchase orders and purchase bills',
+      'GST invoices, quotations, partial payments and clear paid or unpaid status',
+      'Customer, supplier and cash ledgers with expense records',
+      'Reports and sales summaries, with export to Excel and PDF',
+      'Boarding, swimming and food and nutrition plans',
+      'Printable consent forms, vaccination certificates and lab reports',
+      'Staff approval and staff performance reports for the Admin',
+    ],
+  },
+  {
+    id: 'max',
+    erpPlan: 'plan_enterprise',
+    name: 'Max',
+    badge: 'Coming Soon',
+    badgeIcon: 'auto_awesome',
+    price: 'Coming Soon',
+    period: '',
+    description: 'Everything in Pro, with smart AI help for your clinic.',
+    cta: 'Notify Me',
+    to: { to: '/request-demo', search: { interest: 'max' } },
+    features: [
+      'Pet and owner records with full visit history',
+      'Appointment calendar, time slots and live queue',
+      'Consultation with vitals, diagnosis and prescriptions',
+      'Lab orders, results and printable lab reports',
+      'Full pharmacy and inventory with batch and expiry alerts',
+      'Purchase orders and purchase bills',
+      'GST invoices, quotations, partial payments and paid or unpaid status',
+      'Customer, supplier and cash ledgers with expense records',
+      'Reports and sales summaries, with export to Excel and PDF',
+      'Boarding, swimming and food and nutrition plans',
+      'Printable consent forms and vaccination certificates',
+      'Roles for Admin, Doctor, Receptionist and Accountant',
+      'Staff approval and staff performance reports',
+      'AI-powered features, coming very soon',
+    ],
+  },
+]

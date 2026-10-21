@@ -23,7 +23,7 @@ export interface TenantFeatures {
   maxPets: number;  // -1 = unlimited
 }
 
-export type SubscriptionPlanId = "plan_basic" | "plan_professional" | "plan_enterprise";
+export type SubscriptionPlanId = "plan_starter" | "plan_basic" | "plan_professional" | "plan_enterprise";
 export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "SUSPENDED" | "CANCELLED";
 export type TenantStatus = "ACTIVE" | "SUSPENDED";
 
@@ -60,6 +60,10 @@ export interface ITenant extends Document {
   planId: SubscriptionPlanId;
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt?: Date;
+  /** Paid plans: the paid period ends here (a trial uses trialEndsAt). */
+  paidUntil?: Date;
+  /** Razorpay subscription billing this clinic monthly (Pro). Renewals arrive through the webhook. */
+  razorpaySubscriptionId?: string;
   features: TenantFeatures;
   status: TenantStatus;
   createdAt: Date;
@@ -99,9 +103,11 @@ const TenantSchema = new Schema<ITenant>(
     gstin: { type: String },
     pan: { type: String },
     adminUserId: { type: String, required: true },
-    planId: { type: String, enum: ["plan_basic", "plan_professional", "plan_enterprise"], required: true },
+    planId: { type: String, enum: ["plan_starter", "plan_basic", "plan_professional", "plan_enterprise"], required: true },
     subscriptionStatus: { type: String, enum: ["TRIAL", "ACTIVE", "SUSPENDED", "CANCELLED"], default: "TRIAL" },
     trialEndsAt: { type: Date },
+    paidUntil: { type: Date },
+    razorpaySubscriptionId: { type: String, index: true },
     features: { type: Schema.Types.Mixed, required: true },
     status: { type: String, enum: ["ACTIVE", "SUSPENDED"], default: "ACTIVE" },
   },

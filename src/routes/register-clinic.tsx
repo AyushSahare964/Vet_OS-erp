@@ -1,40 +1,54 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Building2, ArrowRight, ArrowLeft, Check, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { useErp } from "@/lib/erp/store";
 import type { RegisterTenantPayload } from "@/lib/erp/auth";
 import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
+import { TRIAL_DAYS } from "@/lib/erp/features";
 import { cn } from "@/lib/utils";
+import { normaliseMobile, validateMobile, validatePin } from "@/lib/finance/validators";
+import { PetShowcase } from "@/components/erp/PetShowcase";
+import { PayButton } from "@/components/landing/PayButton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/register-clinic")({
+  // ?plan=<planId> comes from the pricing page and preselects the plan in step 4.
+  validateSearch: (s: Record<string, unknown>): { plan?: RegisterTenantPayload["planId"]; pay?: string } => {
+    const p = typeof s["plan"] === "string" && SELECTABLE_PLAN_IDS.includes(s["plan"]) ? (s["plan"] as RegisterTenantPayload["planId"]) : undefined;
+    const pay = typeof s["pay"] === "string" && s["pay"].length <= 80 ? s["pay"] : undefined;
+    return { ...(p ? { plan: p } : {}), ...(pay ? { pay } : {}) };
+  },
   head: () => ({
     meta: [{ title: "Register Your Clinic — VetechIQ" }],
   }),
   component: RegisterClinicPage,
 });
 
-const PLANS: Array<{ id: RegisterTenantPayload["planId"]; name: string; price: string; blurb: string; highlights: string[] }> = [
+const SELECTABLE_PLAN_IDS: string[] = ["plan_starter", "plan_professional"];
+
+const PLANS: Array<{ id: RegisterTenantPayload["planId"]; name: string; price: string; blurb: string; highlights: string[]; soon?: boolean }> = [
   {
-    id: "plan_basic",
-    name: "Basic",
-    price: "₹999/mo",
-    blurb: "CRM, appointments, billing, clinical records, basic inventory.",
+    id: "plan_starter",
+    name: "Starter",
+    price: `₹0 for ${TRIAL_DAYS} days`,
+    blurb: "Pet records, appointments, consultation, lab, pharmacy and GST invoices.",
     highlights: ["Up to 5 staff", "Up to 500 pets"],
   },
   {
     id: "plan_professional",
-    name: "Professional",
-    price: "₹2,499/mo",
-    blurb: "Everything in Basic, plus laboratory, pharmacy, boarding, accounting, reports.",
+    name: "Pro",
+    price: "₹2,000/mo + GST",
+    blurb: "Everything in Starter, plus ledgers, reports, boarding, swimming and nutrition.",
     highlights: ["Up to 20 staff", "Up to 5,000 pets"],
   },
   {
     id: "plan_enterprise",
-    name: "Enterprise",
-    price: "₹5,999/mo",
-    blurb: "Everything in Professional, plus nutrition management and unlimited scale.",
+    name: "Max",
+    price: "Coming soon",
+    blurb: "Everything in Pro, with smart AI help for your clinic.",
     highlights: ["Unlimited staff", "Unlimited pets"],
+    soon: true,
   },
 ];
 
@@ -44,8 +58,8 @@ const INDIAN_STATES = [
   "Madhya Pradesh", "Bihar", "Andhra Pradesh",
 ];
 
-const STEP_LABELS = ["Clinic Details", "Doctor Details", "Branding", "Choose Plan", "Admin Account"] as const;
-type Step = 1 | 2 | 3 | 4 | 5;
+const STEP_LABELS = ["Clinic Details", "Doctor Details", "Branding", "Admin Account"] as const;
+type Step = 1 | 2 | 3 | 4;
 
 const COUNCILS = [
   "Maharashtra State Veterinary Council",
@@ -65,6 +79,11 @@ const COUNCILS = [
   "West Bengal Veterinary Council",
   "Bihar Veterinary Council",
 ];
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const digits = (v: string, max: number) => normaliseMobile(v).replace(/\D/g, "").slice(0, max);
+const emailError = (v: string) => (v && !EMAIL_RE.test(v.trim()) ? "Enter a valid email address" : null);
+const phoneError = (v: string, required = true) => (v || required ? validateMobile(v, required) : null);
 
 const MAX_ID_CARD_DIMENSION = 1200; // large enough to stay legible for manual verification
 
@@ -101,8 +120,15 @@ function resizeImageToDataUri(file: File, maxDim = MAX_LOGO_DIMENSION): Promise<
 function RegisterClinicPage() {
   const navigate = useNavigate();
   const { registerTenant } = useErp();
+  const { plan, pay } = Route.useSearch();
+  // Pro is paid on the pricing page first; without a payment there is nothing to register against.
+  useEffect(() => {
+    if (plan === "plan_professional" && !pay) void navigate({ to: "/pricing" });
+  }, [plan, pay, navigate]);
   const [step, setStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [payMsg, setPayMsg] = useState("");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoProcessing, setLogoProcessing] = useState(false);
   const [idCardProcessing, setIdCardProcessing] = useState(false);
@@ -130,7 +156,8 @@ function RegisterClinicPage() {
     gstin: "",
     pan: "",
     isCompositionDealer: false,
-    planId: "plan_professional",
+    planId: plan ?? "plan_starter",
+    ...(pay ? { paymentId: pay } : {}),
     adminFullName: "",
     adminEmail: "",
     adminPassword: "",
@@ -147,7 +174,8 @@ function RegisterClinicPage() {
     setForm((f) => ({ ...f, [key]: value }));
 
   const canContinueStep1 =
-    form.clinicName.trim() && form.address.trim() && form.city.trim() && form.pin.trim() && form.phone.trim() && form.email.trim();
+    !!form.clinicName.trim() && !!form.address.trim() && !!form.city.trim() &&
+    !validatePin(form.pin, true) && !phoneError(form.phone) && !phoneError(form.whatsappNumber || "", false) && !!form.email && !emailError(form.email);
 
   const handleLogoPick = async (file: File | undefined) => {
     if (!file) return;
@@ -192,18 +220,35 @@ function RegisterClinicPage() {
     }
   };
 
-  const handleSubmit = async () => {
+  // Last step: check the admin account, then ask the user to confirm (or upgrade) the plan before creating anything.
+  const openConfirm = () => {
     if (!form.adminFullName.trim() || !form.adminEmail.trim() || !form.adminPassword) {
       toast.error("Please fill in your name, email, and password.");
+      return;
+    }
+    if (emailError(form.adminEmail) || phoneError(form.adminPhone || "", false)) {
+      toast.error("Please correct your email or mobile number.");
       return;
     }
     if (form.adminPassword !== confirmPassword) {
       toast.error("Passwords do not match.");
       return;
     }
+    setPayMsg("");
+    setConfirmOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    setConfirmOpen(false);
     setLoading(true);
     try {
-      const res = await registerTenant(form);
+      const withCode = (v: string | undefined) => (v ? `+91 ${v}` : "");
+      const res = await registerTenant({
+        ...form,
+        phone: withCode(form.phone),
+        whatsappNumber: withCode(form.whatsappNumber),
+        adminPhone: withCode(form.adminPhone),
+      });
       if (res.success) {
         toast.success(res.message || "Clinic registered!");
         navigate({ to: "/" });
@@ -218,24 +263,43 @@ function RegisterClinicPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-slate-100/90 via-slate-50 to-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-10">
-      <div className="mb-6 flex items-center justify-between w-full max-w-2xl px-2">
-        <Link to="/login" className="flex items-center gap-2.5 group">
-          <img src={CLINIC_CONFIG.logoPath} alt="VetechIQ" className="h-10 w-auto object-contain" />
-          <span className="text-base font-bold tracking-tight text-navy">VetechIQ</span>
+    <div
+      className="min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 lg:p-10"
+      style={{
+        backgroundColor: "#eaf3fa",
+        backgroundImage: `radial-gradient(circle at 50% 12%, rgba(123, 189, 232, 0.28) 0%, transparent 55%), radial-gradient(circle at 85% 85%, rgba(10, 65, 116, 0.08) 0%, transparent 50%), url("/pattern/pets-pattern.svg")`,
+        backgroundSize: "cover, cover, 280px 280px",
+        backgroundRepeat: "no-repeat, no-repeat, repeat",
+        fontFamily: '"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif',
+      }}
+    >
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 w-full max-w-5xl px-2">
+        <Link to="/" className="flex items-center gap-3" aria-label="VetechIQ home">
+          <img src="/landing/logo-dark.png" alt="VetechIQ" className="h-10 w-auto max-w-none object-contain object-left" />
+          <span className="hidden sm:block text-[0.72rem] text-[#4d6a86] font-medium leading-none">Veterinary Practice & Clinic Management</span>
         </Link>
-        <Link to="/login" className="text-xs font-semibold text-primary hover:underline">
-          Already have a clinic? Sign in →
-        </Link>
+        <div className="flex items-center gap-2.5">
+          <Link to="/pricing" className="text-xs font-bold text-[#001d39] hover:underline px-2 py-2">Plans & pricing</Link>
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-[#001d39] via-[#0a4174] to-[#001d39] px-3.5 py-2 rounded-xl border border-[#bcd0e2] shadow-[0_4px_14px_rgba(10,65,116,0.2)] hover:scale-105 active:scale-95 transition-all"
+          >
+            Already have a clinic? Sign in <ArrowRight className="size-3 text-[#7bbde8]" />
+          </Link>
+        </div>
       </div>
 
-      <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200/90 shadow-xl shadow-slate-200/50 overflow-hidden p-6 sm:p-8">
-        <div className="flex items-center gap-2 mb-1">
-          <Building2 className="size-5 text-primary" />
-          <h1 className="text-lg font-bold text-navy">Register Your Clinic</h1>
+      <div className="w-full max-w-5xl rounded-3xl bg-white border border-[#bcd0e2] shadow-[0_20px_50px_rgba(0,29,57,0.12),0_1px_3px_rgba(0,29,57,0.06)] overflow-hidden grid grid-cols-1 md:grid-cols-12">
+        <div className="hidden md:block md:col-span-4 border-r border-[#d3e2ef]">
+          <PetShowcase />
         </div>
-        <p className="text-xs text-muted-foreground mb-5">
-          Get your own isolated VetechIQ workspace in minutes — no card required, 14-day free trial.
+        <div className="md:col-span-8 p-6 sm:p-8 bg-white">
+        <div className="flex items-center gap-2 mb-1">
+          <Building2 className="size-6 text-[#0a4174]" />
+          <h1 className="text-2xl font-black tracking-tight text-[#001d39] font-['Bricolage_Grotesque',system-ui,sans-serif]">Register Your Clinic</h1>
+        </div>
+        <p className="text-sm text-[#4d6a86] mb-6">
+          Get your own isolated VetechIQ workspace in minutes — no card required, {TRIAL_DAYS}-day free trial.
         </p>
 
         {/* Step indicator */}
@@ -246,14 +310,14 @@ function RegisterClinicPage() {
               <div key={label} className="flex items-center gap-2 flex-1">
                 <div
                   className={cn(
-                    "size-6 rounded-full flex items-center justify-center text-[0.65rem] font-bold shrink-0",
-                    step === n ? "bg-primary text-primary-foreground" : step > n ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400",
+                    "size-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                    step === n ? "bg-[#001d39] text-[#7bbde8]" : step > n ? "bg-emerald-500 text-white" : "bg-[#eaf3fa] text-[#4d6a86]",
                   )}
                 >
                   {step > n ? <Check className="size-3.5" /> : n}
                 </div>
-                <span className={cn("text-[0.62rem] font-medium hidden sm:inline", step === n ? "text-navy" : "text-muted-foreground")}>{label}</span>
-                {n < 5 && <div className="h-px flex-1 bg-slate-200" />}
+                <span className={cn("text-[0.7rem] font-semibold hidden lg:inline", step === n ? "text-[#001d39]" : "text-muted-foreground")}>{label}</span>
+                {n < 4 && <div className="h-px flex-1 bg-[#d3e2ef]" />}
               </div>
             );
           })}
@@ -266,29 +330,29 @@ function RegisterClinicPage() {
               <Field label="Legal Name" value={form.legalName || ""} onChange={(v) => set("legalName", v)} placeholder="Same as clinic name" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Phone *" value={form.phone} onChange={(v) => set("phone", v)} placeholder="+91 98765 43210" />
-              <Field label="WhatsApp Number" value={form.whatsappNumber || ""} onChange={(v) => set("whatsappNumber", v)} placeholder="Same as phone" />
+              <Field label="Mobile Number *" value={form.phone} onChange={(v) => set("phone", digits(v, 10))} placeholder="98765 43210" prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.phone)} />
+              <Field label="WhatsApp Number" value={form.whatsappNumber || ""} onChange={(v) => set("whatsappNumber", digits(v, 10))} placeholder="Same as mobile" prefix="+91" type="tel" inputMode="numeric" error={phoneError(form.whatsappNumber || "", false)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Contact Email *" value={form.email} onChange={(v) => set("email", v)} placeholder="clinic@example.com" type="email" />
+              <Field label="Contact Email *" value={form.email} onChange={(v) => set("email", v.toLowerCase().replace(/\s/g, ""))} placeholder="clinic@example.com" type="email" inputMode="email" autoComplete="email" error={emailError(form.email)} />
               <Field label="Website" value={form.website || ""} onChange={(v) => set("website", v)} placeholder="www.yourclinic.com" />
             </div>
             <Field label="Address *" value={form.address} onChange={(v) => set("address", v)} placeholder="Street, area" />
             <div className="grid grid-cols-3 gap-2">
               <Field label="City *" value={form.city} onChange={(v) => set("city", v)} placeholder="Nagpur" />
-              <div className="space-y-0.5">
-                <label className="block text-[0.68rem] font-semibold text-foreground">State *</label>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-[#001d39]">State *</label>
                 <select
                   value={form.state}
                   onChange={(e) => set("state", e.target.value)}
-                  className="h-8 w-full rounded-lg border border-input bg-background px-2 text-xs outline-none focus:border-primary"
+                  className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-white px-3 text-sm outline-none focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                 >
                   {INDIAN_STATES.map((s) => (
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
               </div>
-              <Field label="PIN *" value={form.pin} onChange={(v) => set("pin", v)} placeholder="440001" />
+              <Field label="PIN *" value={form.pin} onChange={(v) => set("pin", v.replace(/\D/g, "").slice(0, 6))} placeholder="440001" inputMode="numeric" maxLength={6} error={form.pin ? validatePin(form.pin, true) : null} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Field label="GSTIN" value={form.gstin || ""} onChange={(v) => set("gstin", v)} placeholder="Optional" />
@@ -307,7 +371,7 @@ function RegisterClinicPage() {
               type="button"
               disabled={!canContinueStep1}
               onClick={() => setStep(2)}
-              className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs transition-all hover:bg-primary-hover active:scale-[0.99] disabled:opacity-40 mt-2"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#001d39] via-[#0a4174] to-[#001d39] text-sm font-bold text-white shadow-[0_4px_14px_rgba(10,65,116,0.25)] transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-40 mt-2"
             >
               Continue <ArrowRight className="size-3.5" />
             </button>
@@ -322,34 +386,34 @@ function RegisterClinicPage() {
             <Field label="Doctor's Name (as on card) *" value={form.doctorName} onChange={(v) => set("doctorName", v)} placeholder="Dr. Makarand Mukund Dixit" />
             <div className="grid grid-cols-2 gap-2">
               <Field label="Council Regn. No. *" value={form.doctorRegNo} onChange={(v) => set("doctorRegNo", v)} placeholder="MSVC-8648/2011" />
-              <div className="space-y-0.5">
-                <label className="block text-[0.68rem] font-semibold text-foreground">Valid Upto *</label>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-[#001d39]">Valid Upto *</label>
                 <input
                   type="date"
                   min={today}
                   value={form.doctorRegValidUpto}
                   onChange={(e) => set("doctorRegValidUpto", e.target.value)}
-                  className="h-8 w-full rounded-lg border border-input bg-background px-2 text-xs outline-none focus:border-primary"
+                  className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-white px-3 text-sm outline-none focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                 />
                 {form.doctorRegValidUpto && form.doctorRegValidUpto <= today && (
                   <p className="text-[0.65rem] text-destructive">This registration has expired — it must be valid after today.</p>
                 )}
               </div>
             </div>
-            <div className="space-y-0.5">
-              <label className="block text-[0.68rem] font-semibold text-foreground">Veterinary Council *</label>
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-[#001d39]">Veterinary Council *</label>
               <input
                 list="vet-councils"
                 value={form.doctorCouncil}
                 onChange={(e) => set("doctorCouncil", e.target.value)}
-                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
+                className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-white px-3 text-sm outline-none focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
               />
               <datalist id="vet-councils">{COUNCILS.map((c) => <option key={c} value={c} />)}</datalist>
             </div>
             <Field label="Qualification" value={form.doctorQualification || ""} onChange={(v) => set("doctorQualification", v)} placeholder="BVSc & AH, MVSc" />
 
             <div className="space-y-1">
-              <label className="block text-[0.68rem] font-semibold text-foreground">Council Identity Card (photo / scan) *</label>
+              <label className="block text-xs font-semibold text-[#001d39]">Council Identity Card (photo / scan) *</label>
               <input
                 ref={idCardInputRef}
                 type="file"
@@ -369,7 +433,7 @@ function RegisterClinicPage() {
                   type="button"
                   disabled={idCardProcessing}
                   onClick={() => idCardInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 h-8 text-xs font-semibold text-foreground hover:bg-slate-50 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#bcd0e2] px-3 h-10 text-sm font-semibold text-[#001d39] hover:bg-[#eaf3fa] disabled:opacity-50"
                 >
                   <Upload className="size-3.5" />
                   {idCardProcessing ? "Processing…" : form.doctorIdCardDataUri ? "Replace card" : "Upload ID card"}
@@ -379,14 +443,14 @@ function RegisterClinicPage() {
             </div>
 
             <div className="flex gap-2 mt-2">
-              <button type="button" onClick={() => setStep(1)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
+              <button type="button" onClick={() => setStep(1)} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#bcd0e2] px-5 text-sm font-bold text-[#001d39] hover:bg-[#eaf3fa]">
                 <ArrowLeft className="size-3.5" /> Back
               </button>
               <button
                 type="button"
                 disabled={!canContinueDoctor}
                 onClick={() => setStep(3)}
-                className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary-hover active:scale-[0.99] disabled:opacity-40"
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#001d39] via-[#0a4174] to-[#001d39] text-sm font-bold text-white shadow-[0_4px_14px_rgba(10,65,116,0.25)] hover:brightness-110 active:scale-[0.99] disabled:opacity-40"
               >
                 Continue <ArrowRight className="size-3.5" />
               </button>
@@ -397,7 +461,7 @@ function RegisterClinicPage() {
         {step === 3 && (
           <div className="space-y-3.5 animate-in fade-in duration-150">
             <div className="space-y-1">
-              <label className="block text-[0.68rem] font-semibold text-foreground">Clinic Logo</label>
+              <label className="block text-xs font-semibold text-[#001d39]">Clinic Logo</label>
               <div className="flex items-center gap-3">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 overflow-hidden">
                   {logoPreview ? (
@@ -418,7 +482,7 @@ function RegisterClinicPage() {
                     type="button"
                     disabled={logoProcessing}
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 h-8 text-xs font-semibold text-foreground hover:bg-slate-50 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#bcd0e2] px-3 h-10 text-sm font-semibold text-[#001d39] hover:bg-[#eaf3fa] disabled:opacity-50"
                   >
                     <Upload className="size-3.5" />
                     {logoProcessing ? "Processing…" : logoPreview ? "Change logo" : "Upload logo"}
@@ -439,8 +503,8 @@ function RegisterClinicPage() {
 
             <div className="grid grid-cols-2 gap-2">
               <Field label="Tagline" value={form.tagline || ""} onChange={(v) => set("tagline", v)} placeholder="Caring for your pets, always" />
-              <div className="space-y-0.5">
-                <label className="block text-[0.68rem] font-semibold text-foreground">Brand Colour</label>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-[#001d39]">Brand Colour</label>
                 <div className="flex items-center gap-2 h-8">
                   <input
                     type="color"
@@ -486,13 +550,13 @@ function RegisterClinicPage() {
             </div>
 
             <div className="flex gap-2 mt-2">
-              <button type="button" onClick={() => setStep(2)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
+              <button type="button" onClick={() => setStep(2)} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#bcd0e2] px-5 text-sm font-bold text-[#001d39] hover:bg-[#eaf3fa]">
                 <ArrowLeft className="size-3.5" /> Back
               </button>
               <button
                 type="button"
                 onClick={() => setStep(4)}
-                className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary-hover active:scale-[0.99]"
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#001d39] via-[#0a4174] to-[#001d39] text-sm font-bold text-white shadow-[0_4px_14px_rgba(10,65,116,0.25)] hover:brightness-110 active:scale-[0.99]"
               >
                 Continue <ArrowRight className="size-3.5" />
               </button>
@@ -502,93 +566,126 @@ function RegisterClinicPage() {
 
         {step === 4 && (
           <div className="space-y-3 animate-in fade-in duration-150">
-            {PLANS.map((plan) => (
-              <button
-                key={plan.id}
-                type="button"
-                onClick={() => set("planId", plan.id)}
-                className={cn(
-                  "w-full text-left rounded-xl border p-3.5 transition-all",
-                  form.planId === plan.id ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-slate-200 hover:border-slate-300",
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-navy">{plan.name}</span>
-                  <span className="text-sm font-bold text-primary">{plan.price}</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{plan.blurb}</p>
-                <div className="flex gap-3 mt-1.5">
-                  {plan.highlights.map((h) => (
-                    <span key={h} className="text-[0.65rem] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">{h}</span>
-                  ))}
-                </div>
-              </button>
-            ))}
-            <p className="text-[0.68rem] text-muted-foreground text-center">14-day free trial on any plan — no payment needed to start.</p>
-            <div className="flex gap-2 mt-2">
-              <button type="button" onClick={() => setStep(3)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
-                <ArrowLeft className="size-3.5" /> Back
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep(5)}
-                className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary-hover active:scale-[0.99]"
-              >
-                Continue <ArrowRight className="size-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 5 && (
-          <div className="space-y-3 animate-in fade-in duration-150">
             <p className="text-xs text-muted-foreground">This account becomes the clinic's administrator.</p>
             <Field label="Full Name *" value={form.adminFullName} onChange={(v) => set("adminFullName", v)} placeholder="Dr. Jane Doe" />
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Admin Email *" value={form.adminEmail} onChange={(v) => set("adminEmail", v)} placeholder="you@example.com" type="email" />
-              <Field label="Phone" value={form.adminPhone || ""} onChange={(v) => set("adminPhone", v)} placeholder="+91 98765 43210" />
+              <Field label="Admin Email *" value={form.adminEmail} onChange={(v) => set("adminEmail", v.toLowerCase().replace(/\s/g, ""))} placeholder="you@example.com" type="email" inputMode="email" autoComplete="email" error={emailError(form.adminEmail)} />
+              <Field label="Mobile Number" value={form.adminPhone || ""} onChange={(v) => set("adminPhone", digits(v, 10))} placeholder="98765 43210" prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.adminPhone || "", false)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Password *" value={form.adminPassword} onChange={(v) => set("adminPassword", v)} placeholder="••••••••" type="password" />
               <Field label="Confirm Password *" value={confirmPassword} onChange={setConfirmPassword} placeholder="••••••••" type="password" />
             </div>
             <div className="flex gap-2 mt-2">
-              <button type="button" onClick={() => setStep(4)} className="flex h-9 items-center justify-center gap-2 rounded-lg border border-input px-4 text-xs font-bold text-foreground">
+              <button type="button" onClick={() => setStep(4)} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#bcd0e2] px-5 text-sm font-bold text-[#001d39] hover:bg-[#eaf3fa]">
                 <ArrowLeft className="size-3.5" /> Back
               </button>
               <button
                 type="button"
                 disabled={loading}
-                onClick={handleSubmit}
-                className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary-hover active:scale-[0.99] disabled:opacity-60"
+                onClick={openConfirm}
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#001d39] via-[#0a4174] to-[#001d39] text-sm font-bold text-white shadow-[0_4px_14px_rgba(10,65,116,0.25)] hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
               >
                 {loading ? (
                   <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 ) : (
-                  <>Create My Clinic <ArrowRight className="size-3.5" /></>
+                  <>Review & Create Clinic <ArrowRight className="size-3.5" /></>
                 )}
               </button>
             </div>
           </div>
         )}
+        </div>
       </div>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-md rounded-3xl border-[#bcd0e2]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-[#001d39]">Confirm your plan</DialogTitle>
+            <DialogDescription>Check the plan for your clinic before we create the workspace.</DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const chosen = PLANS.find((p) => p.id === form.planId) ?? PLANS[0]!;
+            const pro = PLANS.find((p) => p.id === "plan_professional")!;
+            const isPro = form.planId === "plan_professional";
+            return (
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-[#0a4174] bg-[#eaf3fa] p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-base font-bold text-[#001d39]">{chosen.name}</span>
+                    <span className="text-sm font-bold text-[#0a4174]">{isPro ? "Paid ✓" : chosen.price}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-[#4d6a86]">{chosen.blurb}</p>
+                </div>
+                {!isPro && (
+                  <div className="rounded-2xl border border-[#bcd0e2] p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-[#001d39]">Upgrade to {pro.name}</span>
+                      <span className="text-xs font-bold text-[#0a4174]">{pro.price}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-[#4d6a86]">{pro.blurb}</p>
+                    <PayButton
+                      className="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-[#0a4174] text-sm font-bold text-[#0a4174] hover:bg-[#eaf3fa]"
+                      label="Upgrade to Pro: pay ₹2,360"
+                      onMessage={setPayMsg}
+                      onPaid={(id) => {
+                        setForm((f) => ({ ...f, planId: "plan_professional", paymentId: id }));
+                        setPayMsg("");
+                      }}
+                    />
+                    {payMsg && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{payMsg}</p>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <button type="button" onClick={() => setConfirmOpen(false)} className="h-11 rounded-xl border border-[#bcd0e2] px-5 text-sm font-bold text-[#001d39] hover:bg-[#eaf3fa]">
+              Go back
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              className="h-11 flex-1 rounded-xl bg-gradient-to-r from-[#001d39] via-[#0a4174] to-[#001d39] px-5 text-sm font-bold text-white hover:brightness-110"
+            >
+              Confirm & create clinic
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 function Field({
-  label, value, onChange, placeholder, type = "text",
-}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+  label, value, onChange, placeholder, type = "text", prefix, error, ...rest
+}: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+  prefix?: string; error?: string | null;
+  inputMode?: "numeric" | "email" | "tel" | "text"; autoComplete?: string; maxLength?: number;
+}) {
+  const bad = !!error && value !== "";
   return (
-    <div className="space-y-0.5">
-      <label className="block text-[0.68rem] font-semibold text-foreground">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
-      />
+    <div className="space-y-1">
+      <label className="block text-xs font-semibold text-[#001d39]">{label}</label>
+      <div
+        className={cn(
+          "flex h-10 w-full items-center overflow-hidden rounded-xl border bg-white focus-within:ring-2",
+          bad ? "border-red-400 focus-within:ring-red-200" : "border-[#bcd0e2] focus-within:border-[#0a4174] focus-within:ring-[#7bbde8]/40",
+        )}
+      >
+        {prefix && <span className="flex h-full items-center border-r border-[#bcd0e2] bg-[#eaf3fa] px-3 text-sm font-semibold text-[#4d6a86]">{prefix}</span>}
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-invalid={bad}
+          className="h-full w-full bg-transparent px-3 text-sm outline-none"
+          {...rest}
+        />
+      </div>
+      {bad && <p className="text-[0.7rem] font-medium text-red-600">{error}</p>}
     </div>
   );
 }

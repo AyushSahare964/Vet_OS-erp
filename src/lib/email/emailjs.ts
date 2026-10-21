@@ -5,12 +5,13 @@
  */
 const ENDPOINT = "https://api.emailjs.com/api/v1.0/email/send";
 
-export type EmailQueryType = "registrationOTP" | "passwordReset" | "clinicWelcome";
+export type EmailQueryType = "registrationOTP" | "passwordReset" | "clinicWelcome" | "demoRequest";
 
 const TEMPLATE_ENV: Record<EmailQueryType, string> = {
   registrationOTP: "EMAILJS_TEMPLATE_REGISTRATION_OTP",
   passwordReset: "EMAILJS_TEMPLATE_PASSWORD_RESET",
   clinicWelcome: "EMAILJS_TEMPLATE_CLINIC_WELCOME",
+  demoRequest: "EMAILJS_TEMPLATE_DEMO_REQUEST",
 };
 
 // Template IDs are not secrets. They match the two templates in the clinic's EmailJS account
@@ -19,6 +20,8 @@ const DEFAULT_TEMPLATE_ID: Record<EmailQueryType, string> = {
   registrationOTP: "template_zo51h1i",
   passwordReset: "template_rep7mlc",
   clinicWelcome: "template_1s5wswj",
+  // No default: create an EmailJS template that prints {{{html_body}}} (to: {{to_email}}) and set EMAILJS_TEMPLATE_DEMO_REQUEST.
+  demoRequest: "",
 };
 
 /** .env is only read at server start (and by the DB client); re-read it so EmailJS keys added later are picked up. */
@@ -89,6 +92,10 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
     return false;
   }
   const activeTemplateId = input.templateId || resolveTemplateId(input.queryType);
+  if (!activeTemplateId) {
+    console.warn(`[email] No EmailJS template configured for "${input.queryType}" — skipping send.`);
+    return false;
+  }
 
   try {
     const res = await fetch(ENDPOINT, {

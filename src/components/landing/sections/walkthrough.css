@@ -1,0 +1,32 @@
+/* ---- 3 · walkthrough banner (ported from design-reference/vetrix-site/index-v2.html, site brand colours) ---- */
+.walk { margin-top: 60px; scroll-margin-top: 60px; }
+.wbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 6px; font-size: 13px; font-weight: 600; align-items: center; color: #1E1538; }
+.wbar > span { white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
+.wbar .v { display: inline-flex; align-items: center; gap: 6px; color: #5B32E8; font-weight: 700; margin-left: 4px; }
+.wbar.bottom { font-size: 12.5px; color: #5E5478; }
+.wbar .clk { color: #5B32E8; font-weight: 700; }
+.wbar .end { color: #1E1538; font-weight: 700; }
+.wdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #5B32E8; }
+
+.walk-in { display: grid; grid-template-columns: 1.3fr .7fr; border-radius: 28px; overflow: hidden;
+           background: radial-gradient(700px 400px at 20% 20%, #7C4DFF, transparent 60%), linear-gradient(135deg, #2A1B6B, #5B32E8);
+           color: #fff; box-shadow: 0 40px 80px -40px rgba(91, 50, 232, .7); }
+.walk-in img { width: 100%; height: 100%; object-fit: cover; min-height: 340px; }
+.walk-txt { padding: 44px 40px; }
+.walk-txt .tagpill.white { background: #fff; color: #4F26D9; }
+.walk-txt h2 { color: #fff; font-size: clamp(28px, 3vw, 44px); line-height: 1.08; letter-spacing: -0.025em; font-weight: 800; margin: 14px 0 12px; }
+.walk-txt p { color: rgba(255, 255, 255, .88); font-size: 16px; line-height: 1.65; max-width: 560px; margin: 0 0 22px; font-weight: 500; }
+.walk-txt .wrow { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.walk-txt .small { font-size: 13px; font-weight: 600; color: #fff; }
+.wbtn { display: inline-flex; align-items: center; gap: 10px; border-radius: 999px; background: #fff; color: #4F26D9; font-weight: 700; font-size: 15px; padding: 13px 24px;
+        box-shadow: 0 10px 24px -12px rgba(0, 0, 0, .45); transition: transform .25s ease, box-shadow .25s ease; }
+.wbtn:hover { transform: translateY(-2px); box-shadow: 0 16px 30px -12px rgba(0, 0, 0, .5); }
+
+@media (max-width: 1000px) {
+  .walk-in { grid-template-columns: 1fr; }
+  .walk-in img { min-height: 220px; }
+}
+@media (max-width: 640px) {
+  .walk-txt { padding: 30px 22px; }
+  .wbar > span { white-space: normal; flex-wrap: wrap; }   /* long info items wrap instead of widening the page */
+}

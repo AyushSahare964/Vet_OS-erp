@@ -1,0 +1,66 @@
+/* Landing-page styles. Everything is scoped under .vx-page so nothing leaks into the ERP theme. */
+.vx-page {
+  background-color: #FFFFFF;
+  color: #1E1538;
+  font-family: 'Poppins', 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  --shadow-soft: 0 10px 30px rgba(107, 76, 230, 0.08);
+  --shadow-soft-lg: 0 18px 48px rgba(107, 76, 230, 0.12);
+}
+html:has(.vx-page) { scroll-behavior: smooth; }
+.vx-page ::selection { background: #EADFF8; color: #4F26D9; }
+.vx-page .shadow-soft { box-shadow: var(--shadow-soft); }
+.vx-page .shadow-soft-lg { box-shadow: var(--shadow-soft-lg); }
+
+.vx-page .btn-primary {
+  background-color: #5B32E8 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px rgba(91, 50, 232, 0.28);
+  transition: all 0.25s ease;
+}
+.vx-page .btn-primary:hover {
+  background-color: #4A24D6 !important;
+  box-shadow: 0 8px 24px rgba(91, 50, 232, 0.4);
+  transform: translateY(-2px);
+}
+.vx-page .btn-ghost {
+  color: #4A3E68;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+.vx-page .btn-ghost:hover { color: #5B32E8; background-color: #F3EDFC; }
+.vx-page .badge-purple {
+  background-color: #F4EEFC !important;
+  color: #4F26D9 !important;
+  border: 1px solid #DEC9F7 !important;
+  font-weight: 600;
+}
+.vx-page .text-gradient-purple-pink {
+  background: linear-gradient(135deg, #4F26D9 0%, #7B42E5 40%, #E8437D 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.vx-page .bg-gradient-purple-pink { background: linear-gradient(135deg, #5B32E8 0%, #E8437D 100%); }
+.vx-page .bg-gradient-lavender-pink { background: linear-gradient(135deg, #F0E8FA 0%, #FF8FB1 100%); }
+.vx-page .bg-gradient-peach-cream { background: linear-gradient(135deg, #FFC9A8 0%, #FFF1EE 100%); }
+
+.vx-page .vx-field {
+  width: 100%;
+  border: 1px solid #EADBFA;
+  background: #FFFFFF;
+  border-radius: 14px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+  color: #1E1538;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.vx-page .vx-field:focus { border-color: #5B32E8; box-shadow: 0 0 0 3px rgba(91, 50, 232, 0.15); }
+
+@media (prefers-reduced-motion: reduce) {
+  .vx-page *, .vx-page *::before, .vx-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

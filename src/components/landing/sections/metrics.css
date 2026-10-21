@@ -1,0 +1,59 @@
+/* ---- 4 · metrics (ported from design-reference/vetrix-site/index-v2.html, site brand colours) ---- */
+.metrics { padding-top: 100px; padding-bottom: 56px; scroll-margin-top: 20px; }
+.metrics .tagpill:not(.soft) { border: 1px solid #DEC9F7; }
+.metrics .tagpill.soft { background: #fff; border: 1px solid #E3DAFF; }
+.metrics h2 { font-size: clamp(30px, 3.4vw, 50px); line-height: 1.06; letter-spacing: -0.025em; font-weight: 800; margin: 12px 0; color: #1E1538; }
+.metrics .lead { font-size: 17px; line-height: 1.6; color: #5E5478; font-weight: 500; margin: 0 0 16px; max-width: 640px; }
+
+.m-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; position: relative; }
+.pup { position: relative; width: 230px; height: 200px; flex: none; pointer-events: none; }
+.pup video, .pup img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: bottom; }
+.pup img { transition: opacity .3s ease; }
+.pup.playing img { opacity: 0; }
+
+.m-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 10px; }
+.mcard { padding: 26px 24px 22px; }
+.mcard p { font-size: 15px; line-height: 1.6; color: #5E5478; font-weight: 500; margin: 12px 0 16px; }
+.mcard .lbl { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #5B32E8; text-transform: uppercase; }
+.mcard .lbl.dim { color: #5E5478; margin-top: 4px; }
+.mrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.vm { font-size: 13px; font-weight: 700; color: #4F26D9; }
+
+/* gauges */
+.gauge { position: relative; width: 132px; height: 132px; margin-bottom: 14px; display: grid; place-items: center; }
+.gauge svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.gauge circle { fill: none; stroke: #EDE7FF; stroke-width: 10; }
+.gauge .fg { stroke: #5B32E8; stroke-linecap: round; stroke-dasharray: 314; stroke-dashoffset: 314; transition: stroke-dashoffset 1.6s cubic-bezier(.2, .8, .2, 1) .2s; }
+.mcard.in .gauge .fg { stroke-dashoffset: calc(314 - 314 * var(--p) / 100); }
+.gauge b { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; position: relative; text-align: center; line-height: 1.05; color: #1E1538; }
+.gauge.eight b { font-size: 16px; max-width: 80px; }
+.ring8 { position: absolute; inset: 0; }
+.ring8 i { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px; border-radius: 5px; background: #5B32E8; opacity: .15;
+           transform: rotate(var(--r)) translate(54px); transition: opacity .3s; }
+.mcard.in .ring8 i { opacity: 1; transition-delay: var(--d, 0ms); }
+
+/* closing banner: the bunny sits on its top edge (nothing around it clips, the banner has no overflow) */
+.cta-wrap { position: relative; margin-top: 150px; scroll-margin-top: 190px; }
+.bunny { position: absolute; pointer-events: none; right: 70px; bottom: calc(100% - 6px); height: 140px; width: auto; z-index: 2;
+         opacity: 0; transform: translateY(60px); transition: all .8s cubic-bezier(.2, .9, .3, 1.2); }
+.cta-wrap.in .bunny { opacity: 1; transform: none; }
+
+/* demo strip */
+.cta-strip { margin-top: 0; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+             background: linear-gradient(120deg, #EFE8FF, #FFEAF2); border-radius: 24px; padding: 22px 26px; }
+.cta-strip b { display: block; font-size: 17px; font-weight: 700; color: #1E1538; }
+.cta-strip .cs-sub { display: block; font-size: 14px; color: #5E5478; font-weight: 500; }
+
+@media (max-width: 1000px) {
+  .m-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .m-head { flex-direction: column; align-items: flex-start; }
+  .pup { width: 160px; height: 140px; }
+  .cta-wrap { margin-top: 120px; }
+  .bunny { height: 110px; right: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bunny { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .metrics .pop { opacity: 1 !important; transform: none !important; transition: none !important; }
+}

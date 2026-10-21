@@ -52,7 +52,7 @@ export function AccountsHub({ report }: { report?: string | undefined }) {
       </nav>
 
       {/* Report picker: the floating side bars have no sub-menu. */}
-      <nav className="flex gap-1.5 overflow-x-auto pb-1" aria-label="Accounts reports">
+      <nav className="flex flex-wrap gap-1.5 pb-1" aria-label="Accounts reports">
         {ACCOUNT_REPORTS.map((r) => (
           <Link
             key={r.id}
