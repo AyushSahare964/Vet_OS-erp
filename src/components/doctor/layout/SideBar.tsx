@@ -32,9 +32,7 @@ export function SideBar({ side }: { side: "left" | "right" }) {
           quickActions={quickActions}
           badgeClass="is-vet"
           badge={
-            <span>
-              Vetech<b>IQ</b>
-            </span>
+            <img src="/landing/icon.png" alt="VetechIQ" />
           }
         />
         {qa && (

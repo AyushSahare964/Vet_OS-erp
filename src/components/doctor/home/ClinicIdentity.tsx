@@ -1,6 +1,6 @@
 import { useErp } from "@/lib/erp/store";
 import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
-import { BrandChip } from "../shared/BrandChip";
+import { VetechLogo } from "@/components/brand/VetechLogo";
 
 /** Clinic logo and "Powered by VetechIQ", centred in the free space. */
 export function ClinicIdentity() {
@@ -21,7 +21,7 @@ export function ClinicIdentity() {
       />
       <h1 className="sr-only" id="clinicName">{displayName}</h1>
       <div className="powered vd-powered">
-        Powered by <BrandChip />
+        Powered by <VetechLogo className="h-6" />
       </div>
     </section>
   );

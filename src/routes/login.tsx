@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { requestPasswordResetFn } from "@/lib/mongodb/serverFns/auth";
 import { listClinicsFn } from "@/lib/mongodb/serverFns/platform";
 import { doctorHeadLinks } from "@/components/doctor/doctorHead";
-import { BrandChip } from "@/components/doctor/shared/BrandChip";
+import { VetechLogo } from "@/components/brand/VetechLogo";
 
 const COMMON_EMAIL_DOMAINS = ["@gmail.com", "@vetos.cloud", "@outlook.com", "@yahoo.com"];
 
@@ -308,21 +308,9 @@ function AuthPage() {
       
       {/* Brand Header above card */}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 w-full max-w-4xl px-2">
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-[#001d39] text-[#7bbde8] border border-[#bcd0e2] shadow-[0_4px_12px_rgba(0,29,57,0.12)] group-hover:scale-105 transition-transform">
-            <Building2 className="size-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black tracking-tight text-[#001d39] font-['Bricolage_Grotesque',system-ui,sans-serif]">
-                VetechIQ
-              </span>
-              <BrandChip />
-            </div>
-            <span className="block text-[0.72rem] text-[#4d6a86] font-medium leading-none">
-              Veterinary Practice & Clinic Management
-            </span>
-          </div>
+        <Link to="/" className="flex items-center gap-3" aria-label="VetechIQ home">
+          <VetechLogo className="h-10" />
+          <span className="hidden sm:block text-[0.72rem] text-[#4d6a86] font-medium leading-none">Veterinary Practice & Clinic Management</span>
         </Link>
 
         <div className="flex items-center gap-2.5">

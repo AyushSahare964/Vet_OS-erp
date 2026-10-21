@@ -68,7 +68,7 @@ const PET_LIST: PetCardData[] = [
   },
 ];
 
-import { BrandChip } from "@/components/doctor/shared/BrandChip";
+import { VetechLogo } from "@/components/brand/VetechLogo";
 
 export function PetShowcase() {
   return (
@@ -96,8 +96,8 @@ export function PetShowcase() {
 
         <h2 className="text-xl font-extrabold tracking-tight text-[#001d39] lg:text-2xl font-['Bricolage_Grotesque',system-ui,sans-serif]">
           Compassionate Care, <br />
-          <span className="text-[#0a4174]">Powered by</span>{" "}
-          <BrandChip />
+          <span className="text-[#0a4174]">Powered by</span>
+          <VetechLogo className="mt-1.5 h-8" />
         </h2>
       </div>
 

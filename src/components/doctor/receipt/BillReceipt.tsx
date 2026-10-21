@@ -3,7 +3,7 @@ import { Receipt } from "lucide-react";
 import { useErp } from "@/lib/erp/store";
 import type { Pet } from "@/data/doctor/types";
 import { fmtDate, rupee } from "@/lib/doctor/format";
-import { BrandChip } from "../shared/BrandChip";
+import { VetechLogo } from "@/components/brand/VetechLogo";
 
 export interface Invoice {
   date: Date;
@@ -63,7 +63,7 @@ export function BillReceipt({ pet, invoiceNo, invoice: v, onClose }: BillReceipt
           <div>
             <div className="rc-clinic">{clinicName}</div>
             <div className="rc-sub">
-              Powered by <BrandChip />
+              Powered by <VetechLogo className="h-4 inline-block align-middle" />
             </div>
           </div>
         </div>
