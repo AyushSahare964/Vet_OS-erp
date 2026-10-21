@@ -13,8 +13,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClinicRouteImport } from './routes/clinic'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PendingApprovalRouteImport } from './routes/pending-approval'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterClinicRouteImport } from './routes/register-clinic'
+import { Route as RequestDemoRouteImport } from './routes/request-demo'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as ApiRazorpayWebhookRouteImport } from './routes/api.razorpay-webhook'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as MModuleIdRouteImport } from './routes/m.$moduleId'
 import { Route as PatientIdRouteImport } from './routes/patient.$id'
@@ -43,14 +46,29 @@ const PendingApprovalRoute = PendingApprovalRouteImport.update({
   path: '/pending-approval',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterClinicRoute = RegisterClinicRouteImport.update({
   id: '/register-clinic',
   path: '/register-clinic',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RequestDemoRoute = RequestDemoRouteImport.update({
+  id: '/request-demo',
+  path: '/request-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRazorpayWebhookRoute = ApiRazorpayWebhookRouteImport.update({
+  id: '/api/razorpay-webhook',
+  path: '/api/razorpay-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DoctorIndexRoute = DoctorIndexRouteImport.update({
@@ -94,8 +112,11 @@ export interface FileRoutesByFullPath {
   '/clinic': typeof ClinicRoute
   '/login': typeof LoginRoute
   '/pending-approval': typeof PendingApprovalRoute
+  '/pricing': typeof PricingRoute
   '/register-clinic': typeof RegisterClinicRoute
+  '/request-demo': typeof RequestDemoRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/razorpay-webhook': typeof ApiRazorpayWebhookRoute
   '/m/$moduleId': typeof MModuleIdRoute
   '/patient/$id': typeof PatientIdRouteWithChildren
   '/doctor/': typeof DoctorIndexRoute
@@ -109,8 +130,11 @@ export interface FileRoutesByTo {
   '/clinic': typeof ClinicRoute
   '/login': typeof LoginRoute
   '/pending-approval': typeof PendingApprovalRoute
+  '/pricing': typeof PricingRoute
   '/register-clinic': typeof RegisterClinicRoute
+  '/request-demo': typeof RequestDemoRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/razorpay-webhook': typeof ApiRazorpayWebhookRoute
   '/m/$moduleId': typeof MModuleIdRoute
   '/doctor': typeof DoctorIndexRoute
   '/patient/$id/$section': typeof PatientIdSectionRoute
@@ -124,8 +148,11 @@ export interface FileRoutesById {
   '/clinic': typeof ClinicRoute
   '/login': typeof LoginRoute
   '/pending-approval': typeof PendingApprovalRoute
+  '/pricing': typeof PricingRoute
   '/register-clinic': typeof RegisterClinicRoute
+  '/request-demo': typeof RequestDemoRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/razorpay-webhook': typeof ApiRazorpayWebhookRoute
   '/m/$moduleId': typeof MModuleIdRoute
   '/patient/$id': typeof PatientIdRouteWithChildren
   '/doctor/': typeof DoctorIndexRoute
@@ -141,8 +168,11 @@ export interface FileRouteTypes {
     | '/clinic'
     | '/login'
     | '/pending-approval'
+    | '/pricing'
     | '/register-clinic'
+    | '/request-demo'
     | '/reset-password'
+    | '/api/razorpay-webhook'
     | '/m/$moduleId'
     | '/patient/$id'
     | '/doctor/'
@@ -156,8 +186,11 @@ export interface FileRouteTypes {
     | '/clinic'
     | '/login'
     | '/pending-approval'
+    | '/pricing'
     | '/register-clinic'
+    | '/request-demo'
     | '/reset-password'
+    | '/api/razorpay-webhook'
     | '/m/$moduleId'
     | '/doctor'
     | '/patient/$id/$section'
@@ -170,8 +203,11 @@ export interface FileRouteTypes {
     | '/clinic'
     | '/login'
     | '/pending-approval'
+    | '/pricing'
     | '/register-clinic'
+    | '/request-demo'
     | '/reset-password'
+    | '/api/razorpay-webhook'
     | '/m/$moduleId'
     | '/patient/$id'
     | '/doctor/'
@@ -186,8 +222,11 @@ export interface RootRouteChildren {
   ClinicRoute: typeof ClinicRoute
   LoginRoute: typeof LoginRoute
   PendingApprovalRoute: typeof PendingApprovalRoute
+  PricingRoute: typeof PricingRoute
   RegisterClinicRoute: typeof RegisterClinicRoute
+  RequestDemoRoute: typeof RequestDemoRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiRazorpayWebhookRoute: typeof ApiRazorpayWebhookRoute
   MModuleIdRoute: typeof MModuleIdRoute
   PatientIdRoute: typeof PatientIdRouteWithChildren
   DoctorIndexRoute: typeof DoctorIndexRoute
@@ -225,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PendingApprovalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register-clinic': {
       id: '/register-clinic'
       path: '/register-clinic'
@@ -232,11 +278,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterClinicRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/request-demo': {
+      id: '/request-demo'
+      path: '/request-demo'
+      fullPath: '/request-demo'
+      preLoaderRoute: typeof RequestDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/razorpay-webhook': {
+      id: '/api/razorpay-webhook'
+      path: '/api/razorpay-webhook'
+      fullPath: '/api/razorpay-webhook'
+      preLoaderRoute: typeof ApiRazorpayWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/doctor/': {
@@ -310,8 +370,11 @@ const rootRouteChildren: RootRouteChildren = {
   ClinicRoute: ClinicRoute,
   LoginRoute: LoginRoute,
   PendingApprovalRoute: PendingApprovalRoute,
+  PricingRoute: PricingRoute,
   RegisterClinicRoute: RegisterClinicRoute,
+  RequestDemoRoute: RequestDemoRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiRazorpayWebhookRoute: ApiRazorpayWebhookRoute,
   MModuleIdRoute: MModuleIdRoute,
   PatientIdRoute: PatientIdRouteWithChildren,
   DoctorIndexRoute: DoctorIndexRoute,
