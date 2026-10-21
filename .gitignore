@@ -67,3 +67,6 @@ skiil.md
 vet-promo-landing/
 backups/
 
+
+# landing page images must ship with the site
+!public/landing/*.png
