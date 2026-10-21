@@ -55,6 +55,7 @@ const MODULE_FEATURE_GATE: Record<string, keyof TenantFeatures> = {
   pharmacy: "pharmacy",
   boarding: "boarding",
   accounting: "accounting",
+  accounts: "accounting",
   nutrition: "nutrition",
   reports: "reports",
 };
