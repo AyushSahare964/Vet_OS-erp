@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { resolveModule } from "@/components/doctor/layout/menuConfig";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { Search, Loader2 } from "lucide-react";
-import { BrandChip } from "../shared/BrandChip";
+import { VetechLogo } from "@/components/brand/VetechLogo";
 import { optionId, type SearchResult, type ResultGroup } from "./searchResults";
 import { SuggestList } from "./SuggestList";
 import { searchMasterFn } from "@/lib/mongodb/serverFns/search";
@@ -127,7 +127,7 @@ export function FetchSearch() {
       }}
     >
       <div className="vd-search-name">
-        <BrandChip /> Master Search
+        <VetechLogo className="h-7" /> <span>Master Search</span>
       </div>
       <label className="vd-search-box">
         {loading ? (
