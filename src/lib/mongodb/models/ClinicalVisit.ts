@@ -216,6 +216,8 @@ export interface IClinicalVisit extends Document {
   nextVisitDate?: string | undefined;
   /** ISO time the bill + prescription email went to the owner (prevents duplicate sends on bill edits). */
   billEmailSentAt?: string | undefined;
+  /** Every send attempt of the bill + prescription email (no document content): { at, to, status, error?, test? }. */
+  emailHistory?: { at: string; to: string; status: "sent" | "failed"; error?: string; test?: boolean }[] | undefined;
   nextVaccineDate?: string | undefined;
   nextDewormingDate?: string | undefined;
 
@@ -371,6 +373,7 @@ const ClinicalVisitSchema = new Schema<IClinicalVisit>(
 
     prescriptionData: { type: Schema.Types.Mixed },
     billEmailSentAt: { type: String },
+    emailHistory: { type: [Schema.Types.Mixed], default: [] },
 
     items: { type: [PrescriptionLineSchema], default: [] },
 

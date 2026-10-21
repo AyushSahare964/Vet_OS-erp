@@ -39,25 +39,43 @@ export const getVisitEmailTargetFn = createServerFn({ method: "GET" })
     const visit = await ClinicalVisit.findOne({ visitId: data.visitId }).lean();
     if (!visit) throw new Error("Visit not found");
     const pet = await Pet.findOne({ petId: visit.petId }).lean();
-    if (!pet || pet.ownerId !== visit.ownerId) throw new Error("Visit's patient and owner do not match; not sending.");
+    if (!pet) throw new Error("Visit's patient not found; not sending.");
     const owner = await Owner.findOne({ ownerId: visit.ownerId }).lean();
+    // A re-registered client can leave the pet under an earlier owner record; accept it only when it is the same person (same phone).
+    const petOwner = pet.ownerId === visit.ownerId ? owner : await Owner.findOne({ ownerId: pet.ownerId }).lean();
+    const digits = (v?: string) => (v || "").replace(/\D/g, "").slice(-10);
+    if (pet.ownerId !== visit.ownerId && (!owner || !petOwner || !digits(owner.phone) || digits(owner.phone) !== digits(petOwner.phone))) {
+      throw new Error("Visit's patient and owner do not match; not sending.");
+    }
     return {
       visitId: visit.visitId,
       invoiceNo: visit.invoiceNo,
       prescriptionNo: visit.prescriptionNo,
       petName: visit.petName,
       ownerName: owner?.name || visit.ownerName,
-      email: (owner?.email || "").trim(),
+      email: (owner?.email || petOwner?.email || "").trim(),
       billEmailSentAt: visit.billEmailSentAt,
     };
   });
 
-/** Call only after EmailJS confirmed the send. */
-export const markVisitEmailedFn = createServerFn({ method: "POST" })
-  .validator((raw: unknown) => visitZ.parse(raw))
+const logZ = visitZ.extend({
+  to: z.string().max(200),
+  status: z.enum(["sent", "failed"]),
+  error: z.string().max(300).optional(),
+  test: z.boolean().optional(),
+});
+
+/** Records one send attempt. A real (non-test) accepted send also sets billEmailSentAt, which drives the resend confirmation. */
+export const logVisitEmailFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => logZ.parse(raw))
   .handler(async ({ data }): Promise<{ ok: boolean }> => {
     await requireStaff();
     await connectDB();
-    await ClinicalVisit.updateOne({ visitId: data.visitId }, { $set: { billEmailSentAt: new Date().toISOString() } });
+    const at = new Date().toISOString();
+    const entry = { at, to: data.to, status: data.status, ...(data.error ? { error: data.error } : {}), ...(data.test ? { test: true } : {}) };
+    await ClinicalVisit.updateOne(
+      { visitId: data.visitId },
+      { $push: { emailHistory: entry }, ...(data.status === "sent" && !data.test ? { $set: { billEmailSentAt: at } } : {}) },
+    );
     return { ok: true };
   });

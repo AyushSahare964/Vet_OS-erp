@@ -32,7 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { sendVisitDocsEmail } from "@/lib/email/visitDocsEmail";
+import { previewVisitDocsEmail, sendVisitDocsEmail } from "@/lib/email/visitDocsEmail";
 import { cn } from "@/lib/utils";
 import { useErp } from "@/lib/erp/store";
 import { getItemsFn } from "@/lib/mongodb/serverFns/inventory";
@@ -2190,9 +2190,11 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                     variant="outline"
                     disabled={isEmailingDocs}
                     onClick={async () => {
-                      if (finalizedVisit.billEmailSentAt && !confirm("The bill and prescription were already emailed for this visit. Send again?")) return;
                       setIsEmailingDocs(true);
                       try {
+                        const { to: rcpt, testMode } = await previewVisitDocsEmail(finalizedVisit.visitId);
+                        const already = finalizedVisit.billEmailSentAt ? "These documents were already emailed for this visit.\n\n" : "";
+                        if (!confirm(`${already}Email the bill and prescription to ${rcpt}${testMode ? " (TEST MODE: not the client's address)" : ""}?`)) return;
                         const to = await sendVisitDocsEmail(finalizedVisit.visitId);
                         setFinalizedVisit((v: any) => ({ ...v, billEmailSentAt: new Date().toISOString() }));
                         toast.success(`Bill and prescription emailed to ${to}.`);

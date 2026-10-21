@@ -351,6 +351,16 @@ export const registerFn = createServerFn({ method: "POST" })
     const user = await User.create(createPayload) as any;
     await RegistrationOTP.deleteOne({ email: cleanEmail });
 
+    // A new clinic's first admin starts its free trial; never let this break registration.
+    if (data.roleId === "admin") {
+      try {
+        const { startTrialIfNewClinic } = await import("@/lib/trial/startTrial");
+        await startTrialIfNewClinic({ _id: user._id, fullName: user.fullName, email: user.email, clinicName: user.clinicName });
+      } catch (e) {
+        console.warn("[trial] could not start trial:", e instanceof Error ? e.message : e);
+      }
+    }
+
     return {
       success: true,
       pendingApproval: true,

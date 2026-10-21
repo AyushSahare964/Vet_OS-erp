@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as PendingApprovalRouteImport } from './routes/pending-approval'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as MModuleIdRouteImport } from './routes/m.$moduleId'
+import { Route as ApiCronAppointmentRemindersRouteImport } from './routes/api.cron.appointment-reminders'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +41,12 @@ const MModuleIdRoute = MModuleIdRouteImport.update({
   path: '/m/$moduleId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronAppointmentRemindersRoute =
+  ApiCronAppointmentRemindersRouteImport.update({
+    id: '/api/cron/appointment-reminders',
+    path: '/api/cron/appointment-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +54,7 @@ export interface FileRoutesByFullPath {
   '/pending-approval': typeof PendingApprovalRoute
   '/reset-password': typeof ResetPasswordRoute
   '/m/$moduleId': typeof MModuleIdRoute
+  '/api/cron/appointment-reminders': typeof ApiCronAppointmentRemindersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +62,7 @@ export interface FileRoutesByTo {
   '/pending-approval': typeof PendingApprovalRoute
   '/reset-password': typeof ResetPasswordRoute
   '/m/$moduleId': typeof MModuleIdRoute
+  '/api/cron/appointment-reminders': typeof ApiCronAppointmentRemindersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +71,25 @@ export interface FileRoutesById {
   '/pending-approval': typeof PendingApprovalRoute
   '/reset-password': typeof ResetPasswordRoute
   '/m/$moduleId': typeof MModuleIdRoute
+  '/api/cron/appointment-reminders': typeof ApiCronAppointmentRemindersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/pending-approval' | '/reset-password' | '/m/$moduleId'
+    | '/'
+    | '/login'
+    | '/pending-approval'
+    | '/reset-password'
+    | '/m/$moduleId'
+    | '/api/cron/appointment-reminders'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/pending-approval' | '/reset-password' | '/m/$moduleId'
+  to:
+    | '/'
+    | '/login'
+    | '/pending-approval'
+    | '/reset-password'
+    | '/m/$moduleId'
+    | '/api/cron/appointment-reminders'
   id:
     | '__root__'
     | '/'
@@ -76,6 +97,7 @@ export interface FileRouteTypes {
     | '/pending-approval'
     | '/reset-password'
     | '/m/$moduleId'
+    | '/api/cron/appointment-reminders'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -84,6 +106,7 @@ export interface RootRouteChildren {
   PendingApprovalRoute: typeof PendingApprovalRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   MModuleIdRoute: typeof MModuleIdRoute
+  ApiCronAppointmentRemindersRoute: typeof ApiCronAppointmentRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -123,6 +146,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MModuleIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/appointment-reminders': {
+      id: '/api/cron/appointment-reminders'
+      path: '/api/cron/appointment-reminders'
+      fullPath: '/api/cron/appointment-reminders'
+      preLoaderRoute: typeof ApiCronAppointmentRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -132,6 +162,7 @@ const rootRouteChildren: RootRouteChildren = {
   PendingApprovalRoute: PendingApprovalRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   MModuleIdRoute: MModuleIdRoute,
+  ApiCronAppointmentRemindersRoute: ApiCronAppointmentRemindersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

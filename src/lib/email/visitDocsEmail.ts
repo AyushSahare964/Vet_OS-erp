@@ -3,7 +3,7 @@
  * Template variable attachments: `bill_pdf` and `prescription_pdf`. Nothing is stored or made public.
  */
 import { elementToPdfBase64 } from "@/lib/utils/pdfExport";
-import { getVisitEmailTargetFn, markVisitEmailedFn } from "@/lib/mongodb/serverFns/visitEmail";
+import { getVisitEmailTargetFn, logVisitEmailFn } from "@/lib/mongodb/serverFns/visitEmail";
 
 // Service/template IDs and the public key are not secrets (EmailJS designs the public key for browsers).
 const env = import.meta.env as Record<string, string | undefined>;
@@ -18,14 +18,34 @@ const TEST_RECIPIENT = env["VITE_EMAILJS_DOCS_TEST_RECIPIENT"] || "";
 const BILL_EL = "invoice-preview-card";
 const RX_EL = "prescription-preview-card";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Who the email will go to, for the confirmation shown before sending. Throws when there is no valid address. */
+export async function previewVisitDocsEmail(visitId: string): Promise<{ to: string; testMode: boolean }> {
+  const t = await getVisitEmailTargetFn({ data: { visitId } });
+  const to = (TEST_RECIPIENT || t.email).trim();
+  if (!EMAIL_RE.test(to)) throw new Error("No valid email address on file for this client.");
+  return { to, testMode: !!TEST_RECIPIENT };
+}
+
 /**
- * @returns the address it was sent to. Throws (with a user-safe message) on any failure.
+ * @returns the address it was sent to. Throws (with a user-safe message) on any failure; every attempt is logged on the visit.
  */
 export async function sendVisitDocsEmail(visitId: string): Promise<string> {
-  const testRecipient = TEST_RECIPIENT;
+  const { to } = await previewVisitDocsEmail(visitId);
+  try {
+    await sendTo(visitId, to);
+  } catch (e) {
+    const error = e instanceof Error ? e.message : "Send failed";
+    await logVisitEmailFn({ data: { visitId, to, status: "failed", error, test: !!TEST_RECIPIENT } }).catch(() => {});
+    throw e;
+  }
+  await logVisitEmailFn({ data: { visitId, to, status: "sent", test: !!TEST_RECIPIENT } }).catch(() => {});
+  return to;
+}
+
+async function sendTo(visitId: string, to: string): Promise<void> {
   const t = await getVisitEmailTargetFn({ data: { visitId } });
-  const to = (testRecipient || t.email).trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new Error("No valid email address on file for this client.");
 
   const [bill, rx] = await Promise.all([elementToPdfBase64(BILL_EL), elementToPdfBase64(RX_EL)]);
   if (!bill || !rx) throw new Error("Bill or prescription is not ready yet; open the completed visit and try again.");
@@ -63,6 +83,4 @@ export async function sendVisitDocsEmail(visitId: string): Promise<string> {
     // EmailJS answers with a short reason (e.g. size limit); the PDFs are never logged.
     throw new Error(`EmailJS did not send it (${res.status}): ${(await res.text()).slice(0, 200)}`);
   }
-  if (!testRecipient) await markVisitEmailedFn({ data: { visitId } });
-  return to;
 }
