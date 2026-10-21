@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Landmark } from "lucide-react";
-import { Shell } from "@/components/erp/Shell";
 import { cn } from "@/lib/utils";
 import { BookView, DailySummaryView, PaymentRegisterView } from "./MoneyViews";
 import { ChartOfAccountsView, BalanceSheetView } from "./PositionViews";
@@ -41,40 +40,38 @@ export function AccountsHub({ report }: { report?: string | undefined }) {
   const current = ACCOUNT_REPORTS.find((r) => r.id === active);
 
   return (
-    <Shell title="Accounts">
-      <div className="mx-auto max-w-[1200px] space-y-4">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex items-center gap-1.5 text-xs text-muted-foreground"
-        >
-          <Landmark className="size-3.5 text-primary" />
-          <span>Accounts</span>
-          <ChevronRight className="size-3" />
-          <span className="font-semibold text-foreground">{current?.label}</span>
-        </nav>
+    <div className="mx-auto max-w-[1200px] space-y-4">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex items-center gap-1.5 text-xs text-muted-foreground"
+      >
+        <Landmark className="size-3.5 text-primary" />
+        <span>Accounts</span>
+        <ChevronRight className="size-3" />
+        <span className="font-semibold text-foreground">{current?.label}</span>
+      </nav>
 
-        {/* Report picker: the floating side bars have no sub-menu. */}
-        <nav className="flex gap-1.5 overflow-x-auto pb-1" aria-label="Accounts reports">
-          {ACCOUNT_REPORTS.map((r) => (
-            <Link
-              key={r.id}
-              to="/m/$moduleId"
-              params={{ moduleId: "accounts" }}
-              search={{ r: r.id }}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
-                r.id === active
-                  ? "border-primary bg-primary-soft text-primary"
-                  : "border-border bg-card text-muted-foreground",
-              )}
-            >
-              {r.label}
-            </Link>
-          ))}
-        </nav>
+      {/* Report picker: the floating side bars have no sub-menu. */}
+      <nav className="flex gap-1.5 overflow-x-auto pb-1" aria-label="Accounts reports">
+        {ACCOUNT_REPORTS.map((r) => (
+          <Link
+            key={r.id}
+            to="/m/$moduleId"
+            params={{ moduleId: "accounts" }}
+            search={{ tab: "statements", sub: r.id } as never}
+            className={cn(
+              "shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
+              r.id === active
+                ? "border-primary bg-primary-soft text-primary"
+                : "border-border bg-card text-muted-foreground",
+            )}
+          >
+            {r.label}
+          </Link>
+        ))}
+      </nav>
 
-        <Report key={active} id={active} />
-      </div>
-    </Shell>
+      <Report key={active} id={active} />
+    </div>
   );
 }

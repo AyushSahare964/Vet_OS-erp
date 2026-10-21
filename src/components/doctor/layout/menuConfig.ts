@@ -86,9 +86,10 @@ export const MENU: MenuItem[] = [
       { id: "suppliers", label: "Suppliers", requires: ["billing"] },
     ] },
   { id: "shop", side: "right", label: "Pet Shop & Product Sales", short: "Shop", icon: "ShoppingBag", to: { kind: "module", moduleId: "pharmacy" }, roles: ["doctor", "admin"], requires: ["pharmacy"], match: ["pharmacy"] },
-  { id: "accounts", side: "right", label: "Accounting & Reports", short: "Accounts", icon: "BookOpen", to: { kind: "module", moduleId: "accounts" }, roles: ALL, requires: ["ledgers", "reports", "clinical-records", "discount-schemes", "reports-finance", "reports-platform", "payroll"], match: ["accounts", "ledgers", "discount-schemes", "reports", "reports-finance", "reports-platform", "payroll"], subtitle: "Reports, ledgers, expenses and offers.",
+  { id: "accounts", side: "right", label: "Accounting & Reports", short: "Accounts", icon: "BookOpen", to: { kind: "module", moduleId: "accounts" }, roles: ALL, requires: ["accounts", "ledgers", "reports", "clinical-records", "discount-schemes", "reports-finance", "reports-platform", "payroll"], match: ["accounts", "ledgers", "discount-schemes", "reports", "reports-finance", "reports-platform", "payroll"], subtitle: "Reports, ledgers, expenses and offers.",
     tabs: [
       { id: "reports", label: "Reports & Analysis", requires: ["reports", "clinical-records", "reports-platform"] },
+      { id: "statements", label: "Account Statements", requires: ["accounts"] },
       { id: "ledgers", label: "Ledgers", requires: ["ledgers"] },
       { id: "expenses", label: "Expenses", requires: ["billing"] },
       { id: "discounts", label: "Discount Schemes", requires: ["discount-schemes"] },

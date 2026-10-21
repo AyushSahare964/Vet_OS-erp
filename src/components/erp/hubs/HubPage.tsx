@@ -10,6 +10,7 @@ import { baseModuleIds } from "@/lib/erp/config";
 import { MENU, tabsFor, type MenuItem } from "@/components/doctor/layout/menuConfig";
 
 import { InventoryHub } from "@/components/erp/inventory/InventoryHub";
+import { AccountsHub } from "@/components/erp/accounts/AccountsHub";
 import { LedgersHub } from "@/components/erp/ledgers/LedgersHub";
 import { DiscountSchemesHub } from "@/components/erp/discounts/DiscountSchemesHub";
 import { PatientBillingHub } from "@/components/erp/billing/PatientBillingHub";
@@ -70,6 +71,7 @@ function TabBody({ hubId, tab, sub, go, goSub }: { hubId: string; tab: string; s
     case "inventory:purchases": return <PatientBillingHub initialRegisterTab="purchases" />;
     case "inventory:suppliers": return <PatientBillingHub initialRegisterTab="suppliers" />;
     case "accounts:reports": return <ClinicalReportsHub initialMode="analytics" />;
+    case "accounts:statements": return <AccountsHub report={sub} />;
     case "accounts:ledgers": return <LedgersHub />;
     case "accounts:expenses": return <PatientBillingHub initialRegisterTab="expenses" />;
     case "accounts:discounts": return <DiscountSchemesHub />;
