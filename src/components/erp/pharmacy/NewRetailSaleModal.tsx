@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
+import { createRetailSaleFn } from "@/lib/mongodb/serverFns/pharmacy";
 import { cn } from "@/lib/utils";
 import { useInventory } from "@/components/erp/inventory/useInventoryStore";
 import type { MedicineCategory } from "@/components/erp/inventory/useInventoryStore";
@@ -85,12 +86,14 @@ export function NewRetailSaleModal({ open, onClose, onSaleCompleted }: Props) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMode, setPaymentMode] = useState<"UPI" | "Cash" | "Card">("UPI");
   const [trxRef, setTrxRef] = useState("");
+  const [cashGiven, setCashGiven] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (open) {
       void loadPets();
       setCart([]);
+      setCashGiven("");
     }
   }, [open]);
 
@@ -236,7 +239,7 @@ export function NewRetailSaleModal({ open, onClose, onSaleCompleted }: Props) {
     return { subtotal, gst: totalGst, grandTotal };
   }, [cart]);
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) {
       toast.error("Cart is empty. Please add items from inventory.");
       return;
@@ -253,23 +256,14 @@ export function NewRetailSaleModal({ open, onClose, onSaleCompleted }: Props) {
       }
     }
 
+    if (paymentMode === "Cash" && cashGiven !== "" && Number(cashGiven) < totals.grandTotal) {
+      toast.error(`Cash received ₹${cashGiven} is less than the bill total ₹${totals.grandTotal}.`);
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const billNo = `RET-${Math.floor(400 + Math.random() * 600)}`;
-      // Deduct stock via FEFO for each cart line in BASE UNITS
-      for (const c of cart) {
-        const deductQty = c.packagingHierarchy
-          ? convertToBase(c.quantity, c.unit, c.packagingHierarchy)
-          : c.quantity;
-        const result = recordSale({ medicineId: c.itemCode, qty: deductQty, sourceRef: billNo, actor: "POS" });
-        if (!result.ok) {
-          toast.error(result.error || `Failed to deduct stock for ${c.name}`);
-          setSubmitting(false);
-          return;
-        }
-      }
-      const newSale = {
-        bill: billNo,
+      const sale = {
         item: cart.map((c) => `${c.name} (x${c.quantity})`).join(", "),
         category: cart[0]?.category || "Medicine",
         items: cart,
@@ -284,6 +278,17 @@ export function NewRetailSaleModal({ open, onClose, onSaleCompleted }: Props) {
         date: todayIST(), // clinic (IST) date, not the UTC date
         status: "Completed",
       };
+      // Saved first: the server assigns the bill number, which the stock movements then reference.
+      const newSale = await createRetailSaleFn({ data: sale });
+      const billNo: string = newSale.bill;
+      // Deduct stock via FEFO for each cart line in BASE UNITS
+      for (const c of cart) {
+        const deductQty = c.packagingHierarchy
+          ? convertToBase(c.quantity, c.unit, c.packagingHierarchy)
+          : c.quantity;
+        const result = recordSale({ medicineId: c.itemCode, qty: deductQty, sourceRef: billNo, actor: "POS" });
+        if (!result.ok) toast.error(`${billNo}: ${result.error || `stock not deducted for ${c.name}`}`);
+      }
       toast.success(`Retail Bill ${billNo} generated & payment of ₹${totals.grandTotal} collected!`);
       onSaleCompleted?.(newSale);
       setCart([]);
@@ -348,6 +353,17 @@ export function NewRetailSaleModal({ open, onClose, onSaleCompleted }: Props) {
                 value={searchItemQuery}
                 onChange={(e) => setSearchItemQuery(e.target.value)}
                 className="pl-9 text-xs h-9"
+                autoFocus
+                onKeyDown={(e) => {
+                  // Scanner / quick entry: Enter adds an exact SKU match, or the only result left
+                  if (e.key !== "Enter") return;
+                  const q = searchItemQuery.trim().toLowerCase();
+                  const hit = filteredItems.find((it) => it.id.toLowerCase() === q) ?? (filteredItems.length === 1 ? filteredItems[0] : undefined);
+                  if (!hit) return;
+                  if (getTotalQty(hit.id) === 0) return void toast.error(`"${hit.name}" is out of stock`);
+                  addToCart(hit);
+                  setSearchItemQuery("");
+                }}
               />
             </div>
 
@@ -594,6 +610,21 @@ export function NewRetailSaleModal({ open, onClose, onSaleCompleted }: Props) {
                     </button>
                   ))}
                 </div>
+                {paymentMode === "Cash" && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="Cash received"
+                      value={cashGiven}
+                      onChange={(e) => setCashGiven(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <span className="whitespace-nowrap text-xs font-semibold text-muted-foreground">
+                      Change: <span className="font-mono text-foreground">₹{Math.max(0, Number(cashGiven || 0) - totals.grandTotal).toFixed(2)}</span>
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

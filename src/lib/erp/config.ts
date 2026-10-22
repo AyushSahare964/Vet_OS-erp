@@ -10,6 +10,8 @@ export interface Kpi {
   trendTone?: "up" | "down" | "flat";
   /** Records behind the number; shown in a popup when the card is clicked. */
   detail?: { columns: string[]; rows: (string | number)[][] };
+  /** Module id (/m/<id>) a click opens; when omitted KpiCard infers it from the label. */
+  module?: string;
 }
 
 export interface Flashcard {

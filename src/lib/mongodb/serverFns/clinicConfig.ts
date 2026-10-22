@@ -3,6 +3,8 @@ import { z } from "zod";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ClinicConfigModel } from "@/lib/mongodb/models/ClinicConfig";
 import { getTenantContext } from "@/lib/mongodb/tenantContext";
+import { OrgBranchModel } from "@/lib/mongodb/models/OrgBranch";
+import { getMeFn } from "./auth";
 
 function toPlain<T>(v: unknown): T {
   return JSON.parse(JSON.stringify(v)) as T;
@@ -45,7 +47,13 @@ export const updateClinicConfigFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => updateClinicConfigSchema.parse(raw))
   .handler(tenantScoped(async ({ data }): Promise<{ success: boolean; message: string }> => {
     await connectDB();
+    const me = await getMeFn();
+    if (me?.roleId !== "admin") throw new Error("Only the clinic admin can change the hospital profile.");
     const updated = await ClinicConfigModel.findOneAndUpdate({}, { $set: data }, { new: true });
     if (!updated) return { success: false, message: "Clinic profile not found." };
+    // The default branch prints on invoices, so it follows the profile's address.
+    const addr: Record<string, string> = {};
+    for (const k of ["address", "city", "pin", "phone", "email"] as const) if (data[k] !== undefined) addr[k] = data[k];
+    if (Object.keys(addr).length) await OrgBranchModel.updateOne({ isDefault: true }, { $set: addr });
     return { success: true, message: "Clinic profile updated." };
   }));

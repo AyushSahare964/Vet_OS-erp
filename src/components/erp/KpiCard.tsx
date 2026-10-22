@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,24 @@ const LABEL_ICONS: [RegExp, LucideIcon][] = [
 ];
 export const kpiIconFor = (label: string): LucideIcon =>
   LABEL_ICONS.find(([re]) => re.test(label))?.[1] ?? BarChart3;
+
+/** Module a card opens when the page gives no `module` (first match wins; order matters). */
+const LABEL_MODULES: [RegExp, string][] = [
+  [/queue|appointment|no-show|wait/i, "appointments"],
+  [/vaccin/i, "vaccination"],
+  [/lab/i, "laboratory"],
+  [/kennel|occupan|boarding|water temp/i, "boarding"],
+  [/diet/i, "nutrition"],
+  [/rx sales|pharmacy/i, "pharmacy"],
+  [/stock|sku|reorder|medicine|expir|batch|units/i, "inventory"],
+  [/invoice|bill|collect|outstanding|unpaid|due|revenue|payment|ticket|spend|refund/i, "billing"],
+  [/ledger|reconcil/i, "accounts"],
+  [/report/i, "reports"],
+  [/pet|patient|client|owner|registered/i, "crm-pets"],
+  [/staff/i, "identity"],
+];
+export const kpiModuleFor = (label: string): string | undefined =>
+  LABEL_MODULES.find(([re]) => re.test(label))?.[1];
 
 export function KpiCard({ kpi, index = 0, icon }: { kpi: Kpi; index?: number; icon?: LucideIcon }) {
   const Icon = icon ?? kpiIconFor(kpi.label);
@@ -59,14 +78,25 @@ export function KpiCard({ kpi, index = 0, icon }: { kpi: Kpi; index?: number; ic
   const TrendIcon = tone === "up" ? ArrowUpRight : tone === "down" ? ArrowDownRight : Minus;
   const [open, setOpen] = useState(false);
   const rows = kpi.detail?.rows ?? [];
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // Open the module that owns the figure; on that module's own page scroll to its records table
+  // (records popup if the page has none).
+  const target = kpi.module ?? kpiModuleFor(kpi.label);
+  const activate = () => {
+    if (target && pathname !== `/m/${target}`) return void navigate({ to: "/m/$moduleId", params: { moduleId: target } });
+    const table = document.querySelector("main table, table");
+    if (table) table.scrollIntoView({ behavior: "smooth", block: "start" });
+    else setOpen(true);
+  };
 
   return (
     <>
     <motion.div
       role="button"
       tabIndex={0}
-      onClick={() => setOpen(true)}
-      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setOpen(true)}
+      onClick={activate}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && activate()}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
