@@ -24,7 +24,9 @@ import { todayIST } from "@/lib/utils/dateUtils";
 import { listSuppliersFn, listPaymentAccountsFn, type SupplierMasterRow } from "@/lib/mongodb/serverFns/masters";
 import { SplitPaymentInput, type PaymentAccount, type PaymentLine } from "@/components/erp/shared/SplitPaymentInput";
 import { getItemsFn, type InventoryItemRow } from "@/lib/mongodb/serverFns/inventory";
-import { createPurchaseBillFn } from "@/lib/mongodb/serverFns/purchaseBills";
+import { createPurchaseBillFn, type CreateBillInput } from "@/lib/mongodb/serverFns/purchaseBills";
+import { saveBillDraftFn, updateBillDraftFn, deleteBillDraftFn, type PurchaseBillDraft } from "@/lib/mongodb/serverFns/purchaseBillDrafts";
+import { useErp } from "@/lib/erp/store";
 import { BillingReminderModal } from "@/components/erp/billing/BillingReminderModal";
 import { NewSupplierModal } from "./NewSupplierModal";
 import { NewItemModal } from "./NewItemModal";
@@ -42,6 +44,8 @@ interface SupplierBillFormModalProps {
   prefill?: BillPrefill | undefined;
   /** Called with the supplier bill number after the bill is saved. */
   onSaved?: ((billNumber: string) => void) | undefined;
+  /** Admin reopening a server-side draft (see purchaseBillDrafts.ts) */
+  draft?: PurchaseBillDraft | null | undefined;
 }
 
 export interface BillPrefill {
@@ -152,7 +156,9 @@ export function SupplierBillFormModal({
   initialItem,
   prefill,
   onSaved,
+  draft,
 }: SupplierBillFormModalProps) {
+  const isAdmin = useErp().roleId === "admin";
   const [suppliers, setSuppliers] = useState<SupplierMasterRow[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItemRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -273,12 +279,30 @@ export function SupplierBillFormModal({
     setPayDate(todayIST());
     listPaymentAccountsFn().then((a: any[]) => setPayAccounts(a || [])).catch(() => setPayAccounts([]));
 
+    if (draft) {
+      const f = draft.form;
+      setPurchaseType(f.purchaseType);
+      setBillDate(f.billDate);
+      setSupplierId(f.supplierId);
+      setPlaceOfSupply(f.placeOfSupply);
+      setPoNumber(f.poNumber);
+      setPurchaseBillNo(f.purchaseBillNo);
+      setLines(f.lines);
+      setAddShipping(f.addShipping);
+      setShippingCost(f.shippingCost);
+      setReceiveStock(f.receiveStock);
+      setPayStatus(f.payStatus);
+      setPayLines(f.payLines);
+      setPayDate(f.payDate);
+      setRemarks(f.remarks);
+    }
+
     Promise.all([listSuppliersFn(), getItemsFn({ data: { status: "Active" } })])
       .then(([sups, invItems]) => {
         setSuppliers(sups || []);
         setInventoryItems(invItems || []);
-        if (initialItem) handleSelectProduct(initialItem);
-        if (prefill) {
+        if (initialItem && !draft) handleSelectProduct(initialItem);
+        if (prefill && !draft) {
           // Received lines from a checked Purchase Order. Rate and MRP come from the product's previous purchase
           // and stay editable; Bill No., Batch and Expiry are entered by staff (pencil on each row).
           setSupplierId(prefill.supplierId);
@@ -314,7 +338,7 @@ export function SupplierBillFormModal({
       .catch((err) => {
         console.error("Failed to load bill masters:", err);
       });
-  }, [open, prefill]);
+  }, [open, prefill, draft]);
 
   // Click outside listener for custom dropdown
   useEffect(() => {
@@ -497,19 +521,19 @@ export function SupplierBillFormModal({
     });
   };
 
-  // Save Purchase Bill
-  const handleSave = async () => {
+  // Validates the form; returns the payload to post (null after toasting why not)
+  const buildBill = (): CreateBillInput | null => {
     if (!supplierId) {
       toast.error("Please select a Supplier Name.");
-      return;
+      return null;
     }
     if (!purchaseBillNo.trim()) {
       toast.error("Please enter Purchase Bill No.");
-      return;
+      return null;
     }
     if (lines.length === 0) {
       toast.error("Please add at least one line item to the bill.");
-      return;
+      return null;
     }
 
     const sup = suppliers.find((s) => s._id === supplierId);
@@ -518,7 +542,7 @@ export function SupplierBillFormModal({
       const missing = lines.filter((l) => l.itemCode && (!l.batchNo || !l.expiry)).map((l) => l.productName);
       if (missing.length > 0) {
         toast.error(`Batch No. and Expiry are required to receive stock: ${missing.join(", ")}`);
-        return;
+        return null;
       }
     }
 
@@ -527,22 +551,19 @@ export function SupplierBillFormModal({
     if (payStatus !== "UNPAID") {
       if (paidTotal <= 0) {
         toast.error("Enter the payment amount, or choose Unpaid.");
-        return;
+        return null;
       }
       if (payStatus === "PAID" && Math.abs(paidTotal - totalAmount) > 0.01) {
         toast.error(`Payment lines add up to ₹${paidTotal.toFixed(2)} but the bill total is ₹${totalAmount.toFixed(2)}.`);
-        return;
+        return null;
       }
       if (payStatus === "PARTIAL" && paidTotal >= totalAmount) {
         toast.error("For a partial payment the amount must be less than the bill total.");
-        return;
+        return null;
       }
     }
 
-    setSubmitting(true);
-    try {
-      const res = await createPurchaseBillFn({
-        data: {
+    return {
           supplierId,
           supplierName: sup?.name || "Supplier",
           billNumber: purchaseBillNo.trim(),
@@ -597,8 +618,17 @@ export function SupplierBillFormModal({
             taxAmount: lineTax(l),
             lineTotal: r2(l.amount + lineTax(l)),
           })),
-        },
-      });
+    };
+  };
+
+  // Save Purchase Bill
+  const handleSave = async () => {
+    const bill = buildBill();
+    if (!bill) return;
+    setSubmitting(true);
+    try {
+      const res = await createPurchaseBillFn({ data: bill });
+      if (draft) await deleteBillDraftFn({ data: { id: draft.id } });
 
       toast.success("Purchase bill saved successfully!");
       if (res.stockErrors?.length) {
@@ -612,6 +642,28 @@ export function SupplierBillFormModal({
     } catch (err: any) {
       console.error("[SupplierBillFormModal] Save failed:", err);
       toast.error(err.message || "Failed to save purchase bill");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Save as Draft — shared via server; only admin can reopen/edit it (30 days), after which it posts by itself
+  const handleSaveDraft = async () => {
+    const bill = buildBill();
+    if (!bill) return;
+    const form = {
+      purchaseType, billDate, supplierId, placeOfSupply, poNumber, purchaseBillNo, lines,
+      addShipping, shippingCost, receiveStock, payStatus, payLines, payDate, remarks,
+    };
+    setSubmitting(true);
+    try {
+      if (draft) await updateBillDraftFn({ data: { id: draft.id, bill, form } });
+      else await saveBillDraftFn({ data: { bill, form } });
+      toast.success(`Draft ${bill.billNumber} saved. Admin can edit it within 30 days; after that it is saved as a purchase bill automatically.`);
+      onSuccess?.();
+      onClose();
+    } catch (err: any) {
+      toast.error("Failed to save draft: " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -631,7 +683,7 @@ export function SupplierBillFormModal({
                 <FileSpreadsheet className="size-3.5" />
               </div>
               <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-                Unsaved Purchase Bill
+                {draft ? "Draft Purchase Bill" : "Unsaved Purchase Bill"}
               </DialogTitle>
             </div>
 
@@ -1316,16 +1368,31 @@ export function SupplierBillFormModal({
                 </fieldset>
 
                 {/* Save Button matching reference screenshot */}
-                <div className="flex items-center justify-end">
-                  <Button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={submitting}
-                    className="h-9 px-6 gap-2 bg-[#1976d2] hover:bg-[#1565c0] text-white font-bold text-xs shadow-sm"
-                  >
-                    <Save className="size-3.5" />
-                    <span>{submitting ? "Saving..." : "Save"}</span>
-                  </Button>
+                <div className="flex items-center justify-end gap-2">
+                  {(!draft || isAdmin) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleSaveDraft}
+                      disabled={submitting}
+                      className="h-9 px-3 gap-1.5 text-xs font-semibold border-slate-300 dark:border-slate-700"
+                    >
+                      <FileSpreadsheet className="size-3.5" />
+                      <span>{draft ? "Update Draft" : "Save as Draft"}</span>
+                    </Button>
+                  )}
+                  {/* Receptionists can only save drafts; admin saves the final bill */}
+                  {isAdmin && (
+                    <Button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={submitting}
+                      className="h-9 px-6 gap-2 bg-[#1976d2] hover:bg-[#1565c0] text-white font-bold text-xs shadow-sm"
+                    >
+                      <Save className="size-3.5" />
+                      <span>{submitting ? "Saving..." : "Save"}</span>
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

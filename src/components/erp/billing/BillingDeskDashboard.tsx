@@ -106,6 +106,9 @@ import { PurchaseBillPrintView } from "./PurchaseBillPrintView";
 import { PurchaseOrderPrintView } from "./PurchaseOrderPrintView";
 import { type ClinicPurchaseOrderRecord } from "./PurchaseOrderModal";
 import { cn } from "@/lib/utils";
+import { useErp } from "@/lib/erp/store";
+import { listPoDraftsFn, deletePoDraftFn } from "@/lib/mongodb/serverFns/poDrafts";
+import { listBillDraftsFn, deleteBillDraftFn, type PurchaseBillDraft } from "@/lib/mongodb/serverFns/purchaseBillDrafts";
 
 export type RegisterTab =
   | "invoices" | "quotations" | "creditNotes" | "payments" | "purchases" | "purchaseOrders" | "expenses" | "suppliers" | "clients";
@@ -120,6 +123,8 @@ interface BillingDeskDashboardProps {
   onNewQuotation: () => void;
   onAddPurchase: () => void;
   onAddPurchaseOrder?: () => void;
+  onEditPurchaseOrderDraft?: (draft: ClinicPurchaseOrderRecord) => void;
+  onEditPurchaseBillDraft?: (draft: PurchaseBillDraft) => void;
   /** Opens the receive / check-items (GRN) step for a purchase order. */
   onReceivePurchaseOrder?: (po: ClinicPurchaseOrderRecord) => void;
   onAddExpense: () => void;
@@ -149,6 +154,8 @@ export function BillingDeskDashboard({
   onNewQuotation,
   onAddPurchase,
   onAddPurchaseOrder,
+  onEditPurchaseOrderDraft,
+  onEditPurchaseBillDraft,
   onReceivePurchaseOrder,
   onAddExpense,
   onPaymentIn,
@@ -184,19 +191,23 @@ export function BillingDeskDashboard({
   // Big Documents Register Tab State
   const [registerTab, setRegisterTab] = useState<RegisterTab>(initialRegisterTab);
 
-  // Purchase Orders — stored in localStorage by PurchaseOrderModal
+  const isAdmin = useErp().roleId === "admin";
+  // Purchase Orders — issued ones live in localStorage (PurchaseOrderModal);
+  // drafts (po.draftCreatedAt set) come from the server and are merged in below.
   const [purchaseOrders, setPurchaseOrders] = useState<ClinicPurchaseOrderRecord[]>([]);
   const [poSearchQuery, setPoSearchQuery] = useState("");
   const [selectedPurchaseOrder, setSelectedPurchaseOrder] = useState<ClinicPurchaseOrderRecord | null>(null);
   const [showPurchaseOrderPrintView, setShowPurchaseOrderPrintView] = useState(false);
 
-  const loadPurchaseOrders = () => {
+  const loadPurchaseOrders = async () => {
+    let local: ClinicPurchaseOrderRecord[] = [];
     try {
       const raw = localStorage.getItem("clinic_purchase_orders");
-      setPurchaseOrders(raw ? (JSON.parse(raw) as ClinicPurchaseOrderRecord[]) : []);
-    } catch {
-      setPurchaseOrders([]);
-    }
+      local = raw ? (JSON.parse(raw) as ClinicPurchaseOrderRecord[]) : [];
+    } catch {}
+    setPurchaseOrders(local);
+    const drafts = await listPoDraftsFn().catch(() => [] as ClinicPurchaseOrderRecord[]);
+    setPurchaseOrders([...drafts, ...local]);
   };
 
   useEffect(() => {
@@ -210,12 +221,15 @@ export function BillingDeskDashboard({
   // Document Collections for Registers
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [purchases, setPurchases] = useState<PurchaseBillRow[]>([]);
+  const [billDrafts, setBillDrafts] = useState<PurchaseBillDraft[]>([]);
   const [quotations, setQuotations] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierMasterRow[]>([]);
   const [clients, setClients] = useState<any[]>([]);
 
   const loadExtraRegisters = async () => {
     try {
+      // First, so drafts past their 30 days are posted as bills before the bill list is read
+      setBillDrafts(await listBillDraftsFn().catch(() => [] as PurchaseBillDraft[]));
       const [expData, purData, qtnData, supData, cliData] = await Promise.all([
         listExpensesFn({ data: { status: "ALL", from: "2020-01-01", to: "2030-12-31" } }).catch(() => []),
         listPurchaseBillsFn({ data: { from: "2020-01-01", to: "2030-12-31" } }).catch(() => []),
@@ -2205,7 +2219,63 @@ export function BillingDeskDashboard({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredPurchases.length === 0 ? (
+                  {billDrafts.map((d) => {
+                    const editable = Date.now() <= new Date(d.editableUntil).getTime();
+                    return (
+                      <tr key={d.id} className="bg-amber-50/40 dark:bg-amber-950/10">
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDisplayDate(d.bill.billDate)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-[10px] text-muted-foreground">
+                          Auto-saves {formatDisplayDate(d.editableUntil.slice(0, 10))}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-foreground">{d.bill.supplierName}</td>
+                        <td className="px-4 py-3 text-muted-foreground font-mono">{d.bill.billNumber}</td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-foreground whitespace-nowrap">
+                          ₹{d.bill.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-3" />
+                        <td className="px-4 py-3" />
+                        <td className="px-4 py-3 text-center">
+                          <StatusPill value="DRAFT" />
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          {isAdmin && (
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!editable}
+                                onClick={() => onEditPurchaseBillDraft?.(d)}
+                                className="h-6 px-2 text-[10px] font-bold gap-1"
+                                title={editable ? "Edit draft" : "Drafts can only be changed within 30 days"}
+                              >
+                                <Pencil className="size-3" />
+                                <span>{editable ? "Edit" : "Locked"}</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={async () => {
+                                  if (!confirm(`Delete draft ${d.bill.billNumber}?`)) return;
+                                  try {
+                                    await deleteBillDraftFn({ data: { id: d.id } });
+                                    setBillDrafts((p) => p.filter((x) => x.id !== d.id));
+                                    toast.success(`Draft ${d.bill.billNumber} deleted.`);
+                                  } catch (e: any) {
+                                    toast.error(e.message);
+                                  }
+                                }}
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50"
+                                title="Delete draft"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredPurchases.length === 0 && billDrafts.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="py-12 text-center text-muted-foreground">
                         <ShoppingBag className="size-8 mx-auto text-muted-foreground/40 mb-2" />
@@ -3129,7 +3199,7 @@ export function BillingDeskDashboard({
                                   <span>Received</span>
                                 </Button>
                               )}
-                              {po.status !== "RECEIVED" && po.status !== "CANCELLED" && (
+                              {!po.draftCreatedAt && po.status !== "RECEIVED" && po.status !== "CANCELLED" && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -3152,7 +3222,7 @@ export function BillingDeskDashboard({
                                   <X className="size-3.5" />
                                 </Button>
                               )}
-                              <Button
+                              {!po.draftCreatedAt && <Button
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => {
@@ -3169,7 +3239,7 @@ export function BillingDeskDashboard({
                                 title="Delete PO"
                               >
                                 <Trash2 className="size-3.5" />
-                              </Button>
+                              </Button>}
                             </div>
                           </td>
                         </tr>
@@ -3373,7 +3443,7 @@ export function BillingDeskDashboard({
         order={selectedPurchaseOrder}
         open={showPurchaseOrderPrintView}
         onClose={() => setShowPurchaseOrderPrintView(false)}
-        onMarkReceived={(orderId) => {
+        onMarkReceived={selectedPurchaseOrder?.draftCreatedAt ? undefined : (orderId) => {
           try {
             const raw = localStorage.getItem("clinic_purchase_orders");
             const list: any[] = raw ? JSON.parse(raw) : [];
@@ -3388,7 +3458,7 @@ export function BillingDeskDashboard({
             toast.success("Purchase order marked as Received!");
           } catch {}
         }}
-        onDelete={(orderId, poNo) => {
+        onDelete={selectedPurchaseOrder?.draftCreatedAt ? undefined : (orderId, poNo) => {
           if (!confirm(`Delete PO ${poNo || ""} permanently?`)) return;
           try {
             const raw = localStorage.getItem("clinic_purchase_orders");

@@ -15,6 +15,7 @@ import { NewSalesInvoiceModal } from "./NewSalesInvoiceModal";
 import { QuotationModal } from "./QuotationModal";
 import { BillingReminderModal } from "./BillingReminderModal";
 import { PaymentInModal } from "./PaymentInModal";
+import type { PurchaseBillDraft } from "@/lib/mongodb/serverFns/purchaseBillDrafts";
 import { SupplierBillFormModal } from "@/components/erp/accounting/SupplierBillFormModal";
 import { ExpenseFormModal } from "@/components/erp/accounting/ExpenseFormModal";
 import { OwnerPetRegistrationModal } from "@/components/erp/crm/OwnerPetRegistrationModal";
@@ -59,6 +60,8 @@ function PatientBillingHubInner({ initialRegisterTab }: { initialRegisterTab?: R
   const [showDailySummary, setShowDailySummary] = useState(false);
   const [showStockSummary, setShowStockSummary] = useState(false);
   const [showPurchaseOrderModal, setShowPurchaseOrderModal] = useState(false);
+  const [editingPoDraft, setEditingPoDraft] = useState<ClinicPurchaseOrderRecord | null>(null);
+  const [editingBillDraft, setEditingBillDraft] = useState<PurchaseBillDraft | null>(null);
 
   // Full Patient Bill Details Modal
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -151,7 +154,15 @@ function PatientBillingHubInner({ initialRegisterTab }: { initialRegisterTab?: R
             onNewInvoice={() => setShowNewInvoiceModal(true)}
             onNewQuotation={() => setShowQuotationModal(true)}
             onAddPurchase={() => setShowPurchaseBillModal(true)}
+            onEditPurchaseBillDraft={(d) => {
+              setEditingBillDraft(d);
+              setShowPurchaseBillModal(true);
+            }}
             onAddPurchaseOrder={() => setShowPurchaseOrderModal(true)}
+            onEditPurchaseOrderDraft={(d) => {
+              setEditingPoDraft(d);
+              setShowPurchaseOrderModal(true);
+            }}
             onReceivePurchaseOrder={(po) => setReceivePO(po)}
             onAddExpense={() => setShowExpenseModal(true)}
             onPaymentIn={(invoiceNo) => {
@@ -235,8 +246,10 @@ function PatientBillingHubInner({ initialRegisterTab }: { initialRegisterTab?: R
         {/* ── 5. Add Supplier Purchase Bill Modal (Matches Image 2) ── */}
         <SupplierBillFormModal
           open={showPurchaseBillModal}
+          draft={editingBillDraft}
           onClose={() => {
             setShowPurchaseBillModal(false);
+            setEditingBillDraft(null);
             setBillPrefill(null);
             setBillPO(null);
           }}
@@ -320,7 +333,11 @@ function PatientBillingHubInner({ initialRegisterTab }: { initialRegisterTab?: R
         {/* ── 13. Purchase Order Modal ── */}
         <PurchaseOrderModal
           open={showPurchaseOrderModal}
-          onClose={() => setShowPurchaseOrderModal(false)}
+          draft={editingPoDraft}
+          onClose={() => {
+            setShowPurchaseOrderModal(false);
+            setEditingPoDraft(null);
+          }}
           onSuccess={() => setPurchasesRefreshKey((k) => k + 1)}
         />
 
