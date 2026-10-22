@@ -15,6 +15,10 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { connectDB } from "@/lib/mongodb/client";
 import { runWithTenant } from "@/lib/mongodb/tenantContext";
+import { getMeFn } from "./auth";
+import { Pet } from "@/lib/mongodb/models/Pet";
+import { Owner } from "@/lib/mongodb/models/Owner";
+import { ClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
 import { TenantModel, type SubscriptionPlanId } from "@/lib/mongodb/models/Tenant";
 import { User } from "@/lib/mongodb/models/User";
 import { RefreshToken } from "@/lib/mongodb/models/RefreshToken";
@@ -334,12 +338,46 @@ export const listClinicsFn = createServerFn({ method: "GET" }).handler(
 
 // ─── Platform admin control plane ───────────────────────────────────────────
 
+/** Every control-plane call is platform-admin only: it reads and changes other clinics' records. */
+async function requirePlatform() {
+  const me = await getMeFn();
+  if (!me || me.roleId !== "platform") throw new Error("Not permitted");
+  return me;
+}
+
+/** Register rows: everything except the two large images (ID card, logo), which the detail call returns. */
 export const listTenantsFn = createServerFn({ method: "GET" })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   .handler(async (): Promise<any[]> => {
+    await requirePlatform();
     await connectDB();
-    const tenants = await TenantModel.find({}).sort({ createdAt: -1 }).lean();
+    const tenants = await TenantModel.find({}).select("-doctor.idCardDataUri").sort({ createdAt: -1 }).lean();
     return JSON.parse(JSON.stringify(tenants));
+  });
+
+/** One clinic, section by section: registration data, doctor + ID card, branding, admin account and usage. */
+export const getTenantDetailFn = createServerFn({ method: "GET" })
+  .validator((raw: unknown) => z.object({ tenantId: z.string() }).parse(raw))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  .handler(async ({ data }): Promise<any> => {
+    await requirePlatform();
+    await connectDB();
+    const tenant = await TenantModel.findOne({ tenantId: data.tenantId }).lean();
+    if (!tenant) throw new Error("Clinic not found.");
+    // Tenant-scoped models only see their own clinic's rows inside runWithTenant.
+    const inside = await runWithTenant({ tenantId: data.tenantId, userId: "platform", roleId: "platform" }, async () => {
+      const [config, branch, admin, staff, pets, owners, visits] = await Promise.all([
+        ClinicConfigModel.findOne({}).lean(),
+        OrgBranchModel.findOne({ isDefault: true }).lean(),
+        User.findById(tenant.adminUserId).select("fullName email phone createdAt").lean(),
+        User.countDocuments({ isActive: true }),
+        Pet.countDocuments({}),
+        Owner.countDocuments({}),
+        ClinicalVisit.countDocuments({}),
+      ]);
+      return { config, branch, admin, usage: { staff, pets, owners, visits } };
+    });
+    return JSON.parse(JSON.stringify({ tenant, ...inside }));
   });
 
 const setTenantStatusSchema = z.object({
@@ -350,8 +388,50 @@ const setTenantStatusSchema = z.object({
 export const setTenantStatusFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => setTenantStatusSchema.parse(raw))
   .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+    await requirePlatform();
     await connectDB();
     const tenant = await TenantModel.findOneAndUpdate({ tenantId: data.tenantId }, { $set: { status: data.status } });
     if (!tenant) return { success: false, message: "Tenant not found." };
     return { success: true, message: `${tenant.name} is now ${data.status}.` };
+  });
+
+/** Move a clinic to another plan; its feature flags and limits follow the plan. */
+export const setTenantPlanFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => z.object({ tenantId: z.string(), planId: z.enum(["plan_basic", "plan_professional", "plan_enterprise"]) }).parse(raw))
+  .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+    await requirePlatform();
+    await connectDB();
+    const plan = SUBSCRIPTION_PLANS[data.planId];
+    const tenant = await TenantModel.findOneAndUpdate({ tenantId: data.tenantId }, { $set: { planId: data.planId, features: plan.features } });
+    if (!tenant) return { success: false, message: "Tenant not found." };
+    return { success: true, message: `${tenant.name} moved to the ${plan.name} plan.` };
+  });
+
+/** Push the trial end out by N days (from today if the trial already ended). */
+export const extendTenantTrialFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => z.object({ tenantId: z.string(), days: z.number().int().min(1).max(90) }).parse(raw))
+  .handler(async ({ data }): Promise<{ success: boolean; message: string; trialEndsAt?: string }> => {
+    await requirePlatform();
+    await connectDB();
+    const tenant = await TenantModel.findOne({ tenantId: data.tenantId });
+    if (!tenant) return { success: false, message: "Tenant not found." };
+    const from = Math.max(Date.now(), tenant.trialEndsAt?.getTime() ?? 0);
+    tenant.trialEndsAt = new Date(from + data.days * 864e5);
+    tenant.subscriptionStatus = "TRIAL";
+    await tenant.save();
+    return { success: true, message: `Trial extended by ${data.days} days.`, trialEndsAt: tenant.trialEndsAt.toISOString() };
+  });
+
+/** Mark the doctor's council registration as checked against the uploaded ID card (or undo it). */
+export const verifyTenantDoctorFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => z.object({ tenantId: z.string(), verified: z.boolean() }).parse(raw))
+  .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+    await requirePlatform();
+    await connectDB();
+    const tenant = await TenantModel.findOneAndUpdate(
+      { tenantId: data.tenantId },
+      data.verified ? { $set: { doctorVerified: true, doctorVerifiedAt: new Date() } } : { $set: { doctorVerified: false }, $unset: { doctorVerifiedAt: "" } },
+    );
+    if (!tenant) return { success: false, message: "Tenant not found." };
+    return { success: true, message: data.verified ? "Doctor marked as verified." : "Verification removed." };
   });
