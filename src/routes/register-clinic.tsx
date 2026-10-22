@@ -38,7 +38,7 @@ const PLANS: Array<{ id: RegisterTenantPayload["planId"]; name: string; price: s
   {
     id: "plan_professional",
     name: "Pro",
-    price: "₹2,000/mo + GST",
+    price: "₹1,999/mo + GST",
     blurb: "Everything in Starter, plus ledgers, reports, boarding, swimming and nutrition.",
     highlights: ["Up to 20 staff", "Up to 5,000 pets"],
   },
@@ -626,7 +626,7 @@ function RegisterClinicPage() {
                     <p className="mt-1 text-xs text-[#4d6a86]">{pro.blurb}</p>
                     <PayButton
                       className="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-[#0a4174] text-sm font-bold text-[#0a4174] hover:bg-[#eaf3fa]"
-                      label="Upgrade to Pro: pay ₹2,360"
+                      label="Upgrade to Pro: pay ₹2,358.82"
                       onMessage={setPayMsg}
                       onPaid={(id) => {
                         setForm((f) => ({ ...f, planId: "plan_professional", paymentId: id }));

@@ -6,10 +6,10 @@ import { PLAN_GST_RATE, SUBSCRIPTION_PLANS, TRIAL_DAYS, planChargePaise } from "
 const SECRET = "test_secret_not_a_real_key";
 
 describe("what the customer is charged", () => {
-  it("Pro costs Rs 2,000 + 18% GST = Rs 2,360 a month, sent to Razorpay in paise", () => {
-    expect(SUBSCRIPTION_PLANS.plan_professional.monthlyPriceInr).toBe(2000);
+  it("Pro costs Rs 1,999 + 18% GST = Rs 2,358.82 a month, sent to Razorpay in paise", () => {
+    expect(SUBSCRIPTION_PLANS.plan_professional.monthlyPriceInr).toBe(1999);
     expect(PLAN_GST_RATE).toBe(0.18);
-    expect(planChargePaise("plan_professional")).toBe(236000);
+    expect(planChargePaise("plan_professional")).toBe(235882);
   });
 
   it("the paise amount is always a whole number (Razorpay rejects fractions)", () => {

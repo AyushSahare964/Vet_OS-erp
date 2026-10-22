@@ -1,6 +1,6 @@
 /**
  * Razorpay SUBSCRIPTION for the Pro plan, taken on the public pricing page before the clinic registers.
- * The customer pays the first month at checkout and Razorpay then bills Rs 2,000 + GST every month.
+ * The customer pays the first month at checkout and Razorpay then bills Rs 1,999 + GST every month.
  * Needs RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the server env. The secret never leaves the server:
  * the browser only gets the public key id and the subscription id.
  */

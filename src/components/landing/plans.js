@@ -1,6 +1,6 @@
 import { TRIAL_DAYS } from '@/lib/erp/features'
 
-export const MONTHLY_PRICE = 2000
+export const MONTHLY_PRICE = 1999
 export const GST_NOTE = '+ GST'
 
 // Each plan maps to an ERP plan id (src/lib/erp/features.ts). to: where the card button goes.

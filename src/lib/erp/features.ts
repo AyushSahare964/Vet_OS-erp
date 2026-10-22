@@ -27,7 +27,7 @@ export interface SubscriptionPlan {
 }
 
 /**
- * Public plans match the landing page: Starter (free trial), Pro (Rs 2,000/mo), Max (coming soon).
+ * Public plans match the landing page: Starter (free trial), Pro (Rs 1,999/mo), Max (coming soon).
  * plan_basic is no longer offered but stays so tenants created earlier keep working.
  */
 export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, SubscriptionPlan> = {
@@ -54,7 +54,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, SubscriptionPlan> = 
   plan_professional: {
     planId: "plan_professional",
     name: "Pro",
-    monthlyPriceInr: 2000,
+    monthlyPriceInr: 1999,
     features: {
       crm: true, appointments: true, clinical: true, billing: true, inventory: true,
       laboratory: true, pharmacy: true, boarding: true, accounting: true,
