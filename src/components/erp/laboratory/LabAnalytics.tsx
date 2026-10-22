@@ -15,12 +15,9 @@ import {
   Gauge,
   CheckCircle2,
   AlertTriangle,
-  RotateCcw,
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 
 const LAB_VOLUME_DATA = [
   { name: "Mon", cbc: 0, biochem: 0, serology: 0 },
@@ -32,12 +29,10 @@ const LAB_VOLUME_DATA = [
   { name: "Sun", cbc: 0, biochem: 0, serology: 0 },
 ];
 
-const ANALYZER_STATUS = [
-  { name: "Mindray BC-5000 Vet (Hematology)", status: "Online", lastQC: "—", reagentLevel: "—", nextCalib: "—" },
-  { name: "Fuji Dri-Chem NX500i (Biochemistry)", status: "Online", lastQC: "—", reagentLevel: "—", nextCalib: "—" },
-  { name: "Edan i15 Vet (Blood Gas / Electrolytes)", status: "Ready", lastQC: "—", reagentLevel: "—", nextCalib: "—" },
-  { name: "Olympus CX23 Diagnostic Microscope", status: "Ready", lastQC: "—", reagentLevel: "—", nextCalib: "—" },
-];
+interface Analyzer { name: string; status: string; lastQC: string; reagentLevel: string; nextCalib: string }
+
+// No instrument integration yet — nothing is listed until real analyzers are connected.
+const ANALYZER_STATUS: Analyzer[] = [];
 
 export function LabAnalytics() {
   return (
@@ -81,12 +76,12 @@ export function LabAnalytics() {
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">ANALYZER CALIBRATION &amp; QC STATUS</h4>
               <p className="text-[11px] text-muted-foreground">Automated veterinary diagnostic instruments</p>
             </div>
-            <Button size="sm" variant="outline" onClick={() => toast.success("Ran diagnostic QC check on all analyzers.")} className="h-7 text-[11px] gap-1">
-              <RotateCcw className="size-3" /> Run QC Test
-            </Button>
           </div>
 
           <div className="space-y-2.5">
+            {ANALYZER_STATUS.length === 0 && (
+              <p className="py-6 text-center text-xs text-muted-foreground">No analyzers connected.</p>
+            )}
             {ANALYZER_STATUS.map((inst) => (
               <div key={inst.name} className="p-3 rounded-xl border border-border bg-card flex items-center justify-between shadow-2xs">
                 <div className="space-y-0.5">
