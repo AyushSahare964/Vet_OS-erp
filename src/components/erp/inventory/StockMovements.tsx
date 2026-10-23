@@ -522,7 +522,7 @@ interface ReconLine {
 }
 
 function StockReconciliationPanel() {
-  const { medicines, getTotalQty, refetchItems, refetchLedger } = useInventory();
+  const { medicines, getTotalQty, refetchItems, refetchLedger, refetchBatches } = useInventory();
   const activeMeds = medicines.filter((m) => m.status === "Active");
 
   const [itemCode, setItemCode] = useState("");
@@ -581,7 +581,8 @@ function StockReconciliationPanel() {
       });
       toast.success(`Stock reconciled (${res.referenceNo}) — ${changed.length} item(s) adjusted`);
       setLines([]);
-      await Promise.all([refetchItems(), refetchLedger()]);
+      // getTotalQty prefers the cached batches, so refresh those too or the old balance keeps showing
+      await Promise.all([refetchItems(), refetchLedger(), ...changed.map((l) => refetchBatches(l.itemCode))]);
     } catch (err: any) {
       toast.error(err.message || "Failed to reconcile stock");
     } finally {
