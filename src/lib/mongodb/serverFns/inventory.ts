@@ -6,6 +6,7 @@
  * seroval serialization passes without Object/BSON errors.
  */
 
+import { clampNegativeStock } from "@/lib/mongodb/stockGuard";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
@@ -350,6 +351,7 @@ export const getItemsFn = createServerFn({ method: "GET" })
   )
   .handler(tenantScoped(async ({ data }): Promise<InventoryItemRow[]> => {
     await connectDB();
+    await clampNegativeStock(); // heals any row that already went below zero
 
     const query: Record<string, unknown> = {};
     if (data?.type) query["productType"] = data.type;
@@ -721,6 +723,103 @@ export const adjustStockFn = createServerFn({ method: "POST" })
     });
 
     return { success: true, newQty: newStock, referenceNo: adjRef };
+  }));
+
+// ─── reconcileStockFn ─────────────────────────────────────────────────────────
+// Physical stock count: sets each item's stock to the counted quantity. A shortfall is taken
+// from the earliest-expiring batches (FEFO); a surplus goes onto the latest-expiring active
+// batch (or a new reconciliation batch if there is none). Every change is ledgered under one REC- ref.
+
+export const reconcileStockFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) =>
+    z.object({
+      lines: z.array(z.object({
+        itemCode: z.string().min(1),
+        physicalStock: z.number().min(0, "Physical stock cannot be negative"),
+      })).min(1).max(200),
+      remarks: z.string().default(""),
+      actor: z.string().default("Staff"),
+    }).parse(raw)
+  )
+  .handler(tenantScoped(async ({ data }): Promise<{ referenceNo: string; results: Array<{ itemCode: string; itemName: string; before: number; after: number }> }> => {
+    await connectDB();
+    const referenceNo = await nextSeq("stock_reconciliation", "REC", 4);
+    const today = new Date().toISOString().slice(0, 10);
+    const results: Array<{ itemCode: string; itemName: string; before: number; after: number }> = [];
+
+    for (const line of data.lines) {
+      const item = await InventoryItem.findOne({ itemCode: line.itemCode });
+      if (!item) throw new Error(`Item ${line.itemCode} not found in inventory`);
+
+      const before = Math.max(0, item.currentStock ?? 0);
+      const delta = line.physicalStock - before;
+
+      if (delta < 0) {
+        let toDeduct = -delta;
+        const batches = await StockBatch.find({ itemCode: line.itemCode, status: "Active", qty: { $gt: 0 } }).sort({ expiryDate: 1 });
+        for (const b of batches) {
+          if (toDeduct <= 0) break;
+          const take = Math.min(b.qty, toDeduct);
+          b.qty -= take;
+          toDeduct -= take;
+          if (b.qty === 0) b.status = "Exhausted";
+          await b.save();
+        }
+      } else if (delta > 0) {
+        const latest = await StockBatch.findOne({ itemCode: line.itemCode, status: "Active" }).sort({ expiryDate: -1 });
+        if (latest) {
+          latest.qty += delta;
+          await latest.save();
+        } else {
+          const batchData = StockBatchInputZ.parse({
+            itemId: String(item._id),
+            itemCode: item.itemCode,
+            itemName: item.name,
+            batchNo: `${referenceNo}`,
+            expiryDate: "2030-12-31",
+            supplierName: "Stock Reconciliation",
+            receivedDate: today,
+            receivedQty: delta,
+            acceptedQty: delta,
+            purchasePricePerUnit: item.defaultPurchasePrice || 0,
+            remarks: "Created by physical stock reconciliation",
+          });
+          await StockBatch.create({
+            ...batchData,
+            batchCode: await nextSeq("stock_batch", "B", 4),
+            qty: delta,
+            landingCostPerUnit: 0,
+            totalValue: delta * batchData.purchasePricePerUnit,
+          });
+        }
+      }
+
+      item.currentStock = line.physicalStock;
+      await item.save();
+
+      if (delta !== 0) {
+        await ErpRow.create({
+          moduleId: "inventory_ledger",
+          data: {
+            id: await nextSeq("ledger_entry", "L", 4),
+            medicineId: item.itemCode,
+            medicineName: item.name,
+            batchId: "DIRECT",
+            batchNo: "RECONCILE",
+            movementType: delta > 0 ? "adjustment_in" : "adjustment_out",
+            quantity: Math.abs(delta),
+            sourceType: "manual_adjustment",
+            sourceRef: referenceNo,
+            balanceAfter: line.physicalStock,
+            actorName: data.actor,
+            createdAt: new Date().toISOString().replace("T", " ").slice(0, 16),
+            reason: `Stock Reconciliation: system ${before} → physical ${line.physicalStock}${data.remarks ? ` (${data.remarks})` : ""}`,
+          },
+        });
+      }
+      results.push({ itemCode: item.itemCode, itemName: item.name, before, after: line.physicalStock });
+    }
+    return { referenceNo, results };
   }));
 
 // ─── getBatchesFn ─────────────────────────────────────────────────────────────

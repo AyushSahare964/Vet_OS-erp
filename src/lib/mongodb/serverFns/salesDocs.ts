@@ -11,6 +11,7 @@
  *   3. A POSTED document is immutable. Corrections are credit notes or cancels.
  */
 
+import { clampNegativeStock } from "@/lib/mongodb/stockGuard";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
@@ -719,6 +720,7 @@ async function writeStockMoves(
         sessionOpt(session),
       );
     }
+    if (!isReturn) await clampNegativeStock();
 
     await StockLedgerEntryModel.create(
       docPayloads([

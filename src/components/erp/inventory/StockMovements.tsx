@@ -15,6 +15,9 @@ import {
   ShoppingCart,
   FileText,
   Filter,
+  ClipboardCheck,
+  Plus,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useInventory } from "./useInventoryStore";
+import { reconcileStockFn } from "@/lib/mongodb/serverFns/inventory";
 import {
   convertToBase,
   getAvailableUnits,
@@ -507,6 +511,215 @@ function RemoveStockPanel() {
   );
 }
 
+// ─── Stock Reconciliation Panel ──────────────────────────────────────────────
+// Physical stock count: pick items, enter the counted quantity, review the change, then process.
+interface ReconLine {
+  itemCode: string;
+  name: string;
+  unit: string;
+  available: number;
+  physical: number;
+}
+
+function StockReconciliationPanel() {
+  const { medicines, getTotalQty, refetchItems, refetchLedger } = useInventory();
+  const activeMeds = medicines.filter((m) => m.status === "Active");
+
+  const [itemCode, setItemCode] = useState("");
+  const [physical, setPhysical] = useState("");
+  const [lines, setLines] = useState<ReconLine[]>([]);
+  const [mode, setMode] = useState<"adjust" | "report">("adjust");
+  const [submitting, setSubmitting] = useState(false);
+
+  const selected = activeMeds.find((m) => m.itemCode === itemCode);
+  const available = selected ? Math.max(0, getTotalQty(selected.itemCode)) : 0;
+
+  const addLine = () => {
+    if (!selected) {
+      toast.error("Select an item first");
+      return;
+    }
+    const n = Number(physical);
+    if (physical.trim() === "" || !Number.isFinite(n) || n < 0) {
+      toast.error("Enter the physical stock (0 or more)");
+      return;
+    }
+    setLines((prev) => {
+      const line: ReconLine = { itemCode: selected.itemCode, name: selected.name, unit: selected.unit || "", available, physical: n };
+      const i = prev.findIndex((l) => l.itemCode === selected.itemCode);
+      return i >= 0 ? prev.map((l, idx) => (idx === i ? line : l)) : [...prev, line];
+    });
+    setItemCode("");
+    setPhysical("");
+  };
+
+  const updatePhysical = (code: string, v: string) => {
+    const n = Math.max(0, Number(v) || 0);
+    setLines((prev) => prev.map((l) => (l.itemCode === code ? { ...l, physical: n } : l)));
+  };
+
+  const changed = lines.filter((l) => l.physical !== l.available);
+
+  const process = async () => {
+    if (lines.length === 0) {
+      toast.error("Add at least one item to reconcile");
+      return;
+    }
+    if (mode === "report") {
+      toast.info(`${changed.length} of ${lines.length} item(s) differ from the system stock. No stock was changed.`);
+      return;
+    }
+    if (changed.length === 0) {
+      toast.info("Physical stock matches the system for every item — nothing to adjust.");
+      return;
+    }
+    if (!confirm(`Adjust system stock for ${changed.length} item(s) to the physical count?`)) return;
+    setSubmitting(true);
+    try {
+      const res = await reconcileStockFn({
+        data: { lines: lines.map((l) => ({ itemCode: l.itemCode, physicalStock: l.physical })), actor: "Authorized Staff" },
+      });
+      toast.success(`Stock reconciled (${res.referenceNo}) — ${changed.length} item(s) adjusted`);
+      setLines([]);
+      await Promise.all([refetchItems(), refetchLedger()]);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reconcile stock");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="erp-card p-5 space-y-4 border border-border">
+      <div className="flex items-center gap-2">
+        <ClipboardCheck className="size-5 text-primary" />
+        <div>
+          <p className="font-bold text-sm text-foreground">Stock Reconciliation (Physical Count)</p>
+          <p className="text-xs text-muted-foreground">Enter the counted quantity; system stock is corrected to match and every change is ledgered</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-[1fr_9rem_9rem_auto] items-end">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">Item Name <span className="text-destructive">*</span></Label>
+          <Select value={itemCode} onValueChange={setItemCode}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select item to reconcile…" />
+            </SelectTrigger>
+            <SelectContent className="max-h-72">
+              {activeMeds.map((m) => (
+                <SelectItem key={m.itemCode} value={m.itemCode}>
+                  [{m.productType || m.category}] {m.name} ({m.itemCode})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">Available Stock</Label>
+          <Input value={selected ? String(available) : ""} readOnly disabled className="bg-muted" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">Physical Stock <span className="text-destructive">*</span></Label>
+          <Input
+            type="number"
+            min={0}
+            value={physical}
+            onChange={(e) => setPhysical(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addLine()}
+            placeholder="0"
+          />
+        </div>
+        <Button type="button" size="icon" onClick={addLine} title="Add to reconciliation" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Plus className="size-4" />
+        </Button>
+      </div>
+
+      <div className="overflow-x-auto rounded-md border border-border">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-primary text-primary-foreground">
+            <tr>
+              <th className="px-3 py-2 w-14">S. No.</th>
+              <th className="px-3 py-2">Item Name</th>
+              <th className="px-3 py-2 text-right">Avail. Stock</th>
+              <th className="px-3 py-2 text-right w-32">Physical Stock</th>
+              <th className="px-3 py-2 text-right">Change in Stock</th>
+              <th className="px-3 py-2 text-right">Final Stock</th>
+              <th className="px-3 py-2 w-10" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60">
+            {lines.map((l, i) => {
+              const diff = l.physical - l.available;
+              return (
+                <tr key={l.itemCode}>
+                  <td className="px-3 py-2">{i + 1}</td>
+                  <td className="px-3 py-2 font-semibold text-foreground">{l.name}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{l.available}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={l.physical}
+                      onChange={(e) => updatePhysical(l.itemCode, e.target.value)}
+                      className="h-7 w-24 ml-auto text-right text-xs"
+                    />
+                  </td>
+                  <td className={`px-3 py-2 text-right font-bold tabular-nums ${diff < 0 ? "text-rose-600" : diff > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>
+                    {diff > 0 ? `+${diff}` : diff}
+                  </td>
+                  <td className="px-3 py-2 text-right font-bold tabular-nums">{l.physical}</td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => setLines((prev) => prev.filter((x) => x.itemCode !== l.itemCode))}
+                      className="text-muted-foreground hover:text-rose-600"
+                      title="Remove"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {lines.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                  No items added yet. Pick an item, enter the physical count and press +.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-3 pt-1 border-t">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">Process Mode</Label>
+          <Select value={mode} onValueChange={(v) => setMode(v as "adjust" | "report")}>
+            <SelectTrigger className="w-52 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="adjust">Adjust / Reconcile</SelectItem>
+              <SelectItem value="report">Variance report only</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setLines([])} disabled={submitting || lines.length === 0} className="text-xs">
+            Clear
+          </Button>
+          <Button size="sm" onClick={process} disabled={submitting || lines.length === 0} className="text-xs font-semibold">
+            <ClipboardCheck className="size-4 mr-1" />
+            {submitting ? "Processing…" : "Process Items"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Authoritative Transaction Ledger Table ──────────────────────────────────
 function MovementsLog() {
   const { ledger, medicines } = useInventory();
@@ -644,6 +857,7 @@ export function StockMovements() {
         <AddStockPanel />
         <RemoveStockPanel />
       </div>
+      <StockReconciliationPanel />
       <MovementsLog />
     </motion.div>
   );
