@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BreedInput } from "@/components/ui/breed-input";
+import { BREEDS_BY_SPECIES } from "@/lib/utils/breeds";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1240,10 +1242,11 @@ export function OwnerPetRegistrationModal({
                   <Label className="text-xs font-bold text-foreground">
                     Breed <span className="text-destructive">*</span>
                   </Label>
-                  <Input
+                  <BreedInput
                     placeholder="e.g. Labrador Retriever, Persian Cat, Beagle"
                     value={activePet.breed}
-                    onChange={(e) => updateCurrentPet("breed", e.target.value)}
+                    onChange={(v) => updateCurrentPet("breed", v)}
+                    options={BREEDS_BY_SPECIES[activePet.species] || []}
                     className="text-sm h-9"
                   />
                 </div>

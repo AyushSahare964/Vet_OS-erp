@@ -7,8 +7,6 @@ function toPlain<T>(v: any): T {
   return JSON.parse(JSON.stringify(v)) as T;
 }
 
-const SEED_LAB_ORDERS: any[] = [];
-
 export const listLabOrdersFn = createServerFn({ method: "GET" })
   .handler(tenantScoped(async (): Promise<any[]> => {
     await connectDB();

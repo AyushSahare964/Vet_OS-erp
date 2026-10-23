@@ -57,6 +57,9 @@ export interface ITenant extends Document {
   gstin?: string;
   pan?: string;
   adminUserId: string;
+  /** Set by the platform admin after checking the council ID card. */
+  doctorVerified?: boolean;
+  doctorVerifiedAt?: Date;
   planId: SubscriptionPlanId;
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt?: Date;
@@ -103,6 +106,8 @@ const TenantSchema = new Schema<ITenant>(
     gstin: { type: String },
     pan: { type: String },
     adminUserId: { type: String, required: true },
+    doctorVerified: { type: Boolean, default: false },
+    doctorVerifiedAt: { type: Date },
     planId: { type: String, enum: ["plan_starter", "plan_basic", "plan_professional", "plan_enterprise"], required: true },
     subscriptionStatus: { type: String, enum: ["TRIAL", "ACTIVE", "SUSPENDED", "CANCELLED"], default: "TRIAL" },
     trialEndsAt: { type: Date },

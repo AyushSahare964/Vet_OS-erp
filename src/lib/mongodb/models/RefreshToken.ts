@@ -3,7 +3,6 @@
  */
 
 import mongoose from "mongoose";
-import { tenantScopePlugin } from "../tenantScopePlugin";
 
 const { Schema, model } = mongoose;
 
@@ -32,7 +31,8 @@ const refreshTokenSchema = new Schema<RefreshTokenDocument>(
 // TTL index — MongoDB deletes documents automatically after expiresAt
 refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-refreshTokenSchema.plugin(tenantScopePlugin);
+// Deliberately NOT tenant-scoped: tokens are issued at login (no tenant context yet) and looked up by
+// hash from getMeFn, which also runs inside tenantScoped() handlers — a tenantId filter there never matches.
 
 export const RefreshToken: mongoose.Model<RefreshTokenDocument> =
   (mongoose.models["RefreshToken"] as mongoose.Model<RefreshTokenDocument>) ??
