@@ -1403,7 +1403,9 @@ export function BillingDeskDashboard({
                     dueInvoices.map((inv) => (
                       <div
                         key={inv.invoiceNo}
-                        className="flex items-center justify-between py-2 px-1 hover:bg-muted/20 transition-colors"
+                        onClick={() => onPaymentIn(inv.invoiceNo)}
+                        title="Collect payment for this invoice"
+                        className="flex items-center justify-between py-2 px-1 hover:bg-muted/30 transition-colors cursor-pointer"
                       >
                         <div>
                           <div className="text-xs font-bold text-foreground">{inv.ownerName} ({inv.petName})</div>
@@ -1416,7 +1418,7 @@ export function BillingDeskDashboard({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => onPaymentIn(inv.invoiceNo)}
+                            onClick={(e) => { e.stopPropagation(); onPaymentIn(inv.invoiceNo); }}
                             className="h-6 px-2 text-[11px] text-emerald-600 border-emerald-500/30"
                           >
                             Pay
@@ -2113,6 +2115,7 @@ export function BillingDeskDashboard({
                   className="h-8 pl-8 text-xs bg-card"
                 />
               </div>
+              <DateRangeFilter value={dateRange} onChange={setDateRange} compact />
               <Button
                 size="sm"
                 onClick={onAddExpense}
@@ -2193,6 +2196,7 @@ export function BillingDeskDashboard({
                   className="h-8 pl-8 text-xs bg-card"
                 />
               </div>
+              <DateRangeFilter value={dateRange} onChange={setDateRange} compact />
               <Button
                 size="sm"
                 onClick={onAddPurchase}
@@ -2390,6 +2394,7 @@ export function BillingDeskDashboard({
                   className="h-8 pl-8 text-xs bg-card"
                 />
               </div>
+              <DateRangeFilter value={dateRange} onChange={setDateRange} compact />
               <Button
                 size="sm"
                 onClick={() => onPaymentIn()}
@@ -2482,6 +2487,7 @@ export function BillingDeskDashboard({
                   className="h-8 pl-8 text-xs bg-card"
                 />
               </div>
+              <DateRangeFilter value={dateRange} onChange={setDateRange} compact />
             </div>
 
             <div className="overflow-x-auto">
@@ -3311,6 +3317,7 @@ export function BillingDeskDashboard({
                   className="h-8 pl-8 text-xs bg-card"
                 />
               </div>
+              <DateRangeFilter value={dateRange} onChange={setDateRange} compact />
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-8 w-36 text-xs bg-card">

@@ -1,3 +1,4 @@
+import { clampNegativeStock } from "@/lib/mongodb/stockGuard";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
@@ -435,6 +436,7 @@ async function applyInventoryStockDelta(
       ).catch((err) => console.warn(`[Inventory] Could not auto-adjust stock for ${code}:`, err));
     }
   }
+  await clampNegativeStock();
 }
 
 const SectionSaveInputZ = z.object({
@@ -1229,6 +1231,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
           // Inventory page / low-stock alerts keep showing the pre-sale quantity.
           if (item.itemCode && batch) {
             await InventoryItem.updateOne({ itemCode: item.itemCode }, { $inc: { currentStock: -deducted } });
+            await clampNegativeStock();
           }
 
           // Create inventory ledger entry so the inventory usage history accurately reflects this OPD consumption

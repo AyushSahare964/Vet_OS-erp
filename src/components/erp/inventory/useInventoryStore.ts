@@ -440,6 +440,7 @@ interface InventoryContextValue {
 
   refetchItems: () => Promise<void>;
   refetchBatches: (itemCode: string) => Promise<Batch[]>;
+  refetchLedger: () => Promise<void>;
 }
 
 const InventoryContext = createContext<InventoryContextValue | null>(null);
@@ -518,10 +519,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     (itemCode: string) => {
       const activeBatches = batches.filter((b) => b.itemCode === itemCode && b.status === "Active");
       if (activeBatches.length > 0) {
-        return activeBatches.reduce((s, b) => s + b.qty, 0);
+        return Math.max(0, activeBatches.reduce((s, b) => s + b.qty, 0));
       }
       const med = medicines.find((m) => m.itemCode === itemCode);
-      return med?.currentStock ?? 0;
+      return Math.max(0, med?.currentStock ?? 0);
     },
     [batches, medicines]
   );
@@ -952,13 +953,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       getExpiryStatus,
       refetchItems,
       refetchBatches,
+      refetchLedger,
     }),
     [
       medicines, medicinesList, injectionList, foodList, accessoriesList, batches, ledger, loadingItems,
       addMedicine, updateMedicine, deactivateMedicine, toggleStatus, deleteItem, setStock,
       addStock, adjustStock, removeStock, recordSale,
       getTotalQty, getBatchesForItem, getStockStatus, getExpiryStatus,
-      refetchItems, refetchBatches,
+      refetchItems, refetchBatches, refetchLedger,
     ]
   );
 
@@ -993,6 +995,7 @@ export function useInventory(): InventoryContextValue {
       getExpiryStatus: () => "safe",
       refetchItems: async () => {},
       refetchBatches: async () => [],
+      refetchLedger: async () => {},
     };
   }
   return ctx;

@@ -149,7 +149,7 @@ export function StockView() {
     }).length;
     const expired = allBatches.filter((b) => getExpiryStatus(b.expiryDate) === "expired").length;
 
-    const totalValue = allBatches.reduce((s, b) => s + b.qty * b.purchasePrice, 0);
+    const totalValue = allBatches.reduce((s, b) => s + Math.max(0, b.qty) * b.purchasePrice, 0);
     return [
       { label: "Total active medicines", value: String(activeMeds.length), trend: "in catalogue", trendTone: "flat" as const },
       { label: "Low-stock items", value: String(low), trend: `${oos} out of stock`, trendTone: low > 0 ? "down" as const : "flat" as const },

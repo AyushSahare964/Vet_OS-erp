@@ -37,7 +37,7 @@ export function StockSummaryModal({ open, onClose }: StockSummaryModalProps) {
   const outOfStockItems: InventoryItemRow[] = [];
 
   for (const item of items) {
-    const qty = (item as any).currentStock ?? 10;
+    const qty = Math.max(0, (item as any).currentStock ?? 10);
     const rate = (item as any).purchaseRate || 0;
     const mrp = (item as any).mrp || 0;
     totalCostValuation += qty * rate;
@@ -127,7 +127,7 @@ export function StockSummaryModal({ open, onClose }: StockSummaryModalProps) {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {[...outOfStockItems, ...lowStockItems].slice(0, 10).map((it) => {
-                    const qty = (it as any).currentStock ?? 0;
+                    const qty = Math.max(0, (it as any).currentStock ?? 0);
                     const isOut = qty <= 0;
                     return (
                       <tr key={it.itemCode} className="hover:bg-muted/30">
