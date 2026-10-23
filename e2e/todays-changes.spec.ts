@@ -241,10 +241,9 @@ test.describe.serial("Today's changes (in a fresh test hospital)", () => {
     await expect(form).toBeVisible();
     await fillStable(form.getByPlaceholder('e.g. Amoxicillin 250mg', { exact: true }), itemName);
     // required: base unit and purchase unit (first option of each)
-    await form.getByText('e.g. Tablet, Vial, Piece').click();
-    await page.getByRole('option').first().click();
-    await form.getByText('e.g. Box, Pack').click();
-    await page.getByRole('option').first().click();
+    await fillStable(form.getByPlaceholder('e.g. Tablet, Vial, Piece'), 'Tablet');
+    await fillStable(form.getByPlaceholder('e.g. Box, Pack'), 'Box');
+    await form.getByText('Packaging Hierarchy').click(); // close any suggestion list
     await form.getByRole('button', { name: /save item/i }).click();
     await expect(form).not.toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(itemName).first()).toBeVisible({ timeout: 15_000 });
@@ -259,6 +258,16 @@ test.describe.serial("Today's changes (in a fresh test hospital)", () => {
     await expect(page.getByText(/added to stock/i)).toBeVisible({ timeout: 10_000 });
 
     const panel = page.locator('.erp-card', { hasText: 'Stock Reconciliation (Physical Count)' });
+    // The product dropdown is a snapshot taken when it opens, so poll by reopening until the new balance shows.
+    const expectStock = (n: number) =>
+      expect(async () => {
+        await page.locator('#add-item').click();
+        try {
+          await expect(page.getByRole('option', { name: new RegExp(`${itemName}.*${n} in stock`) })).toBeVisible({ timeout: 3000 });
+        } finally {
+          await page.keyboard.press('Escape');
+        }
+      }).toPass({ timeout: 40_000 });
     const reconcile = async (physical: string) => {
       await panel.getByRole('combobox').first().click();
       await page.getByRole('option', { name: new RegExp(itemName) }).click();
@@ -273,18 +282,14 @@ test.describe.serial("Today's changes (in a fresh test hospital)", () => {
     await expect(line).toContainText('-3'); // change
     await panel.getByRole('button', { name: /process items/i }).click();
     await expect(page.getByText(/stock reconciled \(REC-\d+\)/i)).toBeVisible({ timeout: 20_000 });
-    await page.locator('#add-item').click();
-    await expect(page.getByRole('option', { name: new RegExp(`${itemName}.*7 in stock`) })).toBeVisible({ timeout: 15_000 });
-    await page.keyboard.press('Escape');
+    await expectStock(7);
 
     // 7 -> 12 (surplus)
     await reconcile('12');
     await expect(panel.locator('tr', { hasText: itemName })).toContainText('+5');
     await panel.getByRole('button', { name: /process items/i }).click();
     await expect(page.getByText(/stock reconciled \(REC-\d+\)/i).last()).toBeVisible({ timeout: 20_000 });
-    await page.locator('#add-item').click();
-    await expect(page.getByRole('option', { name: new RegExp(`${itemName}.*12 in stock`) })).toBeVisible({ timeout: 15_000 });
-    await page.keyboard.press('Escape');
+    await expectStock(12);
 
     // both corrections are in the ledger under REC- references
     const ledgerRows = page.locator('tr').filter({ hasText: itemName }).filter({ hasText: /REC-\d+/ });
