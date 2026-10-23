@@ -107,6 +107,7 @@ import { PurchaseOrderPrintView } from "./PurchaseOrderPrintView";
 import { type ClinicPurchaseOrderRecord } from "./PurchaseOrderModal";
 import { cn } from "@/lib/utils";
 import { useErp } from "@/lib/erp/store";
+import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { listPoDraftsFn, deletePoDraftFn } from "@/lib/mongodb/serverFns/poDrafts";
 import { listBillDraftsFn, deleteBillDraftFn, type PurchaseBillDraft } from "@/lib/mongodb/serverFns/purchaseBillDrafts";
 
@@ -192,6 +193,7 @@ export function BillingDeskDashboard({
   const [registerTab, setRegisterTab] = useState<RegisterTab>(initialRegisterTab);
 
   const isAdmin = useErp().roleId === "admin";
+  const clinic = useClinicBranding();
   // Purchase Orders — issued ones live in localStorage (PurchaseOrderModal);
   // drafts (po.draftCreatedAt set) come from the server and are merged in below.
   const [purchaseOrders, setPurchaseOrders] = useState<ClinicPurchaseOrderRecord[]>([]);
@@ -1016,7 +1018,7 @@ export function BillingDeskDashboard({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-black tracking-tight text-foreground">
-                Billing Desk — Real Care Small Animal Clinic
+                Billing Desk — {clinic.fullName}
               </h1>
               <button
                 type="button"
