@@ -1,6 +1,6 @@
 /**
  * Purchase-bill drafts — shared server-side (erp_rows), same rules as PO drafts:
- * receptionist/admin can create; only admin can edit/delete, and only within 30 days.
+ * admin/reception/accounts/doctor can create; only admin can edit/delete, and only within 30 days.
  * A draft nobody edited within 30 days is saved as a real purchase bill automatically
  * (swept whenever the drafts are listed).
  */
@@ -27,6 +27,9 @@ export interface PurchaseBillDraft {
 
 const inputZ = z.object({ bill: CreateBillZ, form: z.record(z.unknown()) });
 
+// Every role that can open Billing/Inventory can save a draft; only admin edits/deletes.
+const DRAFT_ROLES = ["admin", "reception", "accounts", "doctor"];
+
 async function requireRole(allowed: string[]) {
   const me = await getMeFn();
   if (!me || !allowed.includes(me.roleId)) throw new Error("Not permitted");
@@ -43,7 +46,7 @@ const toDraft = (d: any): PurchaseBillDraft => ({
 
 export const listBillDraftsFn = createServerFn({ method: "GET" })
   .handler(tenantScoped(async (): Promise<PurchaseBillDraft[]> => {
-    await requireRole(["admin", "reception"]);
+    await requireRole(DRAFT_ROLES);
     await connectDB();
     // Auto-save drafts that outlived the edit window. If posting fails (e.g. the bill no. was
     // since used) the draft stays, locked, until an admin deletes it.
@@ -67,7 +70,7 @@ export const listBillDraftsFn = createServerFn({ method: "GET" })
 export const saveBillDraftFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => inputZ.parse(raw))
   .handler(tenantScoped(async ({ data }): Promise<{ id: string }> => {
-    await requireRole(["admin", "reception"]);
+    await requireRole(DRAFT_ROLES);
     await connectDB();
     const doc = await ErpRow.create({ moduleId: MODULE_ID, data: data });
     return { id: String(doc._id) };

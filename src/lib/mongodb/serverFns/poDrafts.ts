@@ -1,7 +1,7 @@
 /**
  * Purchase-order drafts — shared server-side so a receptionist's draft shows up
  * in the admin's register. Stored in the generic erp_rows collection.
- * Receptionist/admin can create; only admin can edit/delete, and only within 30 days.
+ * Admin/reception/accounts/doctor can create; only admin can edit/delete, and only within 30 days.
  */
 
 import { createServerFn } from "@tanstack/react-start";
@@ -15,6 +15,9 @@ const MODULE_ID = "purchase-order-drafts";
 const PO_DRAFT_EDIT_DAYS = 30;
 
 const recordZ = z.record(z.unknown());
+
+// Every role that can open Billing/Inventory can save a draft; only admin edits/deletes.
+const DRAFT_ROLES = ["admin", "reception", "accounts", "doctor"];
 
 async function requireRole(allowed: string[]) {
   const me = await getMeFn();
@@ -31,7 +34,7 @@ const toRecord = (d: any): ClinicPurchaseOrderRecord => ({
 
 export const listPoDraftsFn = createServerFn({ method: "GET" })
   .handler(tenantScoped(async (): Promise<ClinicPurchaseOrderRecord[]> => {
-    await requireRole(["admin", "reception"]);
+    await requireRole(DRAFT_ROLES);
     await connectDB();
     const docs = await ErpRow.find({ moduleId: MODULE_ID }).sort({ createdAt: -1 }).lean();
     return docs.map(toRecord);
@@ -40,7 +43,7 @@ export const listPoDraftsFn = createServerFn({ method: "GET" })
 export const savePoDraftFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ record: recordZ }).parse(raw))
   .handler(tenantScoped(async ({ data }): Promise<{ id: string }> => {
-    await requireRole(["admin", "reception"]);
+    await requireRole(DRAFT_ROLES);
     await connectDB();
     const doc = await ErpRow.create({ moduleId: MODULE_ID, data: data.record });
     return { id: String(doc._id) };
