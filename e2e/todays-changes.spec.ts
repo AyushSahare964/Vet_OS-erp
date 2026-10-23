@@ -307,7 +307,7 @@ test.describe.serial("Today's changes (in a fresh test hospital)", () => {
     test.setTimeout(90_000);
     await gotoReady(page, '/m/billing');
     // the right rail is icon-only until hovered
-    await expect(page.getByRole('heading', { name: new RegExp(`Billing Desk — ${clinic.name}`) })).toBeVisible({ timeout: 20_000 }); // own clinic name, not another clinic's
+    await expect(page.getByRole('heading', { name: new RegExp(`Billing Desk — ${clinic.name}`) }).first()).toBeVisible({ timeout: 20_000 }); // own clinic name, not another clinic's
     await page.locator('aside.sticky').last().hover();
     await page.getByText('Stock Valuation').first().click();
     const modal = page.getByText('Stock Valuation & Inventory Summary');
