@@ -21,7 +21,8 @@ const DRAFT_ROLES = ["admin", "reception", "accounts", "doctor"];
 
 async function requireRole(allowed: string[]) {
   const me = await getMeFn();
-  if (!me || !allowed.includes(me.roleId)) throw new Error("Not permitted");
+  if (!me) throw new Error("Your session has expired. Please sign out and sign in again.");
+  if (!allowed.includes(me.roleId)) throw new Error(`Not permitted for role "${me.roleId}"`);
   return me;
 }
 
