@@ -3099,10 +3099,11 @@ export function BillingDeskDashboard({
                         <tr
                           key={po.id}
                           onClick={() => {
+                            if (po.draftCreatedAt) return; // drafts are handled by the Edit/Delete buttons (admin only)
                             setSelectedPurchaseOrder(po);
                             setShowPurchaseOrderPrintView(true);
                           }}
-                          className="transition-colors hover:bg-muted/40 cursor-pointer"
+                          className={po.draftCreatedAt ? "bg-amber-50/40 dark:bg-amber-950/10" : "transition-colors hover:bg-muted/40 cursor-pointer"}
                         >
                           <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                             {po.poDate ? new Date(po.poDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
@@ -3150,6 +3151,45 @@ export function BillingDeskDashboard({
                             className="px-4 py-3 text-center whitespace-nowrap"
                             onClick={(e) => e.stopPropagation()}
                           >
+                            {po.draftCreatedAt ? (
+                              // Draft: receptionist etc. can only have saved it; admin edits (within 30 days) or deletes it
+                              isAdmin && (() => {
+                                const editable = Date.now() - new Date(po.draftCreatedAt).getTime() <= 30 * 864e5;
+                                return (
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={!editable}
+                                      onClick={() => onEditPurchaseOrderDraft?.(po)}
+                                      className="h-6 px-2 text-[10px] font-bold gap-1"
+                                      title={editable ? "Edit draft, then save the final PO" : "Drafts can only be changed within 30 days"}
+                                    >
+                                      <Pencil className="size-3" />
+                                      <span>{editable ? "Edit" : "Locked"}</span>
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={async () => {
+                                        if (!confirm(`Delete draft ${po.poNumber}?`)) return;
+                                        try {
+                                          await deletePoDraftFn({ data: { id: po.id } });
+                                          loadPurchaseOrders();
+                                          toast.success(`Draft ${po.poNumber} deleted.`);
+                                        } catch (e: any) {
+                                          toast.error(e.message);
+                                        }
+                                      }}
+                                      className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50"
+                                      title="Delete draft"
+                                    >
+                                      <Trash2 className="size-3.5" />
+                                    </Button>
+                                  </div>
+                                );
+                              })()
+                            ) : (
                             <div className="flex items-center justify-center gap-1">
                               <Button
                                 size="sm"
@@ -3241,6 +3281,7 @@ export function BillingDeskDashboard({
                                 <Trash2 className="size-3.5" />
                               </Button>}
                             </div>
+                            )}
                           </td>
                         </tr>
                       );
