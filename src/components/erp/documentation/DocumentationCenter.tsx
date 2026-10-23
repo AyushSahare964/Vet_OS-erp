@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileSignature, Printer, Search } from "lucide-react";
+import { FileSignature, Printer, Save, Search, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,13 +14,14 @@ import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { useErp } from "@/lib/erp/store";
 import { formatDisplayDate, todayIST } from "@/lib/utils/dateUtils";
 import { cn } from "@/lib/utils";
+import { saveDocRecordFn } from "@/lib/mongodb/serverFns/documentation";
 import { DOC_TEMPLATES, type DocTemplate } from "./templates";
-
-const PRINT_CSS = `@media print{body *{visibility:hidden!important}#doc-print,#doc-print *{visibility:visible!important}#doc-print{position:absolute;left:0;top:0;width:100%;box-shadow:none!important;border:0!important}}`;
+import { DocumentSheet, PRINT_CSS, type SheetData } from "./DocumentSheet";
 
 /**
  * Forms, consents and certificates, filled from the selected patient, owner, doctor and clinic.
- * Print / Save as PDF only (a signed copy is not stored). Wording is a draft for the doctor to review.
+ * Every header cell and paragraph can be edited in place; Save stores the filled document under "Saved documents".
+ * Wording is a draft for the doctor to review.
  */
 export function DocumentationCenter() {
   const clinic = useClinicBranding();
@@ -32,6 +34,13 @@ export function DocumentationCenter() {
   const [tpl, setTpl] = useState<DocTemplate>(DOC_TEMPLATES[0]!);
   const [vals, setVals] = useState<Record<string, string>>({});
   const [vaccines, setVaccines] = useState<any[]>([]);
+  // Manual edits made directly on the document; cleared when the patient / template changes
+  const [hdrEdits, setHdrEdits] = useState<Record<string, string>>({});
+  const [paraEdits, setParaEdits] = useState<Record<number, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => setHdrEdits({}), [pet?.petId]);
+  useEffect(() => setParaEdits({}), [tpl.id]);
 
   useEffect(() => {
     listPetsWithOwnersFn().then((p) => setPets(p ?? [])).catch(() => setPets([]));
@@ -71,6 +80,61 @@ export function DocumentationCenter() {
     ...vals,
   };
   const fill = (t: string) => t.replace(/\{\{(\w+)\}\}/g, (_, k: string) => (context[k] ? context[k]! : "________"));
+
+  const header: Record<string, string> = {
+    patient: pet ? `${pet.name} (${pet.petId})` : "",
+    species: pet ? `${pet.species}, ${pet.breed}` : "",
+    sexAge: `${sex}${pet?.dob ? ` · DOB ${formatDisplayDate(pet.dob)}` : ""}`,
+    owner: pet?.owner?.name ?? "",
+    phone: pet?.owner?.phone ?? "",
+    date: formatDisplayDate(todayIST()),
+    address: `${pet?.owner?.address ?? ""}${pet?.owner?.city ? `, ${pet.owner.city}` : ""}`,
+    microchip: `${pet?.microchipNo || ""}${pet?.weightKg ? ` · ${pet.weightKg} kg` : ""}`,
+    ...hdrEdits,
+  };
+  const sheet: SheetData = {
+    title: tpl.title,
+    header,
+    paragraphs: tpl.body.map((p, i) => paraEdits[i] ?? fill(p)),
+    vaccines: vaccines.map((v) => ({
+      name: String(v.name ?? ""),
+      date: formatDisplayDate(v.date),
+      batchNo: String(v.batchNo ?? ""),
+      nextDue: v.nextDue ? formatDisplayDate(v.nextDue) : "",
+      doctor: String(v.doctor ?? ""),
+    })),
+    vaccineTable: !!tpl.vaccineTable,
+    signatures: tpl.signatures,
+    doctor,
+  };
+  const edited = Object.keys(hdrEdits).length > 0 || Object.keys(paraEdits).length > 0;
+
+  const save = async () => {
+    if (!pet) return;
+    setSaving(true);
+    try {
+      const res = await saveDocRecordFn({
+        data: {
+          templateId: tpl.id,
+          title: tpl.title,
+          petId: String(pet.petId ?? ""),
+          petName: String(pet.name ?? ""),
+          ownerName: header["owner"] ?? "",
+          doctor,
+          header,
+          paragraphs: sheet.paragraphs,
+          vaccines: sheet.vaccines,
+          vaccineTable: sheet.vaccineTable,
+          signatures: sheet.signatures,
+        },
+      });
+      toast.success(`Saved as ${res.docNo} — find it under Saved documents.`);
+    } catch (e: any) {
+      toast.error(e.message || "Could not save the document.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
@@ -151,93 +215,31 @@ export function DocumentationCenter() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Draft wording: the doctor should review each form before it is used.</p>
-          <Button onClick={() => window.print()} disabled={!pet} className="gap-1.5">
-            <Printer className="size-4" /> Print / Save as PDF
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            Click any field or paragraph on the form to edit it, then Save. Draft wording: the doctor should review each form before it is used.
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            {edited && (
+              <Button variant="ghost" size="sm" onClick={() => { setHdrEdits({}); setParaEdits({}); }} className="gap-1.5 text-xs">
+                <RotateCcw className="size-3.5" /> Reset edits
+              </Button>
+            )}
+            <Button onClick={save} disabled={!pet || saving} className="gap-1.5">
+              <Save className="size-4" /> {saving ? "Saving…" : "Save document"}
+            </Button>
+            <Button variant="outline" onClick={() => window.print()} disabled={!pet} className="gap-1.5">
+              <Printer className="size-4" /> Print / PDF
+            </Button>
+          </div>
         </div>
 
-        <article id="doc-print" className="erp-card mx-auto w-full max-w-[820px] space-y-4 bg-white p-8 text-[13px] leading-relaxed text-gray-900">
-          <header className="flex items-start justify-between gap-4 border-b-2 border-gray-800 pb-3">
-            <div>
-              <h1 className="text-lg font-extrabold">{clinic.fullName}</h1>
-              <p className="text-[11px] text-gray-600">{[clinic.addressLine1, clinic.addressLine2].filter(Boolean).join(", ")}</p>
-              <p className="text-[11px] text-gray-600">{[clinic.phone, clinic.email].filter(Boolean).join(" · ")}</p>
-              <p className="text-[11px] text-gray-600">{[clinic.regNo && `Reg. ${clinic.regNo}`, clinic.gstin && `GSTIN ${clinic.gstin}`].filter(Boolean).join(" · ")}</p>
-            </div>
-            {clinic.logoPath && <img src={clinic.logoPath} alt="" className="h-14 w-auto object-contain" onError={(e) => ((e.target as HTMLElement).style.display = "none")} />}
-          </header>
-
-          <h2 className="text-center text-base font-extrabold uppercase tracking-wide">{tpl.title}</h2>
-
-          <table className="w-full border border-gray-300 text-[12px]">
-            <tbody>
-              <tr>
-                <td className="border border-gray-300 p-1.5"><b>Patient:</b> {pet?.name ?? "________"} ({pet?.petId ?? "—"})</td>
-                <td className="border border-gray-300 p-1.5"><b>Species / breed:</b> {pet ? `${pet.species}, ${pet.breed}` : "________"}</td>
-                <td className="border border-gray-300 p-1.5"><b>Sex / age:</b> {sex || "—"}{pet?.dob ? ` · DOB ${formatDisplayDate(pet.dob)}` : ""}</td>
-              </tr>
-              <tr>
-                <td className="border border-gray-300 p-1.5"><b>Owner:</b> {pet?.owner?.name ?? "________"}</td>
-                <td className="border border-gray-300 p-1.5"><b>Phone:</b> {pet?.owner?.phone ?? "________"}</td>
-                <td className="border border-gray-300 p-1.5"><b>Date:</b> {formatDisplayDate(todayIST())}</td>
-              </tr>
-              <tr>
-                <td className="border border-gray-300 p-1.5" colSpan={2}><b>Address:</b> {pet?.owner?.address ?? "________"}{pet?.owner?.city ? `, ${pet.owner.city}` : ""}</td>
-                <td className="border border-gray-300 p-1.5"><b>Microchip:</b> {pet?.microchipNo || "—"}{pet?.weightKg ? ` · ${pet.weightKg} kg` : ""}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div className="space-y-2.5">
-            {tpl.body.map((p, i) => (
-              <p key={i}>{fill(p)}</p>
-            ))}
-          </div>
-
-          {tpl.vaccineTable && (
-            <table className="w-full border border-gray-300 text-[12px]">
-              <thead>
-                <tr className="bg-gray-100 text-left">
-                  <th className="border border-gray-300 p-1.5">Vaccine</th>
-                  <th className="border border-gray-300 p-1.5">Date given</th>
-                  <th className="border border-gray-300 p-1.5">Batch</th>
-                  <th className="border border-gray-300 p-1.5">Next due</th>
-                  <th className="border border-gray-300 p-1.5">Doctor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vaccines.map((v, i) => (
-                  <tr key={i}>
-                    <td className="border border-gray-300 p-1.5">{v.name}</td>
-                    <td className="border border-gray-300 p-1.5">{formatDisplayDate(v.date)}</td>
-                    <td className="border border-gray-300 p-1.5">{v.batchNo || "—"}</td>
-                    <td className="border border-gray-300 p-1.5">{v.nextDue ? formatDisplayDate(v.nextDue) : "—"}</td>
-                    <td className="border border-gray-300 p-1.5">{v.doctor || "—"}</td>
-                  </tr>
-                ))}
-                {vaccines.length === 0 && (
-                  <tr>
-                    <td className="border border-gray-300 p-3 text-center text-gray-500" colSpan={5}>
-                      {pet ? "No vaccination records found for this patient." : "Select a patient to fill the vaccine history."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-
-          <div className="grid gap-8 pt-10" style={{ gridTemplateColumns: `repeat(${tpl.signatures.length}, minmax(0, 1fr))` }}>
-            {tpl.signatures.map((s) => (
-              <div key={s} className="text-center">
-                <div className="border-t border-gray-700 pt-1 text-[11px] font-semibold">{s === "Attending veterinarian" ? `${s}: ${doctor || ""}` : s}</div>
-                <div className="text-[10px] text-gray-500">Name, signature and date</div>
-              </div>
-            ))}
-          </div>
-
-          <footer className="border-t pt-2 text-center text-[10px] text-gray-500">Draft wording for doctor review · generated by VetechIQ</footer>
-        </article>
+        <DocumentSheet
+          clinic={clinic}
+          data={sheet}
+          onHeader={(k, v) => setHdrEdits((e) => ({ ...e, [k]: v }))}
+          onParagraph={(i, v) => setParaEdits((e) => ({ ...e, [i]: v }))}
+          emptyVaccineMessage={pet ? "No vaccination records found for this patient." : "Select a patient to fill the vaccine history."}
+        />
       </div>
     </div>
   );

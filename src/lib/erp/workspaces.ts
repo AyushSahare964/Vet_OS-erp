@@ -783,7 +783,7 @@ export const WORKSPACES: Record<string, Workspace> = {
   communication: {
     id: "communication",
     icon: "MessageSquare",
-    title: "Communication Center",
+    title: "Documentation",
     subtitle: "WhatsApp, SMS and email delivery log",
     kpis: [
       { label: "Messages sent today", value: "0", trend: "0", trendTone: "flat" },

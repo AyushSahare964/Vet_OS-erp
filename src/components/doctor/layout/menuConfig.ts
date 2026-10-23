@@ -81,7 +81,7 @@ export const MENU: MenuItem[] = [
       { id: "boarding", label: "Boarding & Swimming", requires: ["boarding"] },
       { id: "food", label: "Food & Nutrition", requires: ["nutrition"] },
     ] },
-  { id: "communication", side: "left", label: "Client Communication", short: "Clients", icon: "MessageSquare", to: { kind: "module", moduleId: "communication" }, roles: CLINICAL, requires: ["clinical-records", "reports"], match: ["communication", "clinical-records"], subtitle: "Documents, reminders and messages for pet parents.",
+  { id: "communication", side: "left", label: "Documentation", short: "Docs", icon: "MessageSquare", to: { kind: "module", moduleId: "communication" }, roles: CLINICAL, requires: ["clinical-records", "reports"], match: ["communication", "clinical-records"], subtitle: "Consents, certificates, reminders and messages for pet parents.",
     tabs: [
       { id: "documents", label: "Certificates & Documents", requires: ["clinical-records", "reports"] },
       { id: "reminders", label: "Follow-up & Reminders", requires: ["crm-pets", "appointments"] },
