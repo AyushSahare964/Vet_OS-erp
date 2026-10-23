@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Multi-tenant preview</title>
+<style>
+body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:#f1f5f9;color:#0f172a}
+header{background:#001d39;color:#fff;padding:24px 32px}header p{margin:4px 0 0;color:#bcd0e2}
+main{max-width:1400px;margin:0 auto;padding:24px 32px}
+section{background:#fff;border-radius:16px;padding:20px 24px;margin-bottom:24px;box-shadow:0 1px 3px #0001}
+h2{margin:0 0 14px;font-size:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}h2 small{font-weight:400;color:#64748b;font-size:13px}
+.dot{width:14px;height:14px;border-radius:50%;display:inline-block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px}
+figure{margin:0}img{width:100%;border:1px solid #cbd5e1;border-radius:10px;display:block}
+figcaption{font-size:12px;color:#475569;margin-top:6px}
+</style></head><body>
+<header><h1>VetechIQ multi-tenant preview</h1><p>3 hospitals registered independently — run 0296591. Each one has its own workspace, branding, staff and data.</p></header>
+<main>
+<section><h2>Platform admin view — all registered hospitals</h2><div class="grid">
+<figure><img src="platform-1-all-hospitals.png" alt="Platform admin: every hospital with plan, trial, doctor and status"><figcaption>Platform admin: every hospital with plan, trial, doctor and status</figcaption></figure>
+<figure><img src="platform-2-clinic-details.png" alt="Platform admin: one hospital's registration details"><figcaption>Platform admin: one hospital's registration details</figcaption></figure>
+<figure><img src="platform-3-clinic-branding.png" alt="Platform admin: that hospital's branding"><figcaption>Platform admin: that hospital's branding</figcaption></figure>
+<figure><img src="alpha-4-suspended-login.png" alt="A suspended hospital cannot sign in"><figcaption>A suspended hospital cannot sign in</figcaption></figure>
+</div></section>
+<section>
+  <h2><span class="dot" style="background:#e11d48"></span>E2E MT Alpha 0296591 <small>Pune, Maharashtra · "Caring for every paw in Pune"</small></h2>
+  <div class="grid">
+    <figure><img src="alpha-1-home.png" alt="alpha: home dashboard right after registration"><figcaption>alpha: home dashboard right after registration</figcaption></figure>
+    <figure><img src="alpha-2-hospital-profile.png" alt="alpha: Hospital profile (own name, address, doctor)"><figcaption>alpha: Hospital profile (own name, address, doctor)</figcaption></figure>
+    <figure><img src="alpha-3-staff-only-own.png" alt="alpha: Staff list — only this clinic's people"><figcaption>alpha: Staff list — only this clinic's people</figcaption></figure>
+  </div></section>
+<section>
+  <h2><span class="dot" style="background:#059669"></span>E2E MT Bravo 0296591 <small>Nagpur, Maharashtra · "Nagpur's friendliest vets"</small></h2>
+  <div class="grid">
+    <figure><img src="bravo-1-home.png" alt="bravo: home dashboard right after registration"><figcaption>bravo: home dashboard right after registration</figcaption></figure>
+    <figure><img src="bravo-2-hospital-profile.png" alt="bravo: Hospital profile (own name, address, doctor)"><figcaption>bravo: Hospital profile (own name, address, doctor)</figcaption></figure>
+    <figure><img src="bravo-3-staff-only-own.png" alt="bravo: Staff list — only this clinic's people"><figcaption>bravo: Staff list — only this clinic's people</figcaption></figure>
+  </div></section>
+<section>
+  <h2><span class="dot" style="background:#7c3aed"></span>E2E MT Charlie 0296591 <small>Bengaluru, Karnataka · "Advanced care, gentle hands"</small></h2>
+  <div class="grid">
+    <figure><img src="charlie-1-home.png" alt="charlie: home dashboard right after registration"><figcaption>charlie: home dashboard right after registration</figcaption></figure>
+    <figure><img src="charlie-2-hospital-profile.png" alt="charlie: Hospital profile (own name, address, doctor)"><figcaption>charlie: Hospital profile (own name, address, doctor)</figcaption></figure>
+    
+  </div></section>
+</main></body></html>
