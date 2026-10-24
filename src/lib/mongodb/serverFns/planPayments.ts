@@ -75,7 +75,7 @@ export const createPlanSubscriptionFn = createServerFn({ method: "POST" })
         const planId = await ensureProRazorpayPlan(data.test);
         const sub = await call<{ id: string }>("/subscriptions", {
           method: "POST",
-          body: { plan_id: planId, total_count: TOTAL_COUNT, customer_notify: 1, notes: { vetechiqPlan: data.planId } },
+          body: { plan_id: planId, total_count: data.test ? 1 : TOTAL_COUNT, customer_notify: 1, notes: { vetechiqPlan: data.planId } },
         });
         await connectDB();
         await PlanPaymentModel.create({ subscriptionId: sub.id, planId: data.planId, amountPaise: data.test ? 100 : planChargePaise(data.planId) });
