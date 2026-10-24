@@ -42,44 +42,6 @@
 .scr.on { opacity: 1; transform: none; }
 .scr-shot { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }   /* real screenshot */
 
-/* placeholder screens (see ShowcaseScreens.jsx) */
-.scr-grid { height: 100%; display: grid; grid-template-columns: 52px 1fr; gap: 12px; padding: 12px; }
-.scr-grid .side { background: #E7DFFF; border-radius: 10px; }
-.s0 { grid-template-columns: 52px 1fr .8fr; }
-.s0 .main { display: grid; gap: 10px; align-content: start; }
-.s0 .row-l { height: 42px; border-radius: 10px; background: #fff; position: relative; }
-.s0 .row-l::before { content: ""; position: absolute; left: 10px; top: 9px; width: 24px; height: 24px; border-radius: 50%; background: #CDBEFF; }
-.s0 .row-l::after { content: ""; position: absolute; left: 44px; top: 16px; height: 10px; width: 55%; border-radius: 5px; background: #ECE6FF; }
-.s0 .row-l:nth-child(2) { outline: 2px solid var(--v); }
-.s0 .pane { background: #fff; border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; }
-.s0 .av { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #C4B5FD, #F9A8D4); }
-.scr .ln { height: 10px; border-radius: 5px; background: #ECE6FF; } .scr .ln.s { width: 60%; }
-.scr .tags { display: flex; gap: 6px; } .scr .tags i { width: 46px; height: 18px; border-radius: 99px; background: #DCFCE7; }
-.scr .tags i:nth-child(2) { background: #FCE7F3; } .scr .tags i:nth-child(3) { background: #E0F2FE; }
-.kan { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.kan .col { background: #fff; border-radius: 12px; padding: 10px; display: grid; gap: 8px; align-content: start; }
-.kan .col b { height: 12px; width: 55%; border-radius: 6px; background: #CDBEFF; }
-.kan .col i { height: 46px; border-radius: 10px; background: #F3EEFF; border-left: 4px solid #A78BFA; }
-.kan .col:nth-child(2) i { border-left-color: #F59E0B; background: #FFF7E6; }
-.kan .col:nth-child(3) i { border-left-color: #22C55E; background: #ECFDF3; }
-.shelf { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.shelf i { background: #fff; border-radius: 12px; position: relative; overflow: hidden; }
-.shelf i::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: 12px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--v) var(--p), #ECE6FF var(--p)); }
-.shelf i::before { content: ""; position: absolute; left: 10px; top: 12px; width: 26px; height: 32px; border-radius: 6px; background: #E9D5FF; }
-.shelf i.low::after { background: linear-gradient(90deg, #F43F5E var(--p), #FFE4E6 var(--p)); }
-.inv { background: #fff; border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; }
-.inv .hd { height: 22px; width: 40%; border-radius: 6px; background: #CDBEFF; }
-.inv .tot { height: 30px; width: 45%; justify-self: end; border-radius: 8px; background: var(--v); }
-.inv .pay { display: flex; gap: 8px; } .inv .pay i { flex: 1; height: 30px; border-radius: 8px; background: #F3EEFF; } .inv .pay i:first-child { background: #DCFCE7; }
-.acc { display: grid; grid-template-rows: 1.4fr 1fr; gap: 10px; }
-.chart { background: #fff; border-radius: 12px; padding: 14px; display: flex; align-items: flex-end; gap: 10px; }
-.chart i { flex: 1; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, #8B5CF6, var(--v)); height: 6%; transition: height .9s cubic-bezier(.2, .8, .2, 1); }
-.scr.on .chart i { height: var(--h); }
-.ledger { background: #fff; border-radius: 12px; padding: 12px; display: grid; gap: 8px; } .ledger i { border-radius: 6px; background: #F3EEFF; }
-.ros { background: #fff; border-radius: 12px; padding: 12px; display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(5, 1fr); gap: 8px;
-       background-image: linear-gradient(#F3EEFF 1px, transparent 1px), linear-gradient(90deg, #F3EEFF 1px, transparent 1px); background-size: calc(100% / 6) 20%; }
-.ros i { border-radius: 8px; } .ros .a { background: #C4B5FD; } .ros .b { background: #FBCFE8; } .ros .c { background: #A7F3D0; }
-
 /* ≤1000px: no device, every block fully visible */
 @media (max-width: 1000px) {
   .show { grid-template-columns: 1fr; gap: 0; }

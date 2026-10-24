@@ -8,7 +8,20 @@ import './showcase.css'
 
 const ARMS = [
   {
-    idx: 'MODULE 01 // PET RECORDS & APPOINTMENTS',
+    idx: 'MODULE 01 // MASTER SEARCH',
+    tag: 'Find anything in one search box.',
+    title: 'Master Search',
+    items: [
+      'One search for pets, owners, phone numbers, medicines and invoices',
+      'Press / anywhere to start typing',
+      'Jump straight to the pet record, bill or stock item',
+      'Doctors and admins land on it as their home screen',
+    ],
+    outcome: 'Less clicking, faster desk',
+    sys: '01',
+  },
+  {
+    idx: 'MODULE 02 // PET RECORDS & APPOINTMENTS',
     tag: 'Every pet, every visit, one record.',
     img: modulePatientImg,
     title: 'Pet Records & Appointments',
@@ -19,10 +32,10 @@ const ARMS = [
       'Weight and health trend graph for each pet',
     ],
     outcome: 'Less searching, fewer duplicates',
-    sys: '01',
+    sys: '02',
   },
   {
-    idx: 'MODULE 02 // CONSULTATION & LAB',
+    idx: 'MODULE 03 // CONSULTATION & LAB',
     tag: 'Consult, prescribe and bill in one screen.',
     img: moduleOpdImg,
     title: 'Consultation & Lab',
@@ -33,10 +46,10 @@ const ARMS = [
       'Print lab reports and vaccination certificates',
     ],
     outcome: 'Faster consultations',
-    sys: '02',
+    sys: '03',
   },
   {
-    idx: 'MODULE 03 // PHARMACY & INVENTORY',
+    idx: 'MODULE 04 // PHARMACY & INVENTORY',
     tag: 'Know what you have, and what is running out.',
     img: modulePharmacyImg,
     title: 'Pharmacy & Inventory',
@@ -47,13 +60,13 @@ const ARMS = [
       'Purchase orders with receiving and purchase bills',
     ],
     outcome: 'Fewer stock-outs and expiries',
-    sys: '03',
+    sys: '04',
   },
 ]
 
 const MODULES = [
   {
-    idx: 'MODULE 04 // BILLING & PAYMENTS',
+    idx: 'MODULE 05 // BILLING & PAYMENTS',
     title: 'Billing & Payments',
     subtitle: 'Fast counter bills and clear payments.',
     items: [
@@ -67,7 +80,7 @@ const MODULES = [
     statusColor: 'bg-green-100 text-green-800 border-green-200',
   },
   {
-    idx: 'MODULE 05 // REPORTS & LEDGERS',
+    idx: 'MODULE 06 // REPORTS & LEDGERS',
     title: 'Reports & Ledgers',
     subtitle: 'See where the money stands.',
     items: [
@@ -81,7 +94,7 @@ const MODULES = [
     statusColor: 'bg-purple-100 text-[#4F26D9] border-purple-200',
   },
   {
-    idx: 'MODULE 06 // STAFF & ACCESS',
+    idx: 'MODULE 07 // STAFF & ACCESS',
     title: 'Staff & Access',
     subtitle: 'The right screens for the right person.',
     items: [
@@ -135,12 +148,12 @@ export default function Showcase() {
           <span className="tagpill">Part 1 // Daily Clinic Work</span>
           <h2>The Daily Work of Your Clinic</h2>
           <p className="lead">From the front desk to the doctor's table, every step is in one flow.</p>
-          <span className="tagpill soft">VetechIQ Modules 01 — 03</span>
+          <span className="tagpill soft">VetechIQ Modules 01 — 04</span>
         </div>
 
         {ARMS.map((a, i) => (
           <article key={a.sys} className={blockCls(i)} data-screen={i}>
-            <img className="thumb" alt={a.title} src={a.img} />
+            {a.img && <img className="thumb" alt={a.title} src={a.img} />}
             <div className="mtag">{a.idx}</div>
             <div className="lbl">{a.tag}</div>
             <h3>{a.title}</h3>
@@ -159,7 +172,7 @@ export default function Showcase() {
         </div>
 
         {MODULES.map((m, i) => (
-          <article key={m.title} className={blockCls(i + 3)} data-screen={i + 3}>
+          <article key={m.title} className={blockCls(i + ARMS.length)} data-screen={i + ARMS.length}>
             <div className="lbl">{m.idx}</div>
             <h3>{m.title}</h3>
             <div className="sub">{m.subtitle}</div>

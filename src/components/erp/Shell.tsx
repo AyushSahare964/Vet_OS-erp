@@ -8,7 +8,6 @@ import {
   Stethoscope, 
   X, 
   UserCircle, 
-  LogIn, 
   Shield, 
   Sparkles,
   Building2,
@@ -26,7 +25,6 @@ import { ROLES, ROLE_ORDER, roleModules, type RoleId } from "@/lib/erp/config";
 import { useErp } from "@/lib/erp/store";
 import { getIcon } from "./icon";
 import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
-import { getMongoStatusFn, type MongoStatusRow } from "@/lib/mongodb/serverFns/status";
 import { searchMasterFn, type MasterSearchResultGroup, type MasterSearchResultItem } from "@/lib/mongodb/serverFns/search";
 import { settleReminderFn } from "@/lib/mongodb/serverFns/reminders";
 import { getNotificationsFn, type NotificationRow, type NotificationCategory } from "@/lib/mongodb/serverFns/notifications";
@@ -59,14 +57,6 @@ function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
         ? (clinicBranding.doctorName || currentUser?.fullName || "")
         : (currentUser?.fullName || CLINIC_CONFIG.doctorName));
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [mongoStatus, setMongoStatus] = useState<MongoStatusRow | null>(null);
-
-  useEffect(() => {
-    getMongoStatusFn()
-      .then(setMongoStatus)
-      .catch(() => setMongoStatus({ connected: false, readyState: 0, databaseName: "vetos_erp", host: "Atlas", latencyMs: 0, error: "Offline" }));
-  }, []);
-
   // Hidden from the sidebar by request — the routes/dashboard cards still exist,
   // this only removes them from left-nav navigation.
   const HIDDEN_SIDEBAR_MODULES = new Set(["hrms", "marketing", "pharmacy", "communication", "integrations", "billing-suite", "accounting"]);
@@ -154,19 +144,6 @@ function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
             Focus: {currentUser.specialty}
           </p>
         )}
-
-        {/* MongoDB Connection Status */}
-        <div className="mt-3 flex items-center justify-between border-t border-sidebar-border/60 pt-2.5 text-[0.65rem]">
-          <span className="text-muted-foreground font-mono">MongoDB Atlas</span>
-          <span className={`inline-flex items-center gap-1 font-semibold ${
-            mongoStatus?.connected ? "text-success" : "text-warning"
-          }`}>
-            <span className={`size-1.5 rounded-full ${
-              mongoStatus?.connected ? "bg-success animate-pulse" : "bg-warning"
-            }`} />
-            {mongoStatus?.connected ? `Connected (${mongoStatus.latencyMs}ms)` : "Connecting…"}
-          </span>
-        </div>
       </div>
     </div>
   );
@@ -411,18 +388,10 @@ export function GlobalSearch() {
   );
 }
 
-/** Branch, online status, focus and MongoDB status, shown in the user menu. */
+/** Branch, online status and focus, shown in the user menu. */
 function BranchStatus() {
   const { role, currentUser } = useErp();
   const isPlatform = role.id === "platform" || currentUser?.roleId === "platform";
-  const [mongoStatus, setMongoStatus] = useState<MongoStatusRow | null>(null);
-
-  useEffect(() => {
-    getMongoStatusFn()
-      .then(setMongoStatus)
-      .catch(() => setMongoStatus({ connected: false, readyState: 0, databaseName: "vetos_erp", host: "Atlas", latencyMs: 0, error: "Offline" }));
-  }, []);
-
   return (
     <div className="px-2 py-2.5 border-b border-border my-1 text-[0.72rem]">
       <div className="flex items-center justify-between">
@@ -435,21 +404,16 @@ function BranchStatus() {
       <p className="mt-1 text-sm font-semibold leading-tight text-foreground truncate">
         {isPlatform ? (currentUser?.clinicName || "VetechIQ") : (currentUser?.branch || currentUser?.clinicName || role.scope)}
       </p>
-      <p className="text-xs text-muted-foreground truncate">
-        {isPlatform ? "Platform Systems Administration" : (currentUser?.branch || role.scopeCaption)}
-      </p>
+      {(isPlatform || (currentUser?.branch || role.scopeCaption) !== (currentUser?.branch || currentUser?.clinicName || role.scope)) && (
+        <p className="text-xs text-muted-foreground truncate">
+          {isPlatform ? "Platform Systems Administration" : (currentUser?.branch || role.scopeCaption)}
+        </p>
+      )}
       {currentUser?.specialty && (
         <p className="mt-1.5 inline-block rounded bg-muted px-1.5 py-0.5 text-[0.68rem] font-medium text-muted-foreground">
           Focus: {currentUser.specialty}
         </p>
       )}
-      <div className="mt-2 flex items-center justify-between border-t border-border/60 pt-2 text-[0.65rem]">
-        <span className="text-muted-foreground font-mono">MongoDB Atlas</span>
-        <span className={`inline-flex items-center gap-1 font-semibold ${mongoStatus?.connected ? "text-success" : "text-warning"}`}>
-          <span className={`size-1.5 rounded-full ${mongoStatus?.connected ? "bg-success animate-pulse" : "bg-warning"}`} />
-          {mongoStatus?.connected ? `Connected (${mongoStatus.latencyMs}ms)` : "Connecting…"}
-        </span>
-      </div>
     </div>
   );
 }
@@ -681,13 +645,6 @@ function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | unde
             </div>
 
             {USE_FLOATING_SHELL && <BranchStatus />}
-
-            <DropdownMenuItem asChild className="text-xs cursor-pointer rounded-lg py-2 mt-1">
-              <Link to="/login" className="flex items-center gap-2">
-                <LogIn className="size-3.5 text-primary" />
-                <span>Switch / Sign In Operator</span>
-              </Link>
-            </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={handleLogout}
