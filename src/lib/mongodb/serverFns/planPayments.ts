@@ -42,12 +42,10 @@ const call = async <T>(path: string, init: { method?: string; body?: unknown } =
 interface RzpPlan { id: string; period: string; interval: number; item: { name: string; amount: number; currency: string } }
 
 /** The monthly Pro plan on the Razorpay account, created the first time it is needed. Price comes from features.ts. */
-/** test = TEMPORARY Rs 1 plan for trying the Razorpay flow end to end; remove with the Max test card. */
-export async function ensureProRazorpayPlan(test = false): Promise<string> {
-  const amount = test ? 100 : planChargePaise("plan_professional");
-  const planName = test ? "VetechIQ Test (Rs 1)" : PLAN_NAME;
+export async function ensureProRazorpayPlan(): Promise<string> {
+  const amount = planChargePaise("plan_professional");
   const existing = await call<{ items: RzpPlan[] }>("/plans?count=100");
-  const hit = existing.items.find((p) => p.period === "monthly" && p.interval === 1 && p.item.name === planName && p.item.amount === amount);
+  const hit = existing.items.find((p) => p.period === "monthly" && p.interval === 1 && p.item.name === PLAN_NAME && p.item.amount === amount);
   if (hit) return hit.id;
   const made = await call<RzpPlan>("/plans", {
     method: "POST",
@@ -55,7 +53,7 @@ export async function ensureProRazorpayPlan(test = false): Promise<string> {
       period: "monthly",
       interval: 1,
       item: {
-        name: planName,
+        name: PLAN_NAME,
         amount,
         currency: "INR",
         description: `${SUBSCRIPTION_PLANS.plan_professional.name} plan: Rs ${SUBSCRIPTION_PLANS.plan_professional.monthlyPriceInr} + 18% GST per month`,
@@ -66,19 +64,19 @@ export async function ensureProRazorpayPlan(test = false): Promise<string> {
 }
 
 export const createPlanSubscriptionFn = createServerFn({ method: "POST" })
-  .validator((raw: unknown) => z.object({ planId: z.literal("plan_professional"), test: z.boolean().optional() }).parse(raw))
+  .validator((raw: unknown) => z.object({ planId: z.literal("plan_professional") }).parse(raw))
   .handler(
     async ({ data }): Promise<{ ok: true; subscriptionId: string; keyId: string } | { ok: false; message: string }> => {
       const k = keys();
       if (!k.id || !k.secret) return { ok: false, message: "Online payment is not configured yet. Please contact us." };
       try {
-        const planId = await ensureProRazorpayPlan(data.test);
+        const planId = await ensureProRazorpayPlan();
         const sub = await call<{ id: string }>("/subscriptions", {
           method: "POST",
-          body: { plan_id: planId, total_count: data.test ? 1 : TOTAL_COUNT, customer_notify: 1, notes: { vetechiqPlan: data.planId } },
+          body: { plan_id: planId, total_count: TOTAL_COUNT, customer_notify: 1, notes: { vetechiqPlan: data.planId } },
         });
         await connectDB();
-        await PlanPaymentModel.create({ subscriptionId: sub.id, planId: data.planId, amountPaise: data.test ? 100 : planChargePaise(data.planId) });
+        await PlanPaymentModel.create({ subscriptionId: sub.id, planId: data.planId, amountPaise: planChargePaise(data.planId) });
         return { ok: true, subscriptionId: sub.id, keyId: k.id };
       } catch (e) {
         console.warn("[razorpay] could not create subscription:", e);
