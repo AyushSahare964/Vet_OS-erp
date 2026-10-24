@@ -2,12 +2,11 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { resolveModule } from "@/components/doctor/layout/menuConfig";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { Search, Loader2 } from "lucide-react";
-import { VetechLogo } from "@/components/brand/VetechLogo";
 import { optionId, type SearchResult, type ResultGroup } from "./searchResults";
 import { SuggestList } from "./SuggestList";
 import { searchMasterFn } from "@/lib/mongodb/serverFns/search";
 
-/** "VetechIQ Master Search": Live MongoDB-driven search engine scoped to current tenant. */
+/** "Master Search": Live MongoDB-driven search engine scoped to current tenant. */
 export function FetchSearch() {
   const navigate = useNavigate();
   const listId = useId();
@@ -126,9 +125,7 @@ export function FetchSearch() {
         else show();
       }}
     >
-      <div className="vd-search-name">
-        <VetechLogo className="h-7" /> <span>Master Search</span>
-      </div>
+      <div className="vd-search-label">Master Search</div>
       <label className="vd-search-box">
         {loading ? (
           <Loader2 className="size-4 animate-spin text-primary" strokeWidth={2.5} aria-hidden="true" />
@@ -139,8 +136,8 @@ export function FetchSearch() {
           ref={inputRef}
           type="search"
           value={query}
-          placeholder="Fetch a patient, owner, medicine or invoice"
-          aria-label="VetechIQ Master Search: find anything in your clinic"
+          placeholder="Search patients, owners, medicines, or invoices"
+          aria-label="Master Search: find anything in your clinic"
           autoComplete="off"
           role="combobox"
           aria-expanded={open}

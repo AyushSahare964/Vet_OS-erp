@@ -39,6 +39,7 @@
   --font-screen: "Fredoka", "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
 
   /* ---- Layout ---- */
+  --bar-bg: linear-gradient(180deg, #00305c, #001d39); /* the dark side-bar colour; the home ticker uses it too */
   --rail-w: 64px; /* slim side bars (floating-bar.css), flush with the screen edges */
   --sw: calc(100vw - 2 * var(--rail-w)); /* width of the centre column */
 
@@ -95,17 +96,14 @@
 .vd-search {
   position: relative;
   z-index: 30;
-  width: min(680px, calc(100% - 40px));
+  width: min(860px, calc(100% - 40px)); /* same edges as the welcome card below */
   flex: none;
 }
-.vd-search-name {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font: 700 15px var(--font-display);
-  color: var(--brand-deep);
-  margin-bottom: 9px;
+.vd-search-label {
+  font: 600 13px/1 var(--font-body);
+  letter-spacing: 0.01em;
+  color: var(--muted);
+  margin: 0 0 8px 18px; /* lines up with the icon inside the bar */
 }
 .vd-search-box {
   display: flex;
@@ -114,7 +112,8 @@
   background: #fff;
   border: 1.5px solid var(--line);
   border-radius: 999px;
-  padding: 7px 7px 7px 22px;
+  height: 56px;
+  padding: 0 7px 0 18px;
   box-shadow:
     0 1px 2px rgb(var(--shadow-ink) / 0.06),
     0 8px 24px rgb(var(--shadow-ink) / 0.07);
@@ -132,8 +131,8 @@
     0 8px 24px rgb(var(--shadow-ink) / 0.07);
 }
 .vd-search-box > svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   flex: none;
   color: var(--muted);
 }
@@ -145,7 +144,7 @@
   background: transparent;
   font: 500 17px/1.2 var(--font-body);
   color: var(--ink);
-  padding: 12px 0;
+  padding: 0;
   -webkit-appearance: none;
   appearance: none;
 }
@@ -171,7 +170,8 @@
   background: var(--brand);
   color: #fff;
   font: 700 15px var(--font-display);
-  padding: 12px 24px;
+  height: 42px;
+  padding: 0 24px;
   border-radius: 999px;
   transition: background 0.15s;
 }
@@ -447,15 +447,11 @@
 
 /* ---------- Short screens ---------- */
 @media (max-height: 700px) {
-  .vd-search-name,
   .vd-kbd {
     display: none;
   }
-  .vd-search-box input {
-    padding: 9px 0;
-  }
   .vd-fetch-btn {
-    padding: 9px 22px;
+    padding: 0 22px;
   }
 }
 
@@ -469,8 +465,7 @@
   .vd-main {
     padding: 14px 0 0;
   }
-  .vd-kbd,
-  .vd-search-name {
+  .vd-kbd {
     display: none;
   }
   .vd-stage {

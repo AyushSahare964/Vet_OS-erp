@@ -31,30 +31,77 @@
   gap: 0;
 }
 
-.clinic-mark,
-.vd-clinic-mark {
+/* White rounded card so any tenant logo (wide, tall or transparent) sits on a clean surface */
+.clinic-logo-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid var(--line, #d6e4ef);
+  border-radius: 20px;
+  padding: clamp(14px, 2.4vh, 22px) clamp(18px, 3vw, 30px);
+  box-shadow: 0 8px 24px rgb(var(--shadow-ink, 0 29 57) / 0.08);
+  margin-bottom: clamp(8px, 1.6vh, 14px);
+}
+.clinic-logo-img {
   display: block;
-  height: clamp(110px, 24vh, 210px) !important;
-  width: auto !important;
-  max-width: min(640px, 88%) !important;
-  object-fit: contain;
-  margin-bottom: clamp(8px, 1.6vh, 14px) !important;
+  width: auto;
+  height: auto;
+  max-width: min(200px, 60vw);
+  max-height: clamp(96px, 20vh, 170px);
+  object-fit: contain; /* keeps proportions: never stretched or square-cropped */
+}
+.clinic-logo-card.is-loading .clinic-logo-img {
+  opacity: 0;
+  position: absolute;
+}
+.clinic-logo-skeleton {
+  width: 160px;
+  height: 110px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #eef3f8, #f8fbfd, #eef3f8);
+  background-size: 200% 100%;
+  animation: clinic-logo-shimmer 1.2s linear infinite;
+}
+@keyframes clinic-logo-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .clinic-logo-skeleton {
+    animation: none;
+  }
 }
 
+/* "Powered by [VetechIQ]": text and badge share one height, size and baseline */
 .powered,
 .vd-powered {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  height: 20px;
   color: var(--muted, #4d6a86);
-  font-size: 15px;
+  font-size: 12px;
+  line-height: 20px;
 }
 
 .powered .brand-chip,
 .powered .vd-brand-chip,
 .vd-powered .brand-chip,
 .vd-powered .vd-brand-chip {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Welcome card shares the search bar's left and right edges */
+.vd-home-welcome {
+  width: min(860px, calc(100% - 40px)) !important;
+  max-width: none !important;
 }
 
 /* ---------- Pets + running screen ---------- */
@@ -69,7 +116,7 @@
   height: calc(var(--mt) + var(--bh) + var(--u) * 76 + var(--mb)) !important;
   background:
     repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0 2px, transparent 2px 15px),
-    linear-gradient(180deg, #9dbcf5 0%, #91b0f2 10%, #7f9fee 20%, #7492e7 30%, #546acf 40%, #4658c5 48%, #4050bd 55%, #2f3aa5 65%, #27309b 75%, #191e8f 85%, #080781 95%, #05037e 100%) !important;
+    var(--bar-bg) !important;
   box-shadow: none !important;
 }
 
