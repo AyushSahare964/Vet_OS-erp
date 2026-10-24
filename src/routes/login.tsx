@@ -108,7 +108,7 @@ function AuthPage() {
     listClinicsFn().then(setClinics).catch(() => toast.error("Could not load the clinic list."));
   }, [mode, clinics]);
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [agreedTerms, setAgreedTerms] = useState(true);
+  const [agreedTerms, setAgreedTerms] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpExpiresAt, setOtpExpiresAt] = useState(0);
@@ -392,7 +392,7 @@ function AuthPage() {
                             setLoginEmail(`${loginEmail}@gmail.com`);
                           }
                         }}
-                        placeholder="staff@vetos.cloud"
+                       
                         className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] pl-9 pr-3 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none transition-all focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <datalist id="login-email-suggestions">
@@ -422,7 +422,7 @@ function AuthPage() {
                         required
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder="••••••••"
+                       
                         className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] pl-9 pr-9 text-xs text-[#08233f] outline-none transition-all focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <button
@@ -557,7 +557,7 @@ function AuthPage() {
                             setFpEmail(`${fpEmail}@gmail.com`);
                           }
                         }}
-                        placeholder="staff@vetos.cloud"
+                       
                         className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-3 text-xs text-[#08233f] outline-none focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <datalist id="fp-email-suggestions">
@@ -609,7 +609,7 @@ function AuthPage() {
                         required
                         value={regData.fullName}
                         onChange={(e) => setRegData({ ...regData, fullName: e.target.value })}
-                        placeholder="Dr. Rajesh Mehra"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
@@ -631,7 +631,7 @@ function AuthPage() {
                               setRegData({ ...regData, email: `${regData.email}@gmail.com` });
                             }
                           }}
-                          placeholder="rajesh@clinic.com"
+                         
                           className="h-8.5 min-w-0 flex-1 rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                         />
                         {emailVerified ? (
@@ -661,7 +661,7 @@ function AuthPage() {
                           maxLength={6}
                           value={otp}
                           onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                          placeholder="••••••"
+                         
                           className="h-8 w-28 rounded-lg border border-[#bcd0e2] bg-white px-2 text-center text-sm font-mono tracking-[0.35em] outline-none focus:border-[#0a4174]"
                         />
                         <button type="button" onClick={handleConfirmOtp} disabled={loading || otp.length !== 6 || expiresIn <= 0} className="h-8 rounded-lg bg-[#001d39] px-3 text-[0.68rem] font-bold text-[#7bbde8] disabled:opacity-60">
@@ -700,7 +700,7 @@ function AuthPage() {
                           const clean = clean10DigitPhone(e.target.value);
                           setRegData({ ...regData, phone: clean });
                         }}
-                        placeholder="9876543210"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174] font-mono tracking-wide"
                       />
                     </div>
@@ -728,7 +728,7 @@ function AuthPage() {
                         required
                         value={regData.password}
                         onChange={(e) => setRegData({ ...regData, password: e.target.value })}
-                        placeholder="••••••••"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
@@ -739,7 +739,7 @@ function AuthPage() {
                         required
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
@@ -766,7 +766,7 @@ function AuthPage() {
                         type="text"
                         value={regData.licenseNumber}
                         onChange={(e) => setRegData({ ...regData, licenseNumber: e.target.value })}
-                        placeholder="VCI-KAR-2024-881"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
