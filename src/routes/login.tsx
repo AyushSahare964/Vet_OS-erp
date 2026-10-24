@@ -339,6 +339,28 @@ function AuthPage() {
         <div className="md:col-span-7 lg:col-span-7 p-6 sm:p-8 flex flex-col justify-between bg-white">
           <div className="space-y-4">
             
+            {/* Sign In / Staff Join switch (clinic setup is reached via pricing/payment or demo) */}
+            {(mode === "login" || mode === "register") && (
+              <div className="flex rounded-xl bg-[#eaf3fa] p-1 border border-[#bcd0e2] w-full gap-1">
+                {([["login", UserCheck, "Sign In"], ["register", UserPlus, "Staff Join"]] as const).map(([m, Icon, label]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all",
+                      mode === m
+                        ? "bg-[#001d39] text-[#7bbde8] shadow-xs"
+                        : "text-[#4d6a86] hover:text-[#001d39] hover:bg-white/60"
+                    )}
+                  >
+                    <Icon className="size-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* TAB: SIGN IN */}
             {mode === "login" ? (
               <div className="space-y-3.5 animate-in fade-in duration-150">
