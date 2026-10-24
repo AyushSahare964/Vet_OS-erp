@@ -130,6 +130,22 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
             </div>
           </div>
 
+          {/* Doctor-advised medicine given by the receptionist while the doctor was away */}
+          {(() => {
+            const notes = String(visit?.clinicalNotes || "");
+            const prescriber = notes.match(/Doctor contacted: (.*?)\. Medicine dispensed/i)?.[1];
+            if (!prescriber) return null;
+            const dispenser = notes.match(/Dispensed by (.*?) \(Reception\)/i)?.[1];
+            return (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs text-amber-900">
+                <span className="font-bold">Prescribed by:</span> {prescriber}
+                <span className="mx-2 text-amber-400">|</span>
+                <span className="font-bold">Given by:</span> {dispenser ? `${dispenser} (Receptionist)` : "Receptionist"}
+                <span className="block text-[10px] text-amber-800">Medicine advised by the doctor and dispensed by the receptionist on the doctor's order.</span>
+              </div>
+            );
+          })()}
+
           {/* Itemized Table with Professional Detailed Calculation */}
           {(() => {
             const invoiceItems = (visit?.items || []).filter((item: any) => {
@@ -366,10 +382,6 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
                 <p>• Goods once sold are not returnable after cold chain break.</p>
                 <p>• This is a computer-generated tax invoice.</p>
               </div>
-
-              {visit?.clinicalNotes && /Doctor contacted:/i.test(String(visit.clinicalNotes)) && (
-                <p className="mb-2 text-[11px] font-semibold text-gray-700">{String(visit.clinicalNotes).match(/Doctor contacted:.*?order\.(?: Dispensed by .*?\(Reception\)\.)?/i)?.[0] ?? ""}</p>
-              )}
 
               {/* Right: Dual signature block */}
               <div className="flex gap-10 items-end shrink-0">

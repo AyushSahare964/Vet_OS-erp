@@ -378,8 +378,26 @@ export function InvoiceDetailModal({ open, onClose, invoice, onUpdated, onDelete
 
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Discount Amount:</span>
-                    <span className="font-mono text-muted-foreground">-₹{Number(invoice.billDiscount || 0).toFixed(2)}</span>
+                    <span className="font-mono text-muted-foreground">
+                      -₹{(Number(invoice.billDiscount || 0) || (invoice.items || []).reduce(
+                        (t: number, it: any) => t + (Number(it.discountAmount) || (Number(it.quantity || 1) * Number(it.unitPrice || 0) * Number(it.discountPercent || 0)) / 100),
+                        0,
+                      )).toFixed(2)}
+                    </span>
                   </div>
+
+                  {Number(invoice.gstAmount || 0) > 0 && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Taxable Amount:</span>
+                        <span className="font-mono">₹{Number(invoice.taxableAmount || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">GST:</span>
+                        <span className="font-mono">+₹{Number(invoice.gstAmount).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
 
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Total:</span>
