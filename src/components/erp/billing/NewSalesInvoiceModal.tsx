@@ -798,6 +798,8 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       }
 
       onInvoiceCreated?.(res);
+      // The Billing register may be open behind a Quick Action invoice; tell it to reload.
+      window.dispatchEvent(new Event("invoices:changed"));
 
       if (andPrint) {
         // Show the real formatted invoice (same component finalized clinical visits use)
