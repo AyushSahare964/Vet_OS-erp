@@ -3399,9 +3399,9 @@ export function BillingDeskDashboard({
                           </td>
                           <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                             {inv.doctorName || "Attending Vet"}
-                            {/Doctor contacted:/i.test(String(inv.clinicalNotes || "")) && (
+                            {/\(Reception\)/i.test(String(inv.clinicalNotes || "")) && (
                               <div className="mt-0.5 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800" title={String(inv.clinicalNotes)}>
-                                Doctor-advised · given by reception
+                                {/Doctor contacted:/i.test(String(inv.clinicalNotes)) ? "Doctor-advised · given by reception" : "Given by reception"}
                               </div>
                             )}
                           </td>

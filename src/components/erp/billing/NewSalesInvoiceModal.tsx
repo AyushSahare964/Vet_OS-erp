@@ -111,7 +111,9 @@ interface Props {
 }
 
 export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialPet, advisedMode }: Props) {
-  const { currentUser, role } = useErp();
+  const { currentUser, role, roleId } = useErp();
+  // Receptionist invoices always carry a "given by reception" note; the prescribing doctor is optional unless advisedMode.
+  const byReception = roleId === "reception";
   const activeDoctorName =
     currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role?.person || "Dr. Rohit Sharma");
 
@@ -147,11 +149,11 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   // Invoices are for items that need no consultation, so browsing starts on Food / Supplement / Accessories / Grooming
   const [itemCategory, setItemCategory] = useState<string>(advisedMode ? "MEDICINE" : "RETAIL");
   useEffect(() => {
-    if (!advisedMode || !open) return;
+    if (!(advisedMode || byReception) || !open) return;
     setAdvisedDoctor("");
-    setItemCategory("MEDICINE");
+    if (advisedMode) setItemCategory("MEDICINE");
     listApprovedDoctorsFn().then((d) => setDoctors(d ?? [])).catch(() => setDoctors([]));
-  }, [advisedMode, open]);
+  }, [advisedMode, byReception, open]);
   // The inventory item the current entry row is linked to (null = free-typed)
   const [selectedItem, setSelectedItem] = useState<InventoryItemRow | null>(null);
 
@@ -704,9 +706,11 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         return;
       }
       // Advised bill: the doctor is the prescriber on the visit, the receptionist is recorded as the dispenser.
-      const effectiveDoctorName = advisedMode ? advisedDoctor : dispenserName;
-      const advisedNote = advisedMode
+      const effectiveDoctorName = advisedDoctor || dispenserName;
+      const advisedNote = advisedDoctor
         ? `Doctor contacted: ${advisedDoctor}. Medicine dispensed on his order. Dispensed by ${activeDoctorName} (Reception).`
+        : byReception
+        ? `Dispensed by ${activeDoctorName} (Reception).`
         : "";
 
       const paymentStatus: "Full" | "Partial" | "Unpaid" =
@@ -889,10 +893,10 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 />
               </div>
 
-              {advisedMode && (
+              {(advisedMode || byReception) && (
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-foreground">
-                    Prescribed by (doctor contacted) <span className="text-rose-500">*</span>
+                    Prescribed by (doctor contacted) {advisedMode ? <span className="text-rose-500">*</span> : <span className="text-muted-foreground">(optional)</span>}
                   </Label>
                   <Select value={advisedDoctor} onValueChange={setAdvisedDoctor}>
                     <SelectTrigger className="h-8 text-xs bg-background" aria-label="Doctor contacted">
@@ -911,7 +915,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
               {/* Sold By: Interactive Dropdown with clinic staff & custom entry */}
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-foreground">{advisedMode ? "Dispensed by" : "Sold By"}</Label>
+                <Label className="text-xs font-medium text-foreground">{advisedMode || byReception ? "Dispensed by" : "Sold By"}</Label>
                 <div className="flex items-center gap-1.5">
                   <Select
                     value={CLINIC_STAFF_OPTIONS.includes(soldBy) ? soldBy : "Other"}
