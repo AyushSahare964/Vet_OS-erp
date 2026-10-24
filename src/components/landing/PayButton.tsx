@@ -28,7 +28,7 @@ function loadCheckout(): Promise<RazorpayCtor | null> {
 }
 
 /** Pro plan button: Razorpay checkout, then straight on to clinic registration with the verified payment. */
-export function PayButton({ className, label, onMessage, onPaid }: { className: string; label: string; onMessage: (m: string) => void; onPaid?: (paymentId: string) => void }) {
+export function PayButton({ className, label, onMessage, onPaid, test }: { className: string; label: string; test?: boolean; onMessage: (m: string) => void; onPaid?: (paymentId: string) => void }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
 
@@ -36,14 +36,14 @@ export function PayButton({ className, label, onMessage, onPaid }: { className: 
     setBusy(true);
     onMessage("");
     try {
-      const [Razorpay, order] = await Promise.all([loadCheckout(), createPlanSubscriptionFn({ data: { planId: "plan_professional" } })]);
+      const [Razorpay, order] = await Promise.all([loadCheckout(), createPlanSubscriptionFn({ data: { planId: "plan_professional", test } })]);
       if (!order.ok) return onMessage(order.message);
       if (!Razorpay) return onMessage("Could not load the payment window. Check your connection and try again.");
       const rz = new Razorpay({
         key: order.keyId,
         subscription_id: order.subscriptionId,
         name: "VetechIQ",
-        description: "Pro plan, monthly (incl. 18% GST)",
+        description: test ? "TEST payment, Rs 1" : "Pro plan, monthly (incl. 18% GST)",
         theme: { color: "#5B32E8" },
         handler: async (r: RazorpaySuccess) => {
           const v = await verifyPlanPaymentFn({

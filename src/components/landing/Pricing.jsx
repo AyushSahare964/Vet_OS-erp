@@ -75,7 +75,7 @@ function FeatureList({ features, on }) {
 
 function PlanButton({ plan, on, onMessage }) {
   const cls = on ? BTN_LIGHT : BTN_SOLID
-  if (plan.pay) return <PayButton className={cls} label={plan.cta} onMessage={onMessage} />
+  if (plan.pay) return <PayButton className={cls} label={plan.cta} onMessage={onMessage} test={plan.test} />
   return (
     <Link to={plan.to.to} search={plan.to.search} className={on ? BTN_LIGHT : BTN_SOLID}>
       {plan.cta}
