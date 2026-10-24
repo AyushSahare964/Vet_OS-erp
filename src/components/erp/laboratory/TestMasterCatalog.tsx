@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { loadTestCatalog, addTestToCatalog, deleteTestFromCatalog, type LabTestProfile } from "@/lib/erp/labTestCatalog";
+import { loadTestCatalog, addTestToCatalog, deleteTestFromCatalog, clearTestCatalog, type LabTestProfile } from "@/lib/erp/labTestCatalog";
 
 export function TestMasterCatalog() {
   const [catalog, setCatalog] = useState<LabTestProfile[]>([]);
@@ -122,6 +122,18 @@ export function TestMasterCatalog() {
     }
   };
 
+  const handleClearAll = async () => {
+    if (!window.confirm(`Delete all ${catalog.length} test profiles from the catalog? This cannot be undone.`)) return;
+    try {
+      await clearTestCatalog();
+      toast.success("Test catalog cleared");
+      void refresh();
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not clear the test catalog");
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Top Filter Bar */}
@@ -154,6 +166,11 @@ export function TestMasterCatalog() {
           <span className="text-xs text-muted-foreground font-mono">
             {filtered.length} of {catalog.length} test profiles
           </span>
+          {catalog.length > 0 && (
+            <Button size="sm" variant="outline" onClick={handleClearAll} className="text-xs font-bold h-9 gap-1 text-destructive">
+              <Trash2 className="size-3.5" /> Delete all
+            </Button>
+          )}
           <Button
             size="sm"
             variant={showAddForm ? "outline" : "default"}

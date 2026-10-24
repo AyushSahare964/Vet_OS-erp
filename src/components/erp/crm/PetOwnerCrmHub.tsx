@@ -60,6 +60,7 @@ import { Patient360Profile } from "./Patient360Profile";
 import { VisitWorkspaceModal } from "@/components/erp/clinical/VisitWorkspaceModal";
 import {
   listPetsWithOwnersFn,
+  searchPatientsByRecordFn,
   listOwnersWithPetsFn,
   deletePetFn,
   deleteOwnerFn,
@@ -164,12 +165,33 @@ export function PetOwnerCrmHub() {
     return monthlyChartData.length > 0 ? Math.round(sum / monthlyChartData.length) : 0;
   }, [monthlyChartData]);
 
+  // Patients whose clinical records / bills mention the search text (symptom, diagnosis, medicine, food, accessory…)
+  const [recordHits, setRecordHits] = useState<Map<string, string[]>>(new Map());
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setRecordHits(new Map());
+      return;
+    }
+    let stale = false;
+    const t = setTimeout(() => {
+      searchPatientsByRecordFn({ data: q })
+        .then((r) => !stale && setRecordHits(new Map(r.map((x) => [x.petId, x.matches]))))
+        .catch(() => !stale && setRecordHits(new Map()));
+    }, 300);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
+  }, [query]);
+
   // Filtered Pets list
   const filteredPets = useMemo(() => {
     const q = query.toLowerCase().trim();
     return pets.filter((p) => {
       const matchQ =
         !q ||
+        recordHits.has(p.petId) ||
         p.name?.toLowerCase().includes(q) ||
         p.petId?.toLowerCase().includes(q) ||
         p.breed?.toLowerCase().includes(q) ||
@@ -179,7 +201,7 @@ export function PetOwnerCrmHub() {
       const matchS = statusFilter === "all" || p.status === statusFilter;
       return matchQ && matchS;
     });
-  }, [pets, query, statusFilter]);
+  }, [pets, query, statusFilter, recordHits]);
 
   // Filtered Owners list
   const filteredOwners = useMemo(() => {
@@ -418,7 +440,7 @@ export function PetOwnerCrmHub() {
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search records by pet name, ID, breed, owner..."
+                  placeholder="Search pet, owner, or anything in their records (e.g. hair fall, vaccine, food, accessory)..."
                   className="pl-9 text-xs h-9"
                 />
               </div>
@@ -437,7 +459,7 @@ export function PetOwnerCrmHub() {
               </Select>
 
               <span className="text-xs text-muted-foreground font-medium">
-                {filteredPets.length} of {pets.length} records
+                {filteredPets.length} of {pets.length} records{recordHits.size > 0 && ` · ${recordHits.size} with "${query.trim()}" in their records`}
               </span>
             </div>
 
@@ -481,6 +503,9 @@ export function PetOwnerCrmHub() {
                               {p.name}
                             </p>
                             <p className="text-[11px] text-muted-foreground">{p.breed}</p>
+                            {recordHits.get(p.petId)?.length ? (
+                              <p className="text-[10px] font-semibold text-primary">Found in records: {recordHits.get(p.petId)!.join(" · ")}</p>
+                            ) : null}
                           </div>
                         </div>
                       </td>

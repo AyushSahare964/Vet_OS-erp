@@ -548,21 +548,7 @@ function RegisterClinicPage() {
               <p className="text-[0.65rem] text-muted-foreground">PNG or JPG. Auto-resized — shows on your dashboard, invoices, and prescriptions.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Tagline" value={form.tagline || ""} onChange={(v) => set("tagline", v)} />
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#001d39]">Brand Colour</label>
-                <div className="flex items-center gap-2 h-8">
-                  <input
-                    type="color"
-                    value={form.primaryColor || "#2563eb"}
-                    onChange={(e) => set("primaryColor", e.target.value)}
-                    className="h-8 w-10 rounded border border-input cursor-pointer"
-                  />
-                  <span className="text-xs text-muted-foreground font-mono">{form.primaryColor}</span>
-                </div>
-              </div>
-            </div>
+            <Field label="Tagline" value={form.tagline || ""} onChange={(v) => set("tagline", v)} />
 
             <div className="rounded-lg border border-slate-200 p-3 space-y-2">
               <p className="text-[0.68rem] font-semibold text-foreground">Facilities</p>

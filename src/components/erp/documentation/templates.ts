@@ -8,6 +8,8 @@ export interface DocField {
   label: string;
   type?: "text" | "textarea" | "number" | "date";
   placeholder?: string;
+  /** Key in autofill.ts to fill this field from when it differs from `key`. */
+  auto?: string;
 }
 
 export interface DocTemplate {
@@ -187,7 +189,7 @@ export const DOC_TEMPLATES: DocTemplate[] = [
       { key: "policyNo", label: "Claim / policy no." },
       { key: "visitDate", label: "Date of visit", type: "date" },
       { key: "diagnosis", label: "Diagnosis", type: "textarea" },
-      { key: "treatment", label: "Treatment and charges", type: "textarea" },
+      { key: "treatment", auto: "treatmentCharges", label: "Treatment and charges", type: "textarea" },
     ],
     signatures: [DOCTOR_SIGN],
   },

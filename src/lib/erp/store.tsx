@@ -43,6 +43,7 @@ interface ErpContextValue {
   role: RoleConfig;
   currentUser: UserProfile | null;
   clinicBranding: ClinicBranding | null;
+  refreshClinicBranding: () => Promise<void>;
   isAuthenticated: boolean;
   isLoadingAuth: boolean;
   login: (credentials: LoginCredentials) => Promise<AuthResponse>;
@@ -61,6 +62,7 @@ const defaultErpContext: ErpContextValue = {
   role: ROLES.admin,
   currentUser: null,
   clinicBranding: null,
+  refreshClinicBranding: async () => {},
   isAuthenticated: false,
   isLoadingAuth: false,
   login: async (credentials: LoginCredentials) => AuthService.login(credentials),
@@ -240,6 +242,7 @@ export function ErpProvider({ children }: { children: ReactNode }) {
       role:            activeRoleConfig,
       currentUser,
       clinicBranding,
+      refreshClinicBranding: loadClinicBranding,
       isAuthenticated: Boolean(currentUser),
       isLoadingAuth,
       login,
@@ -251,7 +254,7 @@ export function ErpProvider({ children }: { children: ReactNode }) {
       deleteRow,
       resetRows,
     }),
-    [roleId, setRoleId, activeRoleConfig, currentUser, clinicBranding, isLoadingAuth, login, register, registerTenant, logout, getRows, addRow, deleteRow, resetRows]
+    [roleId, setRoleId, activeRoleConfig, currentUser, clinicBranding, loadClinicBranding, isLoadingAuth, login, register, registerTenant, logout, getRows, addRow, deleteRow, resetRows]
   );
 
   return <ErpContext.Provider value={value}>{children}</ErpContext.Provider>;

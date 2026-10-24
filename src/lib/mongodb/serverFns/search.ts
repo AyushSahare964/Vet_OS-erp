@@ -150,6 +150,10 @@ export const searchMasterFn = createServerFn({ method: "GET" })
             { diagnosis: rx },
             { symptomsText: rx },
             { "vitals.complaint": rx },
+            { "prescriptionData.symptomsText": rx },
+            { "prescriptionData.symptomTags": rx },
+            { "prescriptionData.manualSymptoms.label": rx },
+            { doctorName: rx },
           ],
         })
           .sort({ date: -1 })
@@ -209,7 +213,7 @@ export const searchMasterFn = createServerFn({ method: "GET" })
       const petResults: MasterSearchResultItem[] = pets.map((p) => {
         const owner = petOwnerMap.get(p.ownerId);
         const parts = [p.breed || p.species];
-        if (p.age) parts.push(p.age);
+        if (p.ageYears != null) parts.push(`${p.ageYears} yrs`);
         if (owner?.name) parts.push(`Owner ${owner.name}`);
         if (owner?.phone) parts.push(owner.phone);
 
@@ -349,7 +353,7 @@ export const searchMasterFn = createServerFn({ method: "GET" })
             title: it.name,
             sub: `${it.itemCode} · Stock: ${it.currentStock ?? 0} ${
               it.unit || "units"
-            } · ₹${it.salePrice || it.mrp || 0}`,
+            } · ₹${it.defaultSalePrice || it.mrp || 0}`,
             tag: "Pharmacy",
           })),
         });
