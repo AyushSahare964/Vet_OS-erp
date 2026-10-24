@@ -89,8 +89,11 @@ async function registerClinic(page: Page, c: Clinic, opts: { expectSuccess: bool
   await fillStable(page.getByPlaceholder('Dr. Makarand Mukund Dixit'), `Dr. ${c.adminName}`);
   await fillStable(page.getByPlaceholder('MSVC-8648/2011'), c.regNo);
   await page.locator('input[type="date"]').fill('2031-08-02');
-  await page.locator('input[type="file"]').setInputFiles({ name: 'id.png', mimeType: 'image/png', buffer: PNG_1X1 });
+  await page.locator('input[type="file"]').first().setInputFiles({ name: 'id.png', mimeType: 'image/png', buffer: PNG_1X1 });
   await expect(page.getByAltText('ID card preview')).toBeVisible();
+  // optional supporting document (clinic licence) — the platform admin must be able to open it later
+  await page.locator('input[type="file"]').nth(1).setInputFiles({ name: 'clinic-licence.png', mimeType: 'image/png', buffer: PNG_1X1 });
+  await expect(page.getByText('clinic-licence', { exact: true })).toBeVisible();
   await next();
 
   // Step 3 — branding: logo, tagline, brand colour
@@ -255,6 +258,8 @@ test.describe.serial('Multi-tenant: registration, isolation, platform control pl
 
     await dialog.getByRole('tab', { name: 'Doctor' }).click();
     await expect(dialog.getByText(clinicA.regNo).first()).toBeVisible();
+    await expect(dialog.getByText('Council identity card')).toBeVisible();
+    await expect(dialog.getByText('clinic-licence')).toBeVisible(); // uploaded at registration
     await dialog.getByRole('button', { name: /mark doctor as verified/i }).click();
     await expect(page.getByText(/doctor marked as verified/i)).toBeVisible({ timeout: 20_000 });
 

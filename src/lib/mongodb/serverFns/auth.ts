@@ -725,6 +725,7 @@ export const seedDemoUsersFn = createServerFn({ method: "POST" })
               licenseNumber: cred.licenseNumber,
               qualification: cred.qualification,
               department: cred.department,
+              roleId: cred.roleId,
               roleName: cred.roleName,
               phone: cred.phone,
             },

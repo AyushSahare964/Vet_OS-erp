@@ -133,6 +133,7 @@ function RegisterClinicPage() {
   const [logoProcessing, setLogoProcessing] = useState(false);
   const [idCardProcessing, setIdCardProcessing] = useState(false);
   const idCardInputRef = useRef<HTMLInputElement>(null);
+  const docsInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<RegisterTenantPayload>({
@@ -145,6 +146,7 @@ function RegisterClinicPage() {
     doctorRegValidUpto: "",
     doctorQualification: "",
     doctorIdCardDataUri: "",
+    documents: [],
     address: "",
     city: "",
     state: "Maharashtra",
@@ -203,6 +205,34 @@ function RegisterClinicPage() {
   const canContinueDoctor =
     form.doctorName.trim().length >= 2 && form.doctorRegNo.trim().length >= 3 && form.doctorCouncil.trim() &&
     form.doctorRegValidUpto > today && !!form.doctorIdCardDataUri;
+
+  const docs = form.documents ?? [];
+  const handleDocsPick = async (files: FileList | null) => {
+    for (const file of Array.from(files ?? [])) {
+      if (docs.length >= 5) { toast.error("You can attach up to 5 documents."); break; }
+      try {
+        let dataUri: string;
+        if (file.type === "application/pdf") {
+          if (file.size > 1_200_000) { toast.error(`${file.name} is over 1.2 MB. Please upload a smaller PDF.`); continue; }
+          dataUri = await new Promise<string>((res, rej) => {
+            const r = new FileReader();
+            r.onload = () => res(String(r.result));
+            r.onerror = () => rej(new Error("read"));
+            r.readAsDataURL(file);
+          });
+        } else if (file.type.startsWith("image/")) {
+          dataUri = await resizeImageToDataUri(file, MAX_ID_CARD_DIMENSION);
+        } else {
+          toast.error(`${file.name}: only images and PDFs are accepted.`);
+          continue;
+        }
+        setForm((f) => ({ ...f, documents: [...(f.documents ?? []), { name: file.name.replace(/\.[^.]+$/, "").slice(0, 80), dataUri }] }));
+      } catch {
+        toast.error(`Could not process ${file.name}.`);
+      }
+    }
+    if (docsInputRef.current) docsInputRef.current.value = "";
+  };
 
   const handleIdCardPick = async (file: File | undefined) => {
     if (!file) return;
@@ -440,6 +470,23 @@ function RegisterClinicPage() {
                 </button>
               </div>
               <p className="text-[0.65rem] text-muted-foreground">Used only to verify the practitioner. Each council registration number can be linked to one clinic.</p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-[#001d39]">Other documents (optional)</label>
+              <input ref={docsInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={(e) => void handleDocsPick(e.target.files)} />
+              <p className="text-[0.65rem] text-muted-foreground">Clinic licence, GST certificate or any other proof. Images or PDF, up to 5 files. Visible only to VetechIQ administrators.</p>
+              {docs.map((d, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs">
+                  <span className="flex-1 truncate font-medium text-[#001d39]">{d.name}</span>
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, documents: (f.documents ?? []).filter((_, j) => j !== i) }))} className="text-red-600 font-semibold hover:underline">Remove</button>
+                </div>
+              ))}
+              {docs.length < 5 && (
+                <button type="button" onClick={() => docsInputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-xl border border-[#bcd0e2] px-3 h-9 text-xs font-semibold text-[#001d39] hover:bg-[#eaf3fa]">
+                  <Upload className="size-3.5" /> Add document
+                </button>
+              )}
             </div>
 
             <div className="flex gap-2 mt-2">
