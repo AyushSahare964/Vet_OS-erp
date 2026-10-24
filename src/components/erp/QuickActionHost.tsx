@@ -28,7 +28,6 @@ export function QuickActionHost() {
   useEffect(() => {
     // Actions that open a page instead of a modal
     const page: Record<string, { moduleId: string; search: Record<string, string> }> = {
-      advisedMedicine: { moduleId: "consultation", search: { tab: "consultation" } },
       documentation: { moduleId: "communication", search: { tab: "documents" } },
     };
     const target = action ? page[action] : undefined;
@@ -42,6 +41,7 @@ export function QuickActionHost() {
   return (
     <InventoryProvider>
       <NewSalesInvoiceModal open={action === "invoice"} onClose={closeQuickAction} />
+      <NewSalesInvoiceModal advisedMode open={action === "advisedMedicine"} onClose={closeQuickAction} />
       <QuotationModal open={action === "quotation"} onClose={closeQuickAction} />
       <PaymentInModal open={action === "payment"} onClose={closeQuickAction} invoices={invoices} />
       {/* Payment Out opens the same modal the Billing desk uses for it (the expense / payment-out form) */}

@@ -368,7 +368,7 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
               </div>
 
               {visit?.clinicalNotes && /Doctor contacted:/i.test(String(visit.clinicalNotes)) && (
-                <p className="mb-2 text-[11px] font-semibold text-gray-700">{String(visit.clinicalNotes).match(/Doctor contacted:.*?order\./i)?.[0] ?? ""}</p>
+                <p className="mb-2 text-[11px] font-semibold text-gray-700">{String(visit.clinicalNotes).match(/Doctor contacted:.*?order\.(?: Dispensed by .*?\(Reception\)\.)?/i)?.[0] ?? ""}</p>
               )}
 
               {/* Right: Dual signature block */}
