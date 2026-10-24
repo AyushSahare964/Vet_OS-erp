@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { 
   Eye, 
@@ -108,7 +108,7 @@ function AuthPage() {
     listClinicsFn().then(setClinics).catch(() => toast.error("Could not load the clinic list."));
   }, [mode, clinics]);
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [agreedTerms, setAgreedTerms] = useState(true);
+  const [agreedTerms, setAgreedTerms] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpExpiresAt, setOtpExpiresAt] = useState(0);
@@ -314,15 +314,6 @@ function AuthPage() {
         </Link>
 
         <div className="flex items-center gap-2.5">
-          {/* Quick Header CTA for Clinic Registration */}
-          <Link
-            to="/register-clinic"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-[#001d39] via-[#0a4174] to-[#001d39] px-3.5 py-2 rounded-xl border border-[#bcd0e2] shadow-[0_4px_14px_rgba(10,65,116,0.2)] hover:shadow-[0_6px_20px_rgba(10,65,116,0.3)] hover:scale-105 active:scale-95 transition-all"
-          >
-            <Building2 className="size-3.5 text-[#7bbde8]" />
-            <span>Register New Clinic</span>
-            <ArrowRight className="size-3 text-[#7bbde8]" />
-          </Link>
 
           <button
             onClick={handleSeedDemo}
@@ -348,48 +339,27 @@ function AuthPage() {
         <div className="md:col-span-7 lg:col-span-7 p-6 sm:p-8 flex flex-col justify-between bg-white">
           <div className="space-y-4">
             
-            {/* 3-Way Segmented Control */}
-            <div className="flex rounded-xl bg-[#eaf3fa] p-1 border border-[#bcd0e2] w-full gap-1">
-              <button
-                type="button"
-                onClick={() => setMode("login")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all",
-                  mode === "login"
-                    ? "bg-[#001d39] text-[#7bbde8] shadow-xs"
-                    : "text-[#4d6a86] hover:text-[#001d39] hover:bg-white/60"
-                )}
-              >
-                <UserCheck className="size-3.5" />
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("register")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all",
-                  mode === "register"
-                    ? "bg-[#001d39] text-[#7bbde8] shadow-xs"
-                    : "text-[#4d6a86] hover:text-[#001d39] hover:bg-white/60"
-                )}
-              >
-                <UserPlus className="size-3.5" />
-                Staff Join
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("clinic")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all",
-                  mode === "clinic"
-                    ? "bg-gradient-to-r from-[#0a4174] to-[#001d39] text-white shadow-xs"
-                    : "text-[#0a4174] hover:text-[#001d39] hover:bg-white/60 font-extrabold"
-                )}
-              >
-                <Building2 className="size-3.5" />
-                Clinic Setup
-              </button>
-            </div>
+            {/* Sign In / Staff Join switch (clinic setup is reached via pricing/payment or demo) */}
+            {(mode === "login" || mode === "register") && (
+              <div className="flex rounded-xl bg-[#eaf3fa] p-1 border border-[#bcd0e2] w-full gap-1">
+                {([["login", UserCheck, "Sign In"], ["register", UserPlus, "Staff Join"]] as const).map(([m, Icon, label]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all",
+                      mode === m
+                        ? "bg-[#001d39] text-[#7bbde8] shadow-xs"
+                        : "text-[#4d6a86] hover:text-[#001d39] hover:bg-white/60"
+                    )}
+                  >
+                    <Icon className="size-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* TAB: SIGN IN */}
             {mode === "login" ? (
@@ -405,25 +375,6 @@ function AuthPage() {
                   </div>
                 </div>
 
-                {/* Quick Option for Clinic Registration */}
-                <div className="rounded-xl border border-[#bcd0e2] bg-gradient-to-r from-[#f0f6fc] via-[#e7f1f9] to-[#f0f6fc] p-2.5 flex items-center justify-between gap-2.5 shadow-2xs">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#001d39] text-[#7bbde8] shadow-xs">
-                      <Building2 className="size-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-[#001d39] truncate">Opening a New Clinic or Practice?</p>
-                      <p className="text-[0.68rem] text-[#4d6a86] truncate">Launch your isolated multi-tenant ERP in 2 minutes</p>
-                    </div>
-                  </div>
-                  <Link
-                    to="/register-clinic"
-                    className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-[#0a4174] hover:bg-[#001d39] text-white px-2.5 py-1.5 text-xs font-bold shadow-xs transition-all hover:scale-105 active:scale-95"
-                  >
-                    <span>Register</span>
-                    <ArrowRight className="size-3" />
-                  </Link>
-                </div>
 
                 <form onSubmit={handleLoginSubmit} className="space-y-3">
                   <div className="space-y-1">
@@ -441,7 +392,7 @@ function AuthPage() {
                             setLoginEmail(`${loginEmail}@gmail.com`);
                           }
                         }}
-                        placeholder="staff@vetos.cloud"
+                       
                         className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] pl-9 pr-3 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none transition-all focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <datalist id="login-email-suggestions">
@@ -471,7 +422,7 @@ function AuthPage() {
                         required
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder="••••••••"
+                       
                         className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] pl-9 pr-9 text-xs text-[#08233f] outline-none transition-all focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <button
@@ -606,7 +557,7 @@ function AuthPage() {
                             setFpEmail(`${fpEmail}@gmail.com`);
                           }
                         }}
-                        placeholder="staff@vetos.cloud"
+                       
                         className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-3 text-xs text-[#08233f] outline-none focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <datalist id="fp-email-suggestions">
@@ -658,7 +609,7 @@ function AuthPage() {
                         required
                         value={regData.fullName}
                         onChange={(e) => setRegData({ ...regData, fullName: e.target.value })}
-                        placeholder="Dr. Rajesh Mehra"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
@@ -680,7 +631,7 @@ function AuthPage() {
                               setRegData({ ...regData, email: `${regData.email}@gmail.com` });
                             }
                           }}
-                          placeholder="rajesh@clinic.com"
+                         
                           className="h-8.5 min-w-0 flex-1 rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                         />
                         {emailVerified ? (
@@ -710,7 +661,7 @@ function AuthPage() {
                           maxLength={6}
                           value={otp}
                           onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                          placeholder="••••••"
+                         
                           className="h-8 w-28 rounded-lg border border-[#bcd0e2] bg-white px-2 text-center text-sm font-mono tracking-[0.35em] outline-none focus:border-[#0a4174]"
                         />
                         <button type="button" onClick={handleConfirmOtp} disabled={loading || otp.length !== 6 || expiresIn <= 0} className="h-8 rounded-lg bg-[#001d39] px-3 text-[0.68rem] font-bold text-[#7bbde8] disabled:opacity-60">
@@ -749,7 +700,7 @@ function AuthPage() {
                           const clean = clean10DigitPhone(e.target.value);
                           setRegData({ ...regData, phone: clean });
                         }}
-                        placeholder="9876543210"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174] font-mono tracking-wide"
                       />
                     </div>
@@ -777,7 +728,7 @@ function AuthPage() {
                         required
                         value={regData.password}
                         onChange={(e) => setRegData({ ...regData, password: e.target.value })}
-                        placeholder="••••••••"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
@@ -788,7 +739,7 @@ function AuthPage() {
                         required
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
@@ -815,7 +766,7 @@ function AuthPage() {
                         type="text"
                         value={regData.licenseNumber}
                         onChange={(e) => setRegData({ ...regData, licenseNumber: e.target.value })}
-                        placeholder="VCI-KAR-2024-881"
+                       
                         className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>

@@ -356,20 +356,20 @@ function RegisterClinicPage() {
         {step === 1 && (
           <div className="space-y-3 animate-in fade-in duration-150">
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Clinic Name *" value={form.clinicName} onChange={(v) => set("clinicName", v)} placeholder="Sunrise Pet Hospital" />
+              <Field label="Clinic Name *" value={form.clinicName} onChange={(v) => set("clinicName", v)} />
               <Field label="Legal Name" value={form.legalName || ""} onChange={(v) => set("legalName", v)} placeholder="Same as clinic name" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Mobile Number *" value={form.phone} onChange={(v) => set("phone", digits(v, 10))} placeholder="98765 43210" prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.phone)} />
+              <Field label="Mobile Number *" value={form.phone} onChange={(v) => set("phone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.phone)} />
               <Field label="WhatsApp Number" value={form.whatsappNumber || ""} onChange={(v) => set("whatsappNumber", digits(v, 10))} placeholder="Same as mobile" prefix="+91" type="tel" inputMode="numeric" error={phoneError(form.whatsappNumber || "", false)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Contact Email *" value={form.email} onChange={(v) => set("email", v.toLowerCase().replace(/\s/g, ""))} placeholder="clinic@example.com" type="email" inputMode="email" autoComplete="email" error={emailError(form.email)} />
-              <Field label="Website" value={form.website || ""} onChange={(v) => set("website", v)} placeholder="www.yourclinic.com" />
+              <Field label="Contact Email *" value={form.email} onChange={(v) => set("email", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.email)} />
+              <Field label="Website" value={form.website || ""} onChange={(v) => set("website", v)} />
             </div>
-            <Field label="Address *" value={form.address} onChange={(v) => set("address", v)} placeholder="Street, area" />
+            <Field label="Address *" value={form.address} onChange={(v) => set("address", v)} />
             <div className="grid grid-cols-3 gap-2">
-              <Field label="City *" value={form.city} onChange={(v) => set("city", v)} placeholder="Nagpur" />
+              <Field label="City *" value={form.city} onChange={(v) => set("city", v)} />
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-[#001d39]">State *</label>
                 <select
@@ -382,7 +382,7 @@ function RegisterClinicPage() {
                   ))}
                 </select>
               </div>
-              <Field label="PIN *" value={form.pin} onChange={(v) => set("pin", v.replace(/\D/g, "").slice(0, 6))} placeholder="440001" inputMode="numeric" maxLength={6} error={form.pin ? validatePin(form.pin, true) : null} />
+              <Field label="PIN *" value={form.pin} onChange={(v) => set("pin", v.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} error={form.pin ? validatePin(form.pin, true) : null} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Field label="GSTIN" value={form.gstin || ""} onChange={(v) => set("gstin", v)} placeholder="Optional" />
@@ -413,9 +413,9 @@ function RegisterClinicPage() {
             <p className="text-xs text-muted-foreground">
               Enter the registered veterinary practitioner responsible for this clinic exactly as on the state veterinary council ID card.
             </p>
-            <Field label="Doctor's Name (as on card) *" value={form.doctorName} onChange={(v) => set("doctorName", v)} placeholder="Dr. Makarand Mukund Dixit" />
+            <Field label="Doctor's Name (as on card) *" value={form.doctorName} onChange={(v) => set("doctorName", v)} />
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Council Regn. No. *" value={form.doctorRegNo} onChange={(v) => set("doctorRegNo", v)} placeholder="MSVC-8648/2011" />
+              <Field label="Council Regn. No. *" value={form.doctorRegNo} onChange={(v) => set("doctorRegNo", v)} />
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-[#001d39]">Valid Upto *</label>
                 <input
@@ -440,7 +440,7 @@ function RegisterClinicPage() {
               />
               <datalist id="vet-councils">{COUNCILS.map((c) => <option key={c} value={c} />)}</datalist>
             </div>
-            <Field label="Qualification" value={form.doctorQualification || ""} onChange={(v) => set("doctorQualification", v)} placeholder="BVSc & AH, MVSc" />
+            <Field label="Qualification" value={form.doctorQualification || ""} onChange={(v) => set("doctorQualification", v)} />
 
             <div className="space-y-1">
               <label className="block text-xs font-semibold text-[#001d39]">Council Identity Card (photo / scan) *</label>
@@ -549,7 +549,7 @@ function RegisterClinicPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Tagline" value={form.tagline || ""} onChange={(v) => set("tagline", v)} placeholder="Caring for your pets, always" />
+              <Field label="Tagline" value={form.tagline || ""} onChange={(v) => set("tagline", v)} />
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-[#001d39]">Brand Colour</label>
                 <div className="flex items-center gap-2 h-8">
@@ -581,7 +581,6 @@ function RegisterClinicPage() {
                     label="Kennel Capacity"
                     value={String(form.kennelCapacity ?? 20)}
                     onChange={(v) => set("kennelCapacity", Number(v.replace(/\D/g, "")) || 0)}
-                    placeholder="20"
                   />
                 </div>
               )}
@@ -614,14 +613,14 @@ function RegisterClinicPage() {
         {step === 4 && (
           <div className="space-y-3 animate-in fade-in duration-150">
             <p className="text-xs text-muted-foreground">This account becomes the clinic's administrator.</p>
-            <Field label="Full Name *" value={form.adminFullName} onChange={(v) => set("adminFullName", v)} placeholder="Dr. Jane Doe" />
+            <Field label="Full Name *" value={form.adminFullName} onChange={(v) => set("adminFullName", v)} />
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Admin Email *" value={form.adminEmail} onChange={(v) => set("adminEmail", v.toLowerCase().replace(/\s/g, ""))} placeholder="you@example.com" type="email" inputMode="email" autoComplete="email" error={emailError(form.adminEmail)} />
-              <Field label="Mobile Number" value={form.adminPhone || ""} onChange={(v) => set("adminPhone", digits(v, 10))} placeholder="98765 43210" prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.adminPhone || "", false)} />
+              <Field label="Admin Email *" value={form.adminEmail} onChange={(v) => set("adminEmail", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.adminEmail)} />
+              <Field label="Mobile Number" value={form.adminPhone || ""} onChange={(v) => set("adminPhone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.adminPhone || "", false)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Password *" value={form.adminPassword} onChange={(v) => set("adminPassword", v)} placeholder="••••••••" type="password" />
-              <Field label="Confirm Password *" value={confirmPassword} onChange={setConfirmPassword} placeholder="••••••••" type="password" />
+              <Field label="Password *" value={form.adminPassword} onChange={(v) => set("adminPassword", v)} type="password" />
+              <Field label="Confirm Password *" value={confirmPassword} onChange={setConfirmPassword} type="password" />
             </div>
             <div className="flex gap-2 mt-2">
               <button type="button" onClick={() => setStep(4)} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#bcd0e2] px-5 text-sm font-bold text-[#001d39] hover:bg-[#eaf3fa]">
