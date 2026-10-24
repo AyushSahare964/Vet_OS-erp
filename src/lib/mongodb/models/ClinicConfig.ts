@@ -59,7 +59,6 @@ const ClinicConfigSchema = new Schema<IClinicConfig>(
 );
 
 ClinicConfigSchema.plugin(tenantScopePlugin);
-ClinicConfigSchema.index({ tenantId: 1 }, { unique: true });
 
 export const ClinicConfigModel =
   (mongoose.models["ClinicConfig"] as mongoose.Model<IClinicConfig>) ??
