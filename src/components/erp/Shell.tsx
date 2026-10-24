@@ -699,6 +699,14 @@ function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | unde
           </DropdownMenuContent>
 
         </DropdownMenu>
+        {!isPlatform && (
+          <Link
+            to="/pricing"
+            className="ml-1 inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-[#5b32e6] to-[#7c4dff] px-4 text-xs font-bold text-white shadow-sm transition hover:brightness-110 active:scale-95"
+          >
+            <Sparkles className="size-3.5" /> Upgrade to Pro
+          </Link>
+        )}
       </div>
     </header>
   );
