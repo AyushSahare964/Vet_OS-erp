@@ -20,6 +20,8 @@ import { listInvoicesFn } from "@/lib/mongodb/serverFns/billing";
 import { listPurchaseBillsFn } from "@/lib/mongodb/serverFns/purchaseBills";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import { listBranchesFn, type BranchRow } from "@/lib/mongodb/serverFns/branches";
+import { listTenantsFn } from "@/lib/mongodb/serverFns/platform";
+import { TenantDetailDialog } from "@/components/erp/platform/TenantDetailDialog";
 import { addDaysToISO, daysBetweenISO, fiscalYearRange, formatDisplayDate, formatRangeLabel, todayIST } from "@/lib/utils/dateUtils";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +38,54 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
       </div>
       {children}
     </section>
+  );
+}
+
+/** Platform admin only: the registered clinics at a glance. Automated-test clinics (E2E ...) are left out. */
+function PlatformClinics() {
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const load = () =>
+    void safe(listTenantsFn(), [] as any[]).then((t) => setRows((t ?? []).filter((c: any) => !/^E2E/i.test(c.name || "") && !/@vetos\.test$/i.test(c.email || ""))));
+  useEffect(load, []);
+  return (
+    <Section title="Tenants" {...(rows ? { hint: `${rows.length} registered clinic${rows.length === 1 ? "" : "s"}` } : {})}>
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        {rows === null ? (
+          <p className="p-4 text-xs text-muted-foreground">Loading clinics…</p>
+        ) : rows.length === 0 ? (
+          <p className="p-4 text-xs text-muted-foreground">No clinics registered yet.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead className="bg-muted/50 text-left text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 font-semibold">Clinic</th>
+                <th className="px-4 py-2 font-semibold">Plan</th>
+                <th className="px-4 py-2 font-semibold">Status</th>
+                <th className="px-4 py-2 font-semibold">Registered</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {rows.map((c) => (
+                <tr key={c.tenantId} onClick={() => setOpenId(c.tenantId)} className="cursor-pointer transition-colors hover:bg-muted/40" title="Open clinic details">
+                  <td className="px-4 py-2.5">
+                    <div className="text-sm font-semibold text-foreground">{c.name}</div>
+                    <div className="text-muted-foreground">{[c.city, c.state].filter(Boolean).join(", ")} · {c.email}</div>
+                  </td>
+                  <td className="px-4 py-2.5 font-medium">{String(c.planId || "").replace("plan_", "")}</td>
+                  <td className="px-4 py-2.5">
+                    {c.status} · {c.subscriptionStatus}
+                  </td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{formatDisplayDate(String(c.createdAt || "").slice(0, 10))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <GoLink moduleId="hospital" tab="tenants">Manage all tenants</GoLink>
+      <TenantDetailDialog tenantId={openId} onClose={() => setOpenId(null)} onChanged={load} />
+    </Section>
   );
 }
 
@@ -248,6 +298,8 @@ export function ClinicHome() {
           )
         }
       />
+
+      {roleId === "platform" && <PlatformClinics />}
 
       {/* A) Quick Actions */}
       {quick.length > 0 && (
