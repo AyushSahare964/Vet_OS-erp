@@ -8,7 +8,7 @@ import { SupplierPaymentModel } from "@/lib/mongodb/models/SupplierPayment";
 import { todayIST, fiscalYearRange } from "@/lib/utils/dateUtils";
 import { nextSeq } from "./counters";
 import { InventoryItem } from "@/lib/mongodb/models/InventoryItem";
-import { receiveStockBatch } from "@/lib/mongodb/stockReceipt";
+import { receiveStockBatch, removePurchaseBillStock } from "@/lib/mongodb/stockReceipt";
 import { convertToBase } from "@/lib/inventory/packagingUtils";
 
 /** "2027-03" -> "2027-03-31" (batches expire at month end); full dates pass through. */
@@ -300,7 +300,7 @@ export const markPurchaseBillPaidFn = createServerFn({ method: "POST" })
 
 export const deletePurchaseBillFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ id: z.string() }).parse(raw))
-  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(tenantScoped(async ({ data }): Promise<{ ok: boolean; stockRemoved: { itemName: string; qty: number }[] }> => {
     await connectDB();
     const bill = await PurchaseBillModel.findById(data.id);
     if (!bill) throw new Error("Purchase bill not found");
@@ -320,5 +320,8 @@ export const deletePurchaseBillFn = createServerFn({ method: "POST" })
     // Delete the purchase bill document
     await PurchaseBillModel.findByIdAndDelete(data.id);
 
-    return { ok: true };
+    // ...and take the stock it brought in out of inventory
+    const stockRemoved = await removePurchaseBillStock(bill.internalRef, "Purchase bill deleted");
+
+    return { ok: true, stockRemoved };
   }));

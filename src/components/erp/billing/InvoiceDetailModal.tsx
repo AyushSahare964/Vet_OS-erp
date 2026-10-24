@@ -88,8 +88,8 @@ export function InvoiceDetailModal({ open, onClose, invoice, onUpdated, onDelete
   const handleDelete = async () => {
     if (!confirm(`Are you sure you want to delete invoice ${invoice.invoiceNo}?`)) return;
     try {
-      await deleteInvoiceFn({ data: { invoiceNo: invoice.invoiceNo } });
-      toast.success(`Invoice ${invoice.invoiceNo} deleted`);
+      const res: any = await deleteInvoiceFn({ data: { invoiceNo: invoice.invoiceNo } });
+      toast.success(`Invoice ${invoice.invoiceNo} deleted` + (res?.stockRestored ? `. Stock returned to inventory for ${res.stockRestored} item(s).` : ""));
       onDeleted?.();
       onClose();
     } catch (err: any) {
