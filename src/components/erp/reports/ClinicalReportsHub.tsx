@@ -28,7 +28,6 @@ import {
   CreditCard,
   Package,
   Stethoscope,
-  Link2,
 } from "lucide-react";
 import { Shell } from "@/components/erp/Shell";
 import { KpiCard } from "@/components/erp/KpiCard";
@@ -62,7 +61,6 @@ import { PaymentAnalysisTab } from "./analytics/PaymentAnalysisTab";
 import { LaboratoryAnalyticsTab } from "./analytics/LaboratoryAnalyticsTab";
 import { InventoryAnalyticsTab } from "./analytics/InventoryAnalyticsTab";
 import { ClinicalAnalyticsTab } from "./analytics/ClinicalAnalyticsTab";
-import { CrossModuleDrilldownTab } from "./analytics/CrossModuleDrilldownTab";
 import { QuotationsRegisterView } from "./QuotationsRegisterView";
 import { QuotationModal } from "@/components/erp/billing/QuotationModal";
 
@@ -79,7 +77,6 @@ const ANALYTICS_TABS: { id: AnalyticsTabId; label: string; icon: any }[] = [
   { id: "laboratory", label: "Laboratory", icon: FlaskConical },
   { id: "inventory", label: "Inventory & Stock", icon: Package },
   { id: "clinical", label: "Clinical Records", icon: Stethoscope },
-  { id: "cross-module", label: "Cross-Module Audit", icon: Link2 },
 ];
 
 export function ClinicalReportsHub({ initialMode = "analytics", initialTab = "all-reports" }: { initialMode?: HubMode; initialTab?: ReportsTab } = {}) {
@@ -387,9 +384,6 @@ export function ClinicalReportsHub({ initialMode = "analytics", initialTab = "al
                   )}
                   {analyticsTab === "clinical" && (
                     <ClinicalAnalyticsTab data={analyticsData} onDrilldown={setDrilldownTarget} />
-                  )}
-                  {analyticsTab === "cross-module" && (
-                    <CrossModuleDrilldownTab data={analyticsData} onDrilldown={setDrilldownTarget} />
                   )}
                 </motion.div>
               </AnimatePresence>

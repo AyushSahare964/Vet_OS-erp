@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { SignatureCapture } from "./SignatureCapture";
 
 export const PRINT_CSS = `@media print{body *{visibility:hidden!important}#doc-print,#doc-print *{visibility:visible!important}#doc-print{position:absolute;left:0;top:0;width:100%;box-shadow:none!important;border:0!important}#doc-print input{border-color:transparent!important}}`;
 
@@ -21,6 +22,8 @@ export interface SheetData {
   vaccines: Array<Record<string, string>>;
   vaccineTable: boolean;
   signatures: string[];
+  /** PNG data URLs keyed by signature label */
+  signatureImages?: Record<string, string> | undefined;
   doctor: string;
 }
 
@@ -30,6 +33,7 @@ interface Props {
   /** When set, header cells and paragraphs can be edited in place. */
   onHeader?: (key: string, value: string) => void;
   onParagraph?: (index: number, value: string) => void;
+  onSign?: (label: string, dataUrl: string) => void;
   emptyVaccineMessage?: string;
 }
 
@@ -56,7 +60,7 @@ function Cell({ label, k, data, onHeader, colSpan }: { label: string; k: string;
 }
 
 /** The printable form/certificate. Same layout whether it is being filled in or viewed from Saved documents. */
-export function DocumentSheet({ clinic, data, onHeader, onParagraph, emptyVaccineMessage }: Props) {
+export function DocumentSheet({ clinic, data, onHeader, onParagraph, onSign, emptyVaccineMessage }: Props) {
   return (
     <article id="doc-print" className="erp-card mx-auto w-full max-w-[820px] space-y-4 bg-white p-8 text-[13px] leading-relaxed text-gray-900">
       <header className="flex items-start justify-between gap-4 border-b-2 border-gray-800 pb-3">
@@ -139,6 +143,14 @@ export function DocumentSheet({ clinic, data, onHeader, onParagraph, emptyVaccin
       <div className="grid gap-8 pt-10" style={{ gridTemplateColumns: `repeat(${data.signatures.length}, minmax(0, 1fr))` }}>
         {data.signatures.map((s) => (
           <div key={s} className="text-center">
+            <div className="flex h-14 items-end justify-center">
+              {data.signatureImages?.[s] && <img src={data.signatureImages[s]} alt={`${s} signature`} className="max-h-14 object-contain" />}
+            </div>
+            {onSign && (
+              <div className="flex justify-center gap-1 pb-1">
+                <SignatureCapture hasSignature={!!data.signatureImages?.[s]} onChange={(url) => onSign(s, url)} />
+              </div>
+            )}
             <div className="border-t border-gray-700 pt-1 text-[11px] font-semibold">{s === "Attending veterinarian" ? `${s}: ${data.doctor || ""}` : s}</div>
             <div className="text-[10px] text-gray-500">Name, signature and date</div>
           </div>
