@@ -356,20 +356,20 @@ function RegisterClinicPage() {
         {step === 1 && (
           <div className="space-y-3 animate-in fade-in duration-150">
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Clinic Name *" value={form.clinicName} onChange={(v) => set("clinicName", v)} />
+              <Field label="Clinic Name *" placeholder="Enter your clinic name" value={form.clinicName} onChange={(v) => set("clinicName", v)} />
               <Field label="Legal Name" value={form.legalName || ""} onChange={(v) => set("legalName", v)} placeholder="Same as clinic name" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Mobile Number *" value={form.phone} onChange={(v) => set("phone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.phone)} />
+              <Field label="Mobile Number *" placeholder="Enter 10-digit mobile number" value={form.phone} onChange={(v) => set("phone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.phone)} />
               <Field label="WhatsApp Number" value={form.whatsappNumber || ""} onChange={(v) => set("whatsappNumber", digits(v, 10))} placeholder="Same as mobile" prefix="+91" type="tel" inputMode="numeric" error={phoneError(form.whatsappNumber || "", false)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Contact Email *" value={form.email} onChange={(v) => set("email", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.email)} />
-              <Field label="Website" value={form.website || ""} onChange={(v) => set("website", v)} />
+              <Field label="Contact Email *" placeholder="Enter clinic contact email" value={form.email} onChange={(v) => set("email", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.email)} />
+              <Field label="Website" placeholder="Enter website (optional)" value={form.website || ""} onChange={(v) => set("website", v)} />
             </div>
-            <Field label="Address *" value={form.address} onChange={(v) => set("address", v)} />
+            <Field label="Address *" placeholder="Enter street and area" value={form.address} onChange={(v) => set("address", v)} />
             <div className="grid grid-cols-3 gap-2">
-              <Field label="City *" value={form.city} onChange={(v) => set("city", v)} />
+              <Field label="City *" placeholder="Enter city" value={form.city} onChange={(v) => set("city", v)} />
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-[#001d39]">State *</label>
                 <select
@@ -382,7 +382,7 @@ function RegisterClinicPage() {
                   ))}
                 </select>
               </div>
-              <Field label="PIN *" value={form.pin} onChange={(v) => set("pin", v.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} error={form.pin ? validatePin(form.pin, true) : null} />
+              <Field label="PIN *" placeholder="Enter 6-digit PIN code" value={form.pin} onChange={(v) => set("pin", v.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} error={form.pin ? validatePin(form.pin, true) : null} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Field label="GSTIN" value={form.gstin || ""} onChange={(v) => set("gstin", v)} placeholder="Optional" />
@@ -413,9 +413,9 @@ function RegisterClinicPage() {
             <p className="text-xs text-muted-foreground">
               Enter the registered veterinary practitioner responsible for this clinic exactly as on the state veterinary council ID card.
             </p>
-            <Field label="Doctor's Name (as on card) *" value={form.doctorName} onChange={(v) => set("doctorName", v)} />
+            <Field label="Doctor's Name (as on card) *" placeholder="Enter name as on council card" value={form.doctorName} onChange={(v) => set("doctorName", v)} />
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Council Regn. No. *" value={form.doctorRegNo} onChange={(v) => set("doctorRegNo", v)} />
+              <Field label="Council Regn. No. *" placeholder="Enter council registration number" value={form.doctorRegNo} onChange={(v) => set("doctorRegNo", v)} />
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-[#001d39]">Valid Upto *</label>
                 <input
@@ -440,7 +440,7 @@ function RegisterClinicPage() {
               />
               <datalist id="vet-councils">{COUNCILS.map((c) => <option key={c} value={c} />)}</datalist>
             </div>
-            <Field label="Qualification" value={form.doctorQualification || ""} onChange={(v) => set("doctorQualification", v)} />
+            <Field label="Qualification" placeholder="Enter qualification (optional)" value={form.doctorQualification || ""} onChange={(v) => set("doctorQualification", v)} />
 
             <div className="space-y-1">
               <label className="block text-xs font-semibold text-[#001d39]">Council Identity Card (photo / scan) *</label>
@@ -548,7 +548,7 @@ function RegisterClinicPage() {
               <p className="text-[0.65rem] text-muted-foreground">PNG or JPG. Auto-resized — shows on your dashboard, invoices, and prescriptions.</p>
             </div>
 
-            <Field label="Tagline" value={form.tagline || ""} onChange={(v) => set("tagline", v)} />
+            <Field label="Tagline" placeholder="Enter a short tagline (optional)" value={form.tagline || ""} onChange={(v) => set("tagline", v)} />
 
             <div className="rounded-lg border border-slate-200 p-3 space-y-2">
               <p className="text-[0.68rem] font-semibold text-foreground">Facilities</p>
@@ -599,14 +599,14 @@ function RegisterClinicPage() {
         {step === 4 && (
           <div className="space-y-3 animate-in fade-in duration-150">
             <p className="text-xs text-muted-foreground">This account becomes the clinic's administrator.</p>
-            <Field label="Full Name *" value={form.adminFullName} onChange={(v) => set("adminFullName", v)} />
+            <Field label="Full Name *" placeholder="Enter your full name" value={form.adminFullName} onChange={(v) => set("adminFullName", v)} />
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Admin Email *" value={form.adminEmail} onChange={(v) => set("adminEmail", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.adminEmail)} />
-              <Field label="Mobile Number" value={form.adminPhone || ""} onChange={(v) => set("adminPhone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.adminPhone || "", false)} />
+              <Field label="Admin Email *" placeholder="Enter admin email" value={form.adminEmail} onChange={(v) => set("adminEmail", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.adminEmail)} />
+              <Field label="Mobile Number" placeholder="Enter 10-digit mobile number (optional)" value={form.adminPhone || ""} onChange={(v) => set("adminPhone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.adminPhone || "", false)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Password *" value={form.adminPassword} onChange={(v) => set("adminPassword", v)} type="password" />
-              <Field label="Confirm Password *" value={confirmPassword} onChange={setConfirmPassword} type="password" />
+              <Field label="Password *" placeholder="Create a password" value={form.adminPassword} onChange={(v) => set("adminPassword", v)} type="password" />
+              <Field label="Confirm Password *" placeholder="Re-enter your password" value={confirmPassword} onChange={setConfirmPassword} type="password" />
             </div>
             <div className="flex gap-2 mt-2">
               <button type="button" onClick={() => setStep(4)} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#bcd0e2] px-5 text-sm font-bold text-[#001d39] hover:bg-[#eaf3fa]">

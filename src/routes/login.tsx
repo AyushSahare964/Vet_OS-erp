@@ -383,6 +383,7 @@ function AuthPage() {
                       <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#49769f]" />
                       <input
                         type="email"
+                        placeholder="Enter your work email"
                         required
                         list="login-email-suggestions"
                         value={loginEmail}
@@ -418,6 +419,7 @@ function AuthPage() {
                     <div className="relative">
                       <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#49769f]" />
                       <input
+                        placeholder="Enter your password"
                         type={showPassword ? "text" : "password"}
                         required
                         value={loginPassword}
@@ -548,6 +550,7 @@ function AuthPage() {
                       <label className="block text-xs font-bold text-[#001d39]">Email</label>
                       <input
                         type="email"
+                        placeholder="Enter your registered email"
                         required
                         list="fp-email-suggestions"
                         value={fpEmail}
@@ -606,6 +609,7 @@ function AuthPage() {
                       <label className="block text-[0.68rem] font-bold text-[#001d39]">Full Name *</label>
                       <input
                         type="text"
+                        placeholder="Enter your full name"
                         required
                         value={regData.fullName}
                         onChange={(e) => setRegData({ ...regData, fullName: e.target.value })}
@@ -618,6 +622,7 @@ function AuthPage() {
                       <div className="flex gap-1">
                         <input
                           type="email"
+                          placeholder="Enter your work email"
                           required
                           list="reg-email-suggestions"
                           value={regData.email}
@@ -684,6 +689,7 @@ function AuthPage() {
                       <label className="block text-[0.68rem] font-bold text-[#001d39]">Phone Number (10 digits)</label>
                       <input
                         type="tel"
+                        placeholder="Enter your 10-digit mobile number"
                         inputMode="numeric"
                         value={regData.phone || ""}
                         onKeyDown={(e) => {
@@ -725,6 +731,7 @@ function AuthPage() {
                       <label className="block text-[0.68rem] font-bold text-[#001d39]">Password *</label>
                       <input
                         type="password"
+                        placeholder="Create a password"
                         required
                         value={regData.password}
                         onChange={(e) => setRegData({ ...regData, password: e.target.value })}
@@ -736,6 +743,7 @@ function AuthPage() {
                       <label className="block text-[0.68rem] font-bold text-[#001d39]">Confirm Password *</label>
                       <input
                         type="password"
+                        placeholder="Re-enter your password"
                         required
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
@@ -764,6 +772,7 @@ function AuthPage() {
                       <label className="block text-[0.68rem] font-bold text-[#001d39]">License / VCI Reg No.</label>
                       <input
                         type="text"
+                        placeholder="Enter your license / registration number"
                         value={regData.licenseNumber}
                         onChange={(e) => setRegData({ ...regData, licenseNumber: e.target.value })}
                        
