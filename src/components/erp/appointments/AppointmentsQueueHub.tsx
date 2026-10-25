@@ -303,20 +303,20 @@ export function AppointmentsQueueHub() {
       });
 
       setAppointments((prev) =>
-        prev.map((a) => (a.token === app.token ? { ...a, status: "In consultation" } : a))
+        prev.map((a) => (a.token === app.token ? { ...a, status: "Waiting" } : a))
       );
-      void updateAppointmentStatusFn({ data: { token: app.token, status: "In consultation" } });
+      void updateAppointmentStatusFn({ data: { token: app.token, status: "Waiting" } });
 
-      toast.success(`Patient admitted to OPD queue: ${created.visitId}. The attending doctor can begin consultation from the Home Dashboard.`, { id: "admit-opd" });
+      toast.success(`Patient admitted to OPD queue: ${created.visitId}. The doctor will see them as waiting and can begin the consultation.`, { id: "admit-opd" });
     } catch (err: any) {
       console.warn("Could not admit patient on server, using session fallback:", err);
       toast.dismiss("admit-opd");
 
       setAppointments((prev) =>
-        prev.map((a) => (a.token === app.token ? { ...a, status: "In consultation" } : a))
+        prev.map((a) => (a.token === app.token ? { ...a, status: "Waiting" } : a))
       );
 
-      toast.success(`Patient admitted to OPD queue. The attending doctor can begin consultation from the Home Dashboard.`);
+      toast.success(`Patient admitted to OPD queue. The doctor will see them as waiting and can begin the consultation.`);
     }
   };
 

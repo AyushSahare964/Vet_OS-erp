@@ -269,7 +269,8 @@ export const admitPatientFn = createServerFn({ method: "POST" })
 
         await ErpRow.updateMany(
           { moduleId: "appointments", $or: orClauses },
-          { $set: { "data.status": "In consultation" } }
+          // Arrived at the desk only: it becomes "In consultation" once the doctor actually starts.
+          { $set: { "data.status": "Waiting" } }
         );
       } catch (appErr) {
         console.warn("[admitPatientFn] Could not update appointment status:", appErr);

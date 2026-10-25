@@ -71,7 +71,7 @@ export const listAppointmentsFn = createServerFn({ method: "GET" })
             if (isCompleted) {
               appData["status"] = "Completed";
               await ErpRow.updateOne({ _id: doc._id }, { $set: { "data.status": "Completed" } });
-            } else if (vStatus === "in consultation" || vStatus === "admitted") {
+            } else if (vStatus === "in consultation") {
               if (String(appData["status"] || "").toLowerCase() === "waiting") {
                 appData["status"] = "In consultation";
                 await ErpRow.updateOne({ _id: doc._id }, { $set: { "data.status": "In consultation" } });

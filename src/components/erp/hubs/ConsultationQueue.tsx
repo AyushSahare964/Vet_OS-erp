@@ -7,7 +7,7 @@ import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/erp/StatusPill";
 import { VisitWorkspaceModal } from "@/components/erp/clinical/VisitWorkspaceModal";
-import { listAppointmentsFn } from "@/lib/mongodb/serverFns/appointments";
+import { listAppointmentsFn, updateAppointmentStatusFn } from "@/lib/mongodb/serverFns/appointments";
 import { listVisitsFn } from "@/lib/mongodb/serverFns/clinical";
 import { useErp } from "@/lib/erp/store";
 
@@ -76,6 +76,11 @@ export function ConsultationQueue() {
       totalAmount: 0,
       amountPaid: 0,
     };
+    // The doctor has started: only now does the appointment count as "In consultation" on the dashboards.
+    if (a.token) {
+      setAppts((prev) => prev.map((x) => (x.token === a.token ? { ...x, status: "In consultation" } : x)));
+      void updateAppointmentStatusFn({ data: { token: a.token, status: "In consultation" } });
+    }
     setAdvisedMode(!!advisedBy);
     setVisit({
       ...base,
