@@ -5,6 +5,7 @@ import { ClinicConfigModel } from "@/lib/mongodb/models/ClinicConfig";
 import { getTenantContext } from "@/lib/mongodb/tenantContext";
 import { OrgBranchModel } from "@/lib/mongodb/models/OrgBranch";
 import { getMeFn } from "./auth";
+import { TenantModel } from "@/lib/mongodb/models/Tenant";
 
 function toPlain<T>(v: unknown): T {
   return JSON.parse(JSON.stringify(v)) as T;
@@ -24,7 +25,10 @@ export const getClinicConfigFn = createServerFn({ method: "GET" })
       return legacy ? toPlain(legacy) : null;
     }
     const config = await ClinicConfigModel.findOne({}).lean();
-    return config ? toPlain(config) : null;
+    if (!config) return null;
+    // The plan rides along so the shell can hide Upgrade for Pro and count down a trial.
+    const t = await TenantModel.findOne({ tenantId: ctx.tenantId }, "planId subscriptionStatus trialEndsAt").lean();
+    return toPlain({ ...config, planId: t?.planId, subscriptionStatus: t?.subscriptionStatus, trialEndsAt: t?.trialEndsAt });
   }));
 
 const updateClinicConfigSchema = z.object({

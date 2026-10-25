@@ -1,3 +1,4 @@
+import { getPlanTimeline } from "@/lib/erp/planTimeline";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { 
   Bell, 
@@ -424,6 +425,9 @@ function BranchStatus() {
 function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | undefined }) {
   const navigate = useNavigate();
   const { role, roleId, setRoleId, currentUser, clinicBranding, logout } = useErp();
+  const trialDaysLeft = clinicBranding?.subscriptionStatus === "TRIAL" && clinicBranding.trialEndsAt
+    ? getPlanTimeline({ trialEndsAt: clinicBranding.trialEndsAt, subscriptionStatus: "TRIAL" }).daysLeft
+    : null;
   const isPlatform = role.id === "platform" || currentUser?.roleId === "platform";
   const displayName = isPlatform
     ? (currentUser?.clinicName || "VetechIQ")
@@ -664,12 +668,13 @@ function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | unde
           </DropdownMenuContent>
 
         </DropdownMenu>
-        {!isPlatform && (
+        {!isPlatform && !["plan_professional", "plan_enterprise"].includes(clinicBranding?.planId ?? "") && (
           <Link
             to="/pricing"
             className="ml-1 inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-[#5b32e6] to-[#7c4dff] px-4 text-xs font-bold text-white shadow-sm transition hover:brightness-110 active:scale-95"
           >
             <Sparkles className="size-3.5" /> Upgrade to Pro
+            {trialDaysLeft !== null && <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px]">{trialDaysLeft}d left</span>}
           </Link>
         )}
       </div>

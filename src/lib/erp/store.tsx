@@ -31,6 +31,9 @@ export interface ClinicBranding {
   logoUrl?: string;
   primaryColor?: string;
   doctorName?: string;
+  planId?: string;
+  subscriptionStatus?: string;
+  trialEndsAt?: string;
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────

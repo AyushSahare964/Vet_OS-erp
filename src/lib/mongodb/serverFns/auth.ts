@@ -40,6 +40,17 @@ function getInitials(name: string): string {
 
 /** Convert a raw lean Mongoose document to a safe UserProfile for the client */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+/** Why a clinic can't use the ERP right now, or null. Pro has no end date: access follows the subscription status. */
+function tenantAccessBlock(t: { status?: string; subscriptionStatus?: string; trialEndsAt?: Date | null } | null | undefined): string | null {
+  if (!t) return null;
+  if (t.status === "SUSPENDED") return "This clinic's VetechIQ subscription is currently suspended. Please contact support.";
+  if (t.subscriptionStatus === "CANCELLED") return "This clinic's VetechIQ subscription has been cancelled.";
+  if (t.subscriptionStatus === "TRIAL" && t.trialEndsAt && t.trialEndsAt.getTime() < Date.now()) {
+    return "Your free trial has ended. Please upgrade to Pro to keep using VetechIQ.";
+  }
+  return null;
+}
+
 function toProfile(user: Record<string, any>): UserProfile {
   const profile: UserProfile = {
     id:             String(user["_id"]),
@@ -126,12 +137,8 @@ export const loginFn = createServerFn({ method: "POST" })
     let tenantSlug: string | undefined;
     if (user["tenantId"]) {
       const tenant = await TenantModel.findOne({ tenantId: user["tenantId"] }).lean();
-      if (tenant?.status === "SUSPENDED") {
-        return { success: false, message: "This clinic's VetechIQ subscription is currently suspended. Please contact support." };
-      }
-      if (tenant?.subscriptionStatus === "CANCELLED") {
-        return { success: false, message: "This clinic's VetechIQ subscription has been cancelled." };
-      }
+      const blocked = tenantAccessBlock(tenant);
+      if (blocked) return { success: false, message: blocked };
       tenantSlug = tenant?.slug;
     }
 
@@ -669,6 +676,8 @@ export const getMeFn = createServerFn({ method: "GET" })
         if (!user || !user["isActive"] || user["approvalStatus"] === "pending" || user["approvalStatus"] === "rejected") {
           return null;
         }
+
+        if (user["tenantId"] && tenantAccessBlock(await TenantModel.findOne({ tenantId: user["tenantId"] }).lean())) return null;
 
         return toProfile(user);
       } catch {

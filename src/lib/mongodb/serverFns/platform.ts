@@ -295,7 +295,7 @@ export const registerTenantFn = createServerFn({ method: "POST" })
       adminUserId: String(user._id),
       planId: data.planId,
       ...(paid
-        ? { subscriptionStatus: "ACTIVE" as const, razorpaySubscriptionId: subscriptionId, paidUntil: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000) }
+        ? { subscriptionStatus: "ACTIVE" as const, razorpaySubscriptionId: subscriptionId } // Pro: no end date, access follows the Razorpay subscription
         : { subscriptionStatus: "TRIAL" as const, trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000) }),
       features: plan.features,
       status: "ACTIVE",

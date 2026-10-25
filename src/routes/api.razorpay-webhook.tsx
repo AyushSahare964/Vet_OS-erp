@@ -29,13 +29,13 @@ export const Route = createFileRoute("/api/razorpay-webhook")({
 
         await connectDB();
         if (evt.event === "subscription.charged" && sub.current_end) {
-          // a renewal went through: the paid period now runs to the end of this billing cycle
+          // a renewal went through: Pro has no end date, so just keep the clinic ACTIVE
           await TenantModel.updateOne(
             { razorpaySubscriptionId: sub.id },
-            { subscriptionStatus: "ACTIVE", paidUntil: new Date(sub.current_end * 1000) },
+            { subscriptionStatus: "ACTIVE", $unset: { paidUntil: 1 } },
           );
         } else if (["subscription.halted", "subscription.cancelled", "subscription.completed"].includes(evt.event)) {
-          // paidUntil is left alone so the clinic keeps access until the period it already paid for ends
+          // billing stopped (failed payment or cancelled): access ends at the next login or page load
           await TenantModel.updateOne({ razorpaySubscriptionId: sub.id }, { subscriptionStatus: "CANCELLED" });
         }
         return new Response("ok");
