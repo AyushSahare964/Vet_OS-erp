@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowRight, FlaskConical, Hourglass, PackageX, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, FlaskConical, Hourglass, PackageX, Stethoscope, Wallet } from "lucide-react";
 import { getIcon } from "@/components/erp/icon";
 import { WelcomeBanner } from "@/components/erp/dashboards/WelcomeBanner";
 import { listBoardingBookingsFn } from "@/lib/mongodb/serverFns/facilities";
@@ -11,7 +11,8 @@ import { useErp } from "@/lib/erp/store";
 import { baseModuleIds } from "@/lib/erp/config";
 import { quickActionsFor } from "@/components/doctor/layout/menuConfig";
 import { openQuickAction } from "@/components/doctor/layout/quickActions";
-import { listAppointmentsFn } from "@/lib/mongodb/serverFns/appointments";
+import { listAppointmentsFn, updateAppointmentStatusFn } from "@/lib/mongodb/serverFns/appointments";
+import { VisitWorkspaceModal } from "@/components/erp/clinical/VisitWorkspaceModal";
 import { listVisitsFn, getUpcomingFollowUpsFn } from "@/lib/mongodb/serverFns/clinical";
 import { listLabOrdersFn } from "@/lib/mongodb/serverFns/laboratory";
 import { getNotificationsFn } from "@/lib/mongodb/serverFns/notifications";
@@ -140,6 +141,44 @@ export function ClinicHome() {
   const [range, setRange] = useState({ from: todayIST(), to: addDaysToISO(todayIST(), 7) });
   const [mixPeriod, setMixPeriod] = useState<"month" | "last30" | "fy">("month");
   const frontDesk = roleId === "admin" || roleId === "reception";
+  // Treating a patient is a doctor/admin action; it opens the same consultation form as Start Consult.
+  const canTreat = roleId === "doctor" || roleId === "admin";
+  const [treatVisit, setTreatVisit] = useState<any | null>(null);
+  const treat = (a: any) => {
+    const existing = visits.find(
+      (v) =>
+        (a.token && String(v.appointmentToken) === String(a.token)) ||
+        (v.petId === a.petId && v.date === today && ["Admitted", "In Consultation", "Diagnosed"].includes(v.status)),
+    );
+    setTreatVisit(
+      existing ?? {
+        visitId: `V-${Math.floor(1000 + Math.random() * 9000)}`,
+        prescriptionNo: `RX-${Math.floor(1000 + Math.random() * 9000)}`,
+        date: today,
+        branch: "Main Clinic",
+        billType: "GST",
+        petId: a.petId,
+        petName: a.pet,
+        species: a.species,
+        breed: a.breed,
+        ownerId: a.ownerId,
+        ownerName: a.owner || "Client",
+        ownerPhone: a.ownerPhone || "N/A",
+        doctorName: a.doctor || currentUser?.fullName,
+        appointmentToken: a.token ? String(a.token) : undefined,
+        vitals: { weightKg: a.vitals?.weightKg, tempC: a.vitals?.tempC, complaint: a.complaint || "OPD Consultation" },
+        status: "Admitted",
+        items: [],
+        subtotal: 0,
+        totalAmount: 0,
+        amountPaid: 0,
+      },
+    );
+    if (a.token) {
+      setAppts((prev) => prev.map((x) => (x.token === a.token ? { ...x, status: "In consultation" } : x)));
+      void updateAppointmentStatusFn({ data: { token: a.token, status: "In consultation" } });
+    }
+  };
   const [branches, setBranches] = useState<BranchRow[]>([]);
 
   useEffect(() => {
@@ -350,8 +389,17 @@ export function ClinicHome() {
                     <span>
                       <strong>{a.time || a.slot}</strong> · {a.pet} <span className="text-muted-foreground">({a.owner})</span>
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
                       {a.doctor} · {a.status}
+                      {canTreat && (
+                        <button
+                          type="button"
+                          onClick={() => treat(a)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow-xs transition hover:brightness-110 active:scale-95"
+                        >
+                          <Stethoscope className="size-3" aria-hidden="true" /> Treat
+                        </button>
+                      )}
                     </span>
                   </li>
                 ))}
@@ -570,6 +618,15 @@ export function ClinicHome() {
 
       {!quick.length && !has("appointments", "laboratory", "inventory", "crm-pets", "billing") && (
         <p className="erp-card p-6 text-sm text-muted-foreground">Use the bars on both sides to open Hospital, Staff and Reports.</p>
+      )}
+      {treatVisit && (
+        <VisitWorkspaceModal
+          initialTab="consultation"
+          open
+          onClose={() => setTreatVisit(null)}
+          visit={treatVisit}
+          onVisitFinalized={(v) => v && setTreatVisit(v)}
+        />
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import { OwnerPetRegistrationModal } from "@/components/erp/crm/OwnerPetRegistra
 import { VisitWorkspaceModal } from "@/components/erp/clinical/VisitWorkspaceModal";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import { listVisitsFn } from "@/lib/mongodb/serverFns/clinical";
+import { listAppointmentsFn, updateAppointmentStatusFn } from "@/lib/mongodb/serverFns/appointments";
 import { useErp } from "@/lib/erp/store";
 import { todayIST } from "@/lib/utils/dateUtils";
 
@@ -20,24 +21,44 @@ export function StartConsultPicker({ open, onClose }: { open: boolean; onClose: 
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [visit, setVisit] = useState<any | null>(null);
+  const [appts, setAppts] = useState<any[]>([]);
 
   useEffect(() => {
     if (!open) return;
     setQuery("");
     listPetsWithOwnersFn().then((p) => setPets(p ?? [])).catch(() => setPets([]));
+    listAppointmentsFn().then((a) => setAppts(a ?? [])).catch(() => setAppts([]));
   }, [open]);
+
+  // Today's open appointments, so their pets are listed first (token + time shown on the row).
+  const todayAppts = useMemo(() => {
+    const today = todayIST();
+    return appts
+      .filter((a) => String(a.appointment_date || a.date || "").slice(0, 10) === today && !["completed", "cancelled", "no-show", "no show"].includes(String(a.status || "").toLowerCase()))
+      .sort((x, y) => String(x.time || x.slot || "").localeCompare(String(y.time || y.slot || "")));
+  }, [appts]);
+  const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+  // By pet id when the appointment has one; otherwise pet name AND owner name (many pets share a name like "Sheru").
+  const isSame = (a: any, p: any) => (a.petId ? a.petId === p.petId : norm(a.pet) === norm(p.name) && norm(a.owner) === norm(p.owner?.name));
+  const apptOf = (p: any) => todayAppts.find((a) => isSame(a, p));
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return pets.slice(0, 6);
-    return pets.filter((p) => [p.name, p.petId, p.owner?.name, p.owner?.phone].some((x) => String(x ?? "").toLowerCase().includes(q))).slice(0, 8);
-  }, [pets, query]);
+    const found = q ? pets.filter((p) => [p.name, p.petId, p.owner?.name, p.owner?.phone].some((x) => String(x ?? "").toLowerCase().includes(q))) : pets;
+    const rank = (p: any) => {
+      const i = todayAppts.findIndex((a) => isSame(a, p));
+      return i < 0 ? Infinity : i;
+    };
+    return [...found].sort((a, b) => rank(a) - rank(b)).slice(0, Math.max(8, todayAppts.length));
+  }, [pets, query, todayAppts]);
 
   const begin = async (pet: any) => {
     const today = todayIST();
     const visits = await listVisitsFn().catch(() => [] as any[]);
     const existing = (visits ?? []).find((v: any) => v.petId === pet.petId && v.date === today && ["Admitted", "In Consultation", "Diagnosed"].includes(v.status));
     const doctorName = currentUser?.fullName || role.person;
+    const appt = apptOf(pet);
+    if (appt?.token) void updateAppointmentStatusFn({ data: { token: appt.token, status: "In consultation" } });
     setVisit(
       existing ?? {
         visitId: `V-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -53,6 +74,7 @@ export function StartConsultPicker({ open, onClose }: { open: boolean; onClose: 
         ownerName: pet.owner?.name || "Client",
         ownerPhone: pet.owner?.phone || "N/A",
         doctorName,
+        ...(appt?.token ? { appointmentToken: String(appt.token) } : {}),
         vitals: { weightKg: pet.weightKg || undefined, tempC: undefined, complaint: pet.allergies?.length ? `History: ${pet.allergies.join(", ")}` : "OPD Consultation" },
         status: "Admitted",
         items: [],
@@ -96,7 +118,14 @@ export function StartConsultPicker({ open, onClose }: { open: boolean; onClose: 
                     {p.owner?.name} · {p.owner?.phone}
                   </span>
                 </span>
-                <span className="text-xs font-semibold text-primary">Start →</span>
+                <span className="flex items-center gap-2 text-xs font-semibold text-primary">
+                  {apptOf(p) && (
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                      Today {apptOf(p).time || apptOf(p).slot || ""}
+                    </span>
+                  )}
+                  Start →
+                </span>
               </button>
             ))}
             {matches.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No matching pet. Use Add New Pet.</p>}

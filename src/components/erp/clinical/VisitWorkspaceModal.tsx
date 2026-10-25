@@ -1397,7 +1397,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
 
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className={cn("flex flex-col p-0 overflow-hidden transition-all duration-300 h-screen max-h-screen w-screen max-w-none rounded-none sm:rounded-none")}>
+      <DialogContent className={cn("flex flex-col p-0 overflow-hidden transition-all duration-300 h-[92vh] max-h-[92vh] w-[96vw] max-w-[1480px] rounded-2xl sm:rounded-2xl")}>
         {/* ── Top Bar Header ────────────────────────────────────────────── */}
         <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">

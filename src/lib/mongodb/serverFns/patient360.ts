@@ -200,9 +200,19 @@ export const getPatient360Fn = createServerFn({ method: "GET" })
           );
       },
       vaccinations: () =>
-        Vaccination.find({ patientId: pet.petId }).sort({ dateGiven: -1 }).limit(200).lean(),
+        Vaccination.find({
+          $or: [
+            { patientId: pet.petId },
+            { petId: pet.petId },
+          ],
+        }).sort({ dateGiven: -1 }).limit(200).lean(),
       dewormings: () =>
-        DewormingRecord.find({ patientId: pet.petId }).sort({ dateGiven: -1 }).limit(200).lean(),
+        DewormingRecord.find({
+          $or: [
+            { patientId: pet.petId },
+            { petId: pet.petId },
+          ],
+        }).sort({ dateGiven: -1 }).limit(200).lean(),
       bloodTests: () =>
         BloodTest.find({ patientId: pet.petId }).sort({ orderedDate: -1 }).limit(100).lean(),
       files: () =>
