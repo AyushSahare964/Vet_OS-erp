@@ -5,7 +5,7 @@
  * single source of truth: tests added/removed in one place show up in the
  * other immediately.
  */
-import { getRowsFn, addRowFn, deleteRowFn } from "@/lib/mongodb/serverFns/rows";
+import { getRowsFn, addRowFn, deleteRowFn, resetRowsFn } from "@/lib/mongodb/serverFns/rows";
 
 export const LAB_TEST_CATALOG_MODULE = "lab_test_catalog";
 
@@ -30,4 +30,8 @@ export async function addTestToCatalog(test: LabTestProfile) {
 
 export async function deleteTestFromCatalog(index: number) {
   return deleteRowFn({ data: { moduleId: LAB_TEST_CATALOG_MODULE, index } });
+}
+
+export async function clearTestCatalog() {
+  return resetRowsFn({ data: { moduleId: LAB_TEST_CATALOG_MODULE } });
 }

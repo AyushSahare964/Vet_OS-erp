@@ -37,6 +37,13 @@ export interface TenantDoctor {
   idCardDataUri: string; // photo of the council ID card, for manual verification
 }
 
+/** A supporting document uploaded at registration (clinic licence, GST certificate, ...), kept for the platform admin. */
+export interface TenantDocument {
+  name: string;
+  dataUri: string; // data:image/...;base64,... or data:application/pdf;base64,...
+  uploadedAt: Date;
+}
+
 export interface ITenant extends Document {
   tenantId: string; // stable opaque id, also used as the tenantScopePlugin filter value
   slug: string;
@@ -45,6 +52,7 @@ export interface ITenant extends Document {
   clinicType: string;
   vetCouncilRegNo?: string;
   doctor?: TenantDoctor;
+  documents?: TenantDocument[];
   address: string;
   city: string;
   state: string;
@@ -93,6 +101,19 @@ const TenantSchema = new Schema<ITenant>(
         },
         { _id: false },
       ),
+    },
+    documents: {
+      type: [
+        new Schema<TenantDocument>(
+          {
+            name: { type: String, required: true, trim: true },
+            dataUri: { type: String, required: true },
+            uploadedAt: { type: Date, default: Date.now },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
     },
     address: { type: String, required: true },
     city: { type: String, required: true },

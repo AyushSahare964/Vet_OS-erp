@@ -16,22 +16,28 @@ export const getClinicConfigFn = createServerFn({ method: "GET" })
   .handler(tenantScoped(async (): Promise<any> => {
     await connectDB();
     const ctx = getTenantContext();
-    if (!ctx?.tenantId) return null;
+    if (!ctx?.tenantId) {
+      // A clinic set up before multi-tenancy has no tenant id: it keeps its own tenant-less profile, if it saved one.
+      const me = await getMeFn();
+      if (!me || me.roleId === "platform") return null;
+      const legacy = await ClinicConfigModel.findOne({ tenantId: null }).lean();
+      return legacy ? toPlain(legacy) : null;
+    }
     const config = await ClinicConfigModel.findOne({}).lean();
     return config ? toPlain(config) : null;
   }));
 
 const updateClinicConfigSchema = z.object({
-  clinicName: z.string().min(1).optional(),
+  clinicName: z.string().trim().min(1, "Hospital name is required").optional(),
   tagline: z.string().optional(),
   logoUrl: z.string().optional(),
   primaryColor: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
-  pin: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().optional(),
+  pin: z.string().trim().regex(/^d{6}$/, "PIN code must be 6 digits").optional(),
+  phone: z.string().trim().refine((v) => v.replace(/D/g, "").length >= 10 && v.replace(/D/g, "").length <= 13, "Enter a valid phone number").optional(),
+  email: z.string().trim().email("Enter a valid email address").optional(),
   website: z.string().optional(),
   gstin: z.string().optional(),
   invoiceFooter: z.string().optional(),
@@ -49,7 +55,15 @@ export const updateClinicConfigFn = createServerFn({ method: "POST" })
     await connectDB();
     const me = await getMeFn();
     if (me?.roleId !== "admin") throw new Error("Only the clinic admin can change the hospital profile.");
-    const updated = await ClinicConfigModel.findOneAndUpdate({}, { $set: data }, { new: true });
+    const tenantId = getTenantContext()?.tenantId;
+    // Tenant clinics always have a profile; a pre-multi-tenancy clinic gets one created on its first save.
+    const updated = tenantId
+      ? await ClinicConfigModel.findOneAndUpdate({}, { $set: data }, { new: true })
+      : await ClinicConfigModel.findOneAndUpdate(
+          { tenantId: null },
+          { $set: data, ...(data.clinicName ? {} : { $setOnInsert: { clinicName: me.clinicName || "Veterinary Clinic" } }) },
+          { new: true, upsert: true },
+        );
     if (!updated) return { success: false, message: "Clinic profile not found." };
     // The default branch prints on invoices, so it follows the profile's address.
     const addr: Record<string, string> = {};

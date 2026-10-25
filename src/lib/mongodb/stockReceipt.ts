@@ -77,3 +77,65 @@ export async function receiveStockBatch(data: StockReceiptInput) {
 
   return batch;
 }
+
+const ledgerRow = async (r: { itemCode: string; itemName: string; batch: any; type: "return_in" | "adjustment_out"; qty: number; ref: string; reason: string; actor: string }) =>
+  ErpRow.create({
+    moduleId: "inventory_ledger",
+    data: {
+      id: await nextSeq("ledger_entry", "L", 4),
+      medicineId: r.itemCode,
+      medicineName: r.itemName,
+      batchId: r.batch.batchCode,
+      batchNo: r.batch.batchNo,
+      movementType: r.type,
+      quantity: r.qty,
+      sourceType: r.type === "return_in" ? "invoice" : "purchase",
+      sourceRef: r.ref,
+      balanceAfter: r.batch.qty,
+      actorName: r.actor,
+      createdAt: new Date().toISOString().replace("T", " ").slice(0, 16),
+      reason: r.reason,
+    },
+  });
+
+/**
+ * Deleting a sales invoice puts its stock back: the mirror of the deduction done when the invoice was finalized
+ * (same quantity, same batch rule). Only runs if that deduction happened. Returns how many lines were restored.
+ */
+export async function restoreInvoiceStock(visit: { invoiceNo?: string; visitId?: string; inventoryDeducted?: boolean; items?: any[] }, actor: string) {
+  if (!visit.inventoryDeducted) return 0;
+  await connectDB();
+  let restored = 0;
+  for (const it of visit.items ?? []) {
+    const qty = Number(it.quantity) || 0;
+    if (!it.itemCode || qty <= 0) continue;
+    const batch =
+      (it.batchNo ? await StockBatch.findOne({ itemCode: it.itemCode, batchNo: it.batchNo }) : null) ??
+      (await StockBatch.findOne({ itemCode: it.itemCode }).sort({ expiryDate: 1 }));
+    if (!batch) continue;
+    await StockBatch.updateOne({ _id: batch._id }, { $inc: { qty }, ...(batch.status === "Exhausted" ? { $set: { status: "Active" } } : {}) });
+    batch.qty += qty;
+    await InventoryItem.updateOne({ itemCode: it.itemCode }, { $inc: { currentStock: qty } });
+    await ledgerRow({ itemCode: it.itemCode, itemName: it.name, batch, type: "return_in", qty, ref: visit.invoiceNo || visit.visitId || "", reason: `Invoice ${visit.invoiceNo} deleted: stock returned`, actor });
+    restored++;
+  }
+  return restored;
+}
+
+/**
+ * Deleting a purchase bill removes the stock it received: its batches go, and the items' totals drop by what is
+ * still on hand in them (units already sold stay sold). Returns the removed lines.
+ */
+export async function removePurchaseBillStock(internalRef: string, actor: string) {
+  await connectDB();
+  const batches = await StockBatch.find({ remarks: `Received from purchase bill ${internalRef}` });
+  const removed: { itemName: string; qty: number }[] = [];
+  for (const batch of batches) {
+    const qty = Math.max(0, batch.qty);
+    if (qty > 0) await InventoryItem.updateOne({ itemCode: batch.itemCode }, { $inc: { currentStock: -qty } });
+    await ledgerRow({ itemCode: batch.itemCode, itemName: batch.itemName, batch: { ...batch.toObject(), qty: 0 }, type: "adjustment_out", qty, ref: internalRef, reason: `Purchase bill ${internalRef} deleted: stock removed`, actor });
+    await StockBatch.deleteOne({ _id: batch._id });
+    removed.push({ itemName: batch.itemName, qty });
+  }
+  return removed;
+}

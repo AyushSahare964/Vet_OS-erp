@@ -9,41 +9,49 @@ import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 import { updateClinicConfigFn } from "@/lib/mongodb/serverFns/clinicConfig";
 
 const FIELDS = [
+  ["clinicName", "Hospital name"],
+  ["tagline", "Tagline"],
   ["address", "Address"],
   ["city", "City"],
   ["state", "State"],
   ["pin", "PIN code"],
   ["phone", "Phone"],
   ["email", "Email"],
+  ["website", "Website"],
+  ["gstin", "GSTIN"],
+  ["doctorName", "Head doctor"],
+  ["doctorQualifications", "Head doctor qualifications"],
+  ["doctorLicenseNumber", "Registration no."],
 ] as const;
+/** Optional fields may be cleared; the rest are required. */
+const OPTIONAL = new Set<Field>(["tagline", "website", "gstin", "doctorName", "doctorQualifications", "doctorLicenseNumber"]);
 type Field = (typeof FIELDS)[number][0];
 
 /** Clinic profile (name, address, registration, branding) from the clinic's own configuration; admin can edit contact details. */
 export function HospitalProfile() {
   const c = useClinicBranding();
-  const { roleId, clinicBranding } = useErp();
+  const { roleId, clinicBranding, refreshClinicBranding } = useErp();
   const cfg = (clinicBranding ?? {}) as Partial<Record<Field, string>>;
+  const blank = Object.fromEntries(FIELDS.map(([k]) => [k, ""])) as Record<Field, string>;
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<Record<Field, string>>({ address: "", city: "", state: "", pin: "", phone: "", email: "" });
+  const [form, setForm] = useState<Record<Field, string>>(blank);
 
   const startEdit = () => {
-    setForm({
-      address: cfg.address ?? "",
-      city: cfg.city ?? "",
-      state: cfg.state ?? "",
-      pin: cfg.pin ?? "",
-      phone: cfg.phone ?? c.phone,
-      email: cfg.email ?? c.email,
-    });
+    setForm({ ...blank, ...Object.fromEntries(FIELDS.map(([k]) => [k, cfg[k] ?? ""])), clinicName: cfg.clinicName ?? c.fullName });
     setEditing(true);
   };
 
   const save = async () => {
-    if (!form.address.trim() || !form.city.trim() || !form.state.trim() || !form.pin.trim()) {
-      toast.error("Address, city, state and PIN code are required.");
+    const missing = FIELDS.filter(([k, label]) => !OPTIONAL.has(k) && !form[k].trim()).map(([, label]) => label);
+    if (missing.length) {
+      toast.error(`Required: ${missing.join(", ")}.`);
       return;
     }
+    if (!/^d{6}$/.test(form.pin.trim())) return void toast.error("PIN code must be 6 digits.");
+    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(form.email.trim())) return void toast.error("Enter a valid email address.");
+    const digits = form.phone.replace(/D/g, "").length;
+    if (digits < 10 || digits > 13) return void toast.error("Enter a valid phone number.");
     setSaving(true);
     try {
       const res = await updateClinicConfigFn({
@@ -53,8 +61,9 @@ export function HospitalProfile() {
         toast.error(res.message);
         return;
       }
+      await refreshClinicBranding(); // documents, invoices and headers read the refreshed branding
       toast.success("Hospital profile saved.");
-      window.location.reload(); // branding is loaded once per session; reload so documents and invoices pick it up
+      setEditing(false);
     } catch (e: any) {
       toast.error(e.message || "Could not save the hospital profile.");
     } finally {
@@ -88,14 +97,14 @@ export function HospitalProfile() {
       </dl>
       {roleId === "admin" && !editing && (
         <Button variant="outline" size="sm" onClick={startEdit} className="gap-1.5">
-          <Pencil className="size-3.5" /> Edit address &amp; contact
+          <Pencil className="size-3.5" /> Edit hospital details
         </Button>
       )}
       {editing && (
         <div className="grid w-full gap-3 border-t border-border pt-4 sm:grid-cols-2">
           {FIELDS.map(([k, label]) => (
-            <div key={k} className={k === "address" ? "space-y-1 sm:col-span-2" : "space-y-1"}>
-              <Label className="text-xs font-bold">{label}</Label>
+            <div key={k} className={k === "address" || k === "tagline" ? "space-y-1 sm:col-span-2" : "space-y-1"}>
+              <Label className="text-xs font-bold">{label}{!OPTIONAL.has(k) && " *"}</Label>
               <Input value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} className="h-9 text-sm" />
             </div>
           ))}

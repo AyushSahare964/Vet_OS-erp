@@ -96,6 +96,11 @@ const registerTenantSchema = z.object({
   doctorRegValidUpto: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   doctorQualification: z.string().optional(),
   doctorIdCardDataUri: z.string().max(2_000_000).regex(/^data:image\/(png|jpeg|jpg|webp);base64,/),
+  // Optional supporting documents (clinic licence, GST certificate, ...) for the platform admin to review.
+  documents: z.array(z.object({
+    name: z.string().min(1).max(80),
+    dataUri: z.string().max(1_800_000).regex(/^data:(image\/(png|jpeg|jpg|webp)|application\/pdf);base64,/),
+  })).max(5).optional().default([]),
   address: z.string().min(3),
   city: z.string().min(1),
   state: z.string().min(1),
@@ -275,6 +280,7 @@ export const registerTenantFn = createServerFn({ method: "POST" })
         ...(data.doctorQualification?.trim() ? { qualification: data.doctorQualification.trim() } : {}),
         idCardDataUri: data.doctorIdCardDataUri,
       },
+      documents: data.documents.map((d) => ({ name: d.name.trim(), dataUri: d.dataUri, uploadedAt: new Date() })),
       address: data.address.trim(),
       city: data.city.trim(),
       state: data.state.trim(),
@@ -380,7 +386,7 @@ export const listTenantsFn = createServerFn({ method: "GET" })
   .handler(async (): Promise<any[]> => {
     await requirePlatform();
     await connectDB();
-    const tenants = await TenantModel.find({}).select("-doctor.idCardDataUri").sort({ createdAt: -1 }).lean();
+    const tenants = await TenantModel.find({}).select("-doctor.idCardDataUri -documents.dataUri").sort({ createdAt: -1 }).lean();
     return JSON.parse(JSON.stringify(tenants));
   });
 
@@ -426,7 +432,7 @@ export const setTenantStatusFn = createServerFn({ method: "POST" })
 
 /** Move a clinic to another plan; its feature flags and limits follow the plan. */
 export const setTenantPlanFn = createServerFn({ method: "POST" })
-  .validator((raw: unknown) => z.object({ tenantId: z.string(), planId: z.enum(["plan_basic", "plan_professional", "plan_enterprise"]) }).parse(raw))
+  .validator((raw: unknown) => z.object({ tenantId: z.string(), planId: z.enum(["plan_starter", "plan_basic", "plan_professional", "plan_enterprise"]) }).parse(raw))
   .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
     await requirePlatform();
     await connectDB();

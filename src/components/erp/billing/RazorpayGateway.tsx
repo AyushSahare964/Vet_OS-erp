@@ -33,43 +33,9 @@ interface GatewayPayment {
   capturedAt: string | null;
 }
 
-/* ─── Seed data ───────────────────────────────────────────────────── */
-const SEED: GatewayPayment[] = [
-  {
-    id: "gw1", invoiceNo: "INV-20481", ownerName: "Tariq Hussain",
-    amount: 850, orderId: "order_RZP_9A4F", paymentId: "pay_RZP_Jk2mNp",
-    signature: "sha256_verified", gatewayStatus: "captured",
-    method: "UPI", createdAt: "16/08 11:42", capturedAt: "16/08 11:42",
-  },
-  {
-    id: "gw2", invoiceNo: "INV-20482", ownerName: "Nalini Prasad",
-    amount: 3200, orderId: "order_RZP_9B7G", paymentId: "pay_RZP_Wq8xLt",
-    signature: "sha256_verified", gatewayStatus: "captured",
-    method: "Card", createdAt: "16/08 10:15", capturedAt: "16/08 10:16",
-  },
-  {
-    id: "gw3", invoiceNo: "INV-20483", ownerName: "Deepika Iyer",
-    amount: 1650, orderId: "order_RZP_9C2H", paymentId: null,
-    signature: null, gatewayStatus: "created",
-    method: "—", createdAt: "16/08 09:30", capturedAt: null,
-  },
-  {
-    id: "gw4", invoiceNo: "INV-20480", ownerName: "Priya Rajan",
-    amount: 2200, orderId: "order_RZP_9D1J", paymentId: "pay_RZP_Xp9yMu",
-    signature: "sha256_invalid", gatewayStatus: "failed",
-    method: "Netbanking", createdAt: "15/08 17:20", capturedAt: null,
-  },
-  {
-    id: "gw5", invoiceNo: "INV-20478", ownerName: "Vikram Shetty",
-    amount: 4500, orderId: "order_RZP_8E5K", paymentId: "pay_RZP_Yz0zNv",
-    signature: "sha256_verified", gatewayStatus: "refunded",
-    method: "UPI", createdAt: "14/08 14:05", capturedAt: "14/08 14:06",
-  },
-];
+const SEED: GatewayPayment[] = [];
 
-const PENDING_INVOICES = [
-  { no: "INV-20484", owner: "Rajan Kumar",    amount: 600  },
-  { no: "INV-20486", owner: "Ananya Sharma",  amount: 650  },
+const PENDING_INVOICES: { no: string; owner: string; amount: number }[] = [
 ];
 
 const METHOD_ICONS: Record<string, React.FC<{ className?: string }>> = {

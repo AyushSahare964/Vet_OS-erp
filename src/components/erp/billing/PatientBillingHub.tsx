@@ -95,6 +95,9 @@ function PatientBillingHubInner({ initialRegisterTab }: { initialRegisterTab?: R
 
   useEffect(() => {
     void loadInvoices();
+    const reload = () => void loadInvoices();
+    window.addEventListener("invoices:changed", reload);
+    return () => window.removeEventListener("invoices:changed", reload);
   }, [loadInvoices]);
 
   // Keyboard shortcuts for high-speed counter billing (Plan §5.7)

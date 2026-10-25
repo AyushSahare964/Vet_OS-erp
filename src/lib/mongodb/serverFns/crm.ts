@@ -5,6 +5,7 @@ import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 
 import { Owner, type IOwner } from "@/lib/mongodb/models/Owner";
 import { Pet, type IPet } from "@/lib/mongodb/models/Pet";
+import { ClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
 import { nextSeq, peekNextSeq } from "./counters";
 import { syncPartyForOwner } from "./parties";
 
@@ -356,4 +357,46 @@ export const deleteOwnerFn = createServerFn({ method: "POST" })
     await Owner.deleteOne({ ownerId: data.ownerId });
     await Pet.deleteMany({ ownerId: data.ownerId });
     return { success: true };
+  }));
+
+// ─── Patients by what was recorded (symptom, diagnosis, medicine, food, accessory…) ───
+
+// Every place a visit stores something a vet might search for. Arrays are walked automatically.
+const RECORD_PATHS = [
+  "diagnosis", "clinicalNotes", "vitals.complaint",
+  "symptomsText", "symptomTags", "manualSymptoms.label",
+  "prescriptionData.symptomsText", "prescriptionData.symptomTags", "prescriptionData.manualSymptoms.label",
+  "prescriptionData.previousHistory", "prescriptionData.clinicalFindings", "prescriptionData.clinicalFindingsOther",
+  "prescriptionData.immediateMedicines.medicineName", "prescriptionData.prescribedMedicines.medicineName",
+  "prescriptionData.injectables.name", "prescriptionData.animalFood.name", "prescriptionData.prescribedFood.name",
+  "prescriptionData.accessories.name",
+  "items.name",
+];
+
+function valuesAt(node: any, parts: string[]): string[] {
+  if (node == null) return [];
+  if (Array.isArray(node)) return node.flatMap((n) => valuesAt(n, parts));
+  if (parts.length === 0) return typeof node === "string" ? [node] : [];
+  return valuesAt(node[parts[0]!], parts.slice(1));
+}
+
+/** Pets whose visits mention `q` anywhere in the clinical record or bill lines, with a short "why it matched" list. */
+export const searchPatientsByRecordFn = createServerFn({ method: "GET" })
+  .validator((q: unknown) => (typeof q === "string" ? q.trim().slice(0, 80) : ""))
+  .handler(tenantScoped(async ({ data: q }: { data: string }) => {
+    if (q.length < 2) return [] as { petId: string; matches: string[] }[];
+    await connectDB();
+    const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"), "i");
+    const visits = await ClinicalVisit.find({ $or: RECORD_PATHS.map((p) => ({ [p]: rx })) })
+      .sort({ date: -1 })
+      .limit(2000)
+      .lean();
+    const byPet = new Map<string, Set<string>>();
+    for (const v of visits as any[]) {
+      if (!v.petId) continue;
+      const hits = byPet.get(v.petId) ?? new Set<string>();
+      for (const p of RECORD_PATHS) for (const s of valuesAt(v, p.split("."))) if (rx.test(s)) hits.add(s.trim().slice(0, 60));
+      byPet.set(v.petId, hits);
+    }
+    return [...byPet].map(([petId, h]) => ({ petId, matches: [...h].slice(0, 4) }));
   }));

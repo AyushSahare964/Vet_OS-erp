@@ -4,6 +4,7 @@ import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ClinicalVisit, type IClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
 import { FinanceTransaction } from "@/lib/mongodb/models/FinanceTransaction";
 import { nextSeq } from "./counters";
+import { restoreInvoiceStock } from "@/lib/mongodb/stockReceipt";
 
 function toPlain<T>(v: any): T {
   return JSON.parse(JSON.stringify(v)) as T;
@@ -191,8 +192,10 @@ export const deleteInvoiceFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ invoiceNo: z.string() }).parse(data))
   .handler(tenantScoped(async ({ data }: { data: { invoiceNo: string } }) => {
     await connectDB();
-    await ClinicalVisit.findOneAndDelete({ invoiceNo: data.invoiceNo });
-    return toPlain<any>({ success: true });
+    const visit = await ClinicalVisit.findOneAndDelete({ invoiceNo: data.invoiceNo }).lean();
+    // The sold stock goes back into inventory (batch, item total and a "return_in" ledger row)
+    const stockRestored = visit ? await restoreInvoiceStock(visit as any, "Invoice deleted") : 0;
+    return toPlain<any>({ success: true, stockRestored });
   }));
 
 // ─── Outstanding Bills Query ──────────────────────────────────────────────────

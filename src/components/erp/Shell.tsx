@@ -17,7 +17,7 @@ import {
   CalendarClock,
   Receipt,
 } from "lucide-react";
-import { useState, useEffect, useRef, useMemo, useContext, type ReactNode } from "react";
+import { useState, useEffect, useRef, useContext, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,6 @@ import { ROLES, ROLE_ORDER, roleModules, type RoleId } from "@/lib/erp/config";
 import { useErp } from "@/lib/erp/store";
 import { getIcon } from "./icon";
 import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
-import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import { searchMasterFn, type MasterSearchResultGroup, type MasterSearchResultItem } from "@/lib/mongodb/serverFns/search";
 import { settleReminderFn } from "@/lib/mongodb/serverFns/reminders";
 import { getNotificationsFn, type NotificationRow, type NotificationCategory } from "@/lib/mongodb/serverFns/notifications";
@@ -210,29 +209,31 @@ function NavRow({ module, icon, label, active, onNavigate }: NavRowProps) {
 
 export function GlobalSearch() {
   const [query, setQuery] = useState("");
-  const [pets, setPets] = useState<any[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [groups, setGroups] = useState<MasterSearchResultGroup[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  // Everything else the master search finds (invoices, purchase bills, suppliers, lab orders, appointments, staff,
-  // documents, stock...) is listed under the patient matches.
-  const [extras, setExtras] = useState<MasterSearchResultGroup[]>([]);
+  // Debounced unified search covering all collections
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) {
-      setExtras([]);
-      return;
-    }
-    const t = setTimeout(() => {
-      searchMasterFn({ data: { q } })
-        .then((g) => setExtras((g ?? []).filter((x) => x.heading !== "Pets and owners")))
-        .catch(() => setExtras([]));
-    }, 300);
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await searchMasterFn({ data: { q } });
+        setGroups(res ?? []);
+      } catch {
+        setGroups([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
     return () => clearTimeout(t);
   }, [query]);
-  const goExtra = (it: MasterSearchResultItem) => {
+
+  // Navigate to the right place when any result is chosen
+  const choose = (it: MasterSearchResultItem) => {
     setFocused(false);
     setQuery("");
     if (it.toModule) {
@@ -245,28 +246,10 @@ export function GlobalSearch() {
     }
   };
 
-  // Load all pets once on first focus
-  const load = async () => {
-    if (loaded) return;
-    try {
-      const data = await listPetsWithOwnersFn();
-      setPets(data ?? []);
-      setLoaded(true);
-    } catch (_) { /* silent */ }
-  };
-
-  const results = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase().trim();
-    return pets.filter(p =>
-      p.name?.toLowerCase().includes(q) ||
-      p.petId?.toLowerCase().includes(q) ||
-      p.breed?.toLowerCase().includes(q) ||
-      p.species?.toLowerCase().includes(q) ||
-      p.owner?.name?.toLowerCase().includes(q) ||
-      p.owner?.phone?.includes(q)
-    ).slice(0, 8);
-  }, [pets, query]);
+  // Split groups: "Pets and owners" rendered with section quick-links; everything else as compact rows
+  const petGroup = groups.find((g) => g.heading === "Pets and owners");
+  const extraGroups = groups.filter((g) => g.heading !== "Pets and owners");
+  const totalResults = groups.reduce((n, g) => n + g.items.length, 0);
 
   // Close on outside click
   useEffect(() => {
@@ -279,16 +262,24 @@ export function GlobalSearch() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const showDropdown = focused && query.trim().length > 0;
+  const showDropdown = focused;
 
   return (
     <div ref={ref} className="relative mx-auto hidden w-full max-w-md md:block">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground z-10" />
+      {loading ? (
+        <svg className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-primary z-10" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+      ) : (
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground z-10" />
+      )}
       <input
         type="search"
         value={query}
         onChange={e => setQuery(e.target.value)}
-        onFocus={() => { setFocused(true); void load(); }}
+        onFocus={() => setFocused(true)}
+        onKeyDown={(e) => { if (e.key === "Escape") { setFocused(false); setQuery(""); } }}
         placeholder="Search patients, owners, bills, stock, labs, staff…"
         className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none transition-all placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/10"
       />
@@ -301,77 +292,88 @@ export function GlobalSearch() {
             transition={{ duration: 0.15 }}
             className="absolute left-0 right-0 top-full mt-2 z-50 rounded-xl border border-border bg-card shadow-xl overflow-hidden"
           >
-            {results.length === 0 && extras.length === 0 ? (
-              <div className="px-4 py-3 text-xs text-muted-foreground italic">Nothing found.</div>
-            ) : (
-              <div className="divide-y divide-border/50 max-h-80 overflow-y-auto">
-                {results.map(p => (
+            {!query.trim() && groups.length === 0 && !loading && (
+              <div className="px-4 py-3 text-xs text-muted-foreground italic">Start typing to search patients, owners, bills, stock, labs…</div>
+            )}
+            {query.trim() && !loading && totalResults === 0 && (
+              <div className="px-4 py-3 text-xs text-muted-foreground italic">Nothing found for "{query.trim()}".</div>
+            )}
+            {groups.length > 0 && (
+              <div className="divide-y divide-border/50 max-h-[480px] overflow-y-auto">
+                {/* ── Pets & Owners: rich cards with section quick-links ── */}
+                {petGroup && petGroup.items.map((it) => (
                   <div
-                    key={p.petId}
+                    key={it.key}
                     role="button"
                     tabIndex={0}
-                    onClick={() => {
-                      setFocused(false);
-                      setQuery("");
-                      void navigate({ to: "/m/$moduleId", params: { moduleId: "crm-pets" }, search: { petId: p.petId, petName: p.name } as any });
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") (e.currentTarget as HTMLDivElement).click();
-                    }}
+                    onClick={() => choose(it)}
+                    onKeyDown={(e) => { if (e.key === "Enter") choose(it); }}
                     className="px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary text-sm font-bold">
-                          {p.species === "Feline" ? "C" : "D"}
+                          <PawPrint className="size-3.5" />
                         </span>
                         <div>
-                          <p className="text-xs font-bold text-foreground leading-tight">{p.name}</p>
-                          <p className="text-[10px] text-muted-foreground">{p.breed} · {p.species}</p>
+                          <p className="text-xs font-bold text-foreground leading-tight">{it.title}</p>
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[260px]">{it.sub}</p>
                         </div>
                       </div>
-                      <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{p.petId}</span>
+                      <span className="shrink-0 font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{it.tag}</span>
                     </div>
-                    {p.owner && (
-                      <div className="mt-1.5 text-[10px] text-muted-foreground flex items-center gap-1">
-                        <PawPrint className="size-2.5 text-muted-foreground" />
-                        <span className="font-medium text-foreground">{p.owner.name}</span>
-                        {p.owner.phone && (
-                          <><span className="mx-0.5">·</span><Phone className="size-2.5" /><span>{p.owner.phone}</span></>
-                        )}
+                    {/* Section quick-links for pet results */}
+                    {it.petId && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {([
+                          { label: "Full Profile", section: null as string | null, module: null as string | null },
+                          { label: "Medical", section: "medical", module: null },
+                          { label: "Lab", section: "lab", module: null },
+                          { label: "Vaccines", section: "vaccine", module: null },
+                          { label: "Billing", section: null, module: "billing" },
+                          { label: "Boarding", section: null, module: "boarding" },
+                        ] as const).map((lnk) => (
+                          <button
+                            key={lnk.label}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFocused(false);
+                              setQuery("");
+                              if (lnk.section) {
+                                void navigate({ to: "/patient/$id/$section", params: { id: it.petId, section: lnk.section as any } });
+                              } else if (lnk.module) {
+                                const t = resolveModule(lnk.module, { petId: it.petId });
+                                void navigate({ to: "/m/$moduleId", params: { moduleId: t.moduleId }, search: t.search as any });
+                              } else {
+                                void navigate({ to: "/patient/$id", params: { id: it.petId } });
+                              }
+                            }}
+                            className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 transition-colors"
+                          >
+                            {lnk.label}
+                          </button>
+                        ))}
                       </div>
                     )}
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {[
-                        { label: "Patient Record", module: "crm-pets" },
-                        { label: "Billing", module: "billing" },
-                        { label: "Lab", module: "laboratory" },
-                        { label: "Boarding", module: "boarding" },
-                      ].map(lnk => (
-                        <button
-                          key={lnk.module}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFocused(false);
-                            setQuery("");
-                            const t = resolveModule(lnk.module, { petId: p.petId, petName: p.name });
-                            void navigate({ to: "/m/$moduleId", params: { moduleId: t.moduleId }, search: t.search as any });
-                          }}
-                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 transition-colors cursor-pointer"
-                        >
-                          {lnk.label}
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 ))}
-                {extras.map((g) => (
+
+                {/* ── All other groups: billing, lab, stock, appointments… ── */}
+                {extraGroups.map((g) => (
                   <div key={g.heading} className="px-3 py-2">
-                    <p className="section-label mb-1">{g.heading}</p>
+                    <p className="section-label mb-1.5">{g.heading}</p>
                     {g.items.map((it) => (
-                      <button key={it.key} type="button" onClick={() => goExtra(it)} className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-muted">
-                        <span className="block text-xs font-semibold text-foreground">{it.title}</span>
+                      <button
+                        key={it.key}
+                        type="button"
+                        onClick={() => choose(it)}
+                        className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-muted transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="block text-xs font-semibold text-foreground truncate">{it.title}</span>
+                          <span className="shrink-0 text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{it.tag}</span>
+                        </div>
                         <span className="block truncate text-[11px] text-muted-foreground">{it.sub}</span>
                       </button>
                     ))}
@@ -654,6 +656,14 @@ function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | unde
           </DropdownMenuContent>
 
         </DropdownMenu>
+        {!isPlatform && (
+          <Link
+            to="/pricing"
+            className="ml-1 inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-[#5b32e6] to-[#7c4dff] px-4 text-xs font-bold text-white shadow-sm transition hover:brightness-110 active:scale-95"
+          >
+            <Sparkles className="size-3.5" /> Upgrade to Pro
+          </Link>
+        )}
       </div>
     </header>
   );

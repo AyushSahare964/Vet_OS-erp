@@ -24,8 +24,8 @@ const SALT_ROUNDS = 12;
 const SYSTEM_CREDENTIALS = [
   {
     fullName: "Ayush Sahare", email: "ayush.sahare@vit.edu", password: "ayush@123", phone: "",
-    clinicName: "Real Care Small Animal Clinic", branch: "Nagpur", roleId: "admin",
-    roleName: "Clinic Administrator / Medical Director", initials: "AS",
+    clinicName: "VetOS Cloud", branch: "Platform", roleId: "platform",
+    roleName: "Platform Systems Administrator", initials: "AS",
     licenseNumber: "SYS-DEV-0001", qualification: "B.Tech Computer Science",
     department: "System Administration", specialty: "Administration",
     approvalStatus: "approved", isSystemAccount: true, isActive: true, loginCount: 0,
@@ -100,7 +100,7 @@ async function main() {
       const { password, ...rest } = cred;
       const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
       if (!DRY_RUN) {
-        await usersColl.insertOne({ ...rest, passwordHash, tenantId: TENANT_ID, createdAt: new Date(), updatedAt: new Date() });
+        await usersColl.insertOne({ ...rest, passwordHash, ...(rest.roleId === "platform" ? {} : { tenantId: TENANT_ID }), createdAt: new Date(), updatedAt: new Date() });
       }
     }
     console.log(`[08-backfill-tenant] ${DRY_RUN ? "would seed" : "seeded"} ${SYSTEM_CREDENTIALS.length} system credential(s) into an empty users collection.`);
@@ -176,10 +176,12 @@ async function main() {
   for (const { name } of collections) {
     if (EXCLUDED_COLLECTIONS.has(name) || name.startsWith("system.")) continue;
     const coll = db.collection(name);
-    const toBackfill = await coll.countDocuments({ tenantId: { $exists: false } });
+    // Platform admins belong to no clinic, so they must stay tenantless.
+    const filter = { tenantId: { $exists: false }, ...(name === "users" ? { roleId: { $ne: "platform" } } : {}) };
+    const toBackfill = await coll.countDocuments(filter);
     if (toBackfill === 0) continue;
     if (!DRY_RUN) {
-      await coll.updateMany({ tenantId: { $exists: false } }, { $set: { tenantId: TENANT_ID } });
+      await coll.updateMany(filter, { $set: { tenantId: TENANT_ID } });
     }
     report.push({ collection: name, backfilled: toBackfill });
   }

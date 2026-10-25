@@ -19,8 +19,10 @@ import type { Schema } from "mongoose";
 import { getTenantContext } from "./tenantContext";
 
 export function tenantScopePlugin(schema: Schema): void {
-  if (schema.path("tenantId")) return;
-  schema.add({ tenantId: { type: String, index: true } });
+  // A model may declare its own tenantId (ErpRow, InventoryItem, StockBatch, FinanceTransaction do).
+  // Only add the field when it is missing — but always install the scoping hooks below. Returning early
+  // here used to leave those four models completely unscoped, so every clinic saw every other clinic's rows.
+  if (!schema.path("tenantId")) schema.add({ tenantId: { type: String, index: true } });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pre = schema.pre.bind(schema) as (name: string | RegExp, fn: (this: any) => void) => void;

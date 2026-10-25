@@ -48,6 +48,7 @@ import { roundMoney } from "@/lib/utils/moneyUtils";
 import { computeDocument, type TaxDocInput } from "@/lib/finance/taxEngine";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import { finalizeVisitAndBillFn } from "@/lib/mongodb/serverFns/clinical";
+import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
 import { getItemsFn, type InventoryItemRow } from "@/lib/mongodb/serverFns/inventory";
 import { getAvailableUnits, convertToBase, type PackagingHierarchy } from "@/lib/inventory/packagingUtils";
 import { useErp } from "@/lib/erp/store";
@@ -105,10 +106,14 @@ interface Props {
   onClose: () => void;
   onInvoiceCreated?: (newInvoice: any) => void;
   initialPet?: any;
+  /** Receptionist "Doctor-Advised Medicine": doctor not on site; the bill records who prescribed and who dispensed. */
+  advisedMode?: boolean;
 }
 
-export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialPet }: Props) {
-  const { currentUser, role } = useErp();
+export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialPet, advisedMode }: Props) {
+  const { currentUser, role, roleId } = useErp();
+  // Receptionist invoices always carry a "given by reception" note; the prescribing doctor is optional unless advisedMode.
+  const byReception = roleId === "reception";
   const activeDoctorName =
     currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role?.person || "Dr. Rohit Sharma");
 
@@ -123,6 +128,8 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [docDate, setDocDate] = useState(todayIST());
   const [soldBy, setSoldBy] = useState(activeDoctorName || "Dr. Rohit Sharma");
   const [customSoldBy, setCustomSoldBy] = useState("");
+  const [advisedDoctor, setAdvisedDoctor] = useState("");
+  const [doctors, setDoctors] = useState<{ id: string; name: string }[]>([]);
   const [linkTo, setLinkTo] = useState<"COUNTER_SALE" | "CLIENT_ACCOUNT">("COUNTER_SALE");
   const [mobileNo, setMobileNo] = useState("");
   const [clientName, setClientName] = useState("CASH");
@@ -140,7 +147,13 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   // ── 2. Inventory Items & Category Selection ──
   const [inventoryItems, setInventoryItems] = useState<InventoryItemRow[]>([]);
   // Invoices are for items that need no consultation, so browsing starts on Food / Supplement / Accessories / Grooming
-  const [itemCategory, setItemCategory] = useState<string>("RETAIL");
+  const [itemCategory, setItemCategory] = useState<string>(advisedMode ? "MEDICINE" : "RETAIL");
+  useEffect(() => {
+    if (!(advisedMode || byReception) || !open) return;
+    setAdvisedDoctor("");
+    if (advisedMode) setItemCategory("MEDICINE");
+    listApprovedDoctorsFn().then((d) => setDoctors(d ?? [])).catch(() => setDoctors([]));
+  }, [advisedMode, byReception, open]);
   // The inventory item the current entry row is linked to (null = free-typed)
   const [selectedItem, setSelectedItem] = useState<InventoryItemRow | null>(null);
 
@@ -686,7 +699,19 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       }
       const firstMode = usedLines[0] ? toServerMode(usedLines[0].mode) : null;
 
-      const effectiveDoctorName = soldBy === "Other" ? customSoldBy.trim() || "Staff" : soldBy;
+      const dispenserName = soldBy === "Other" ? customSoldBy.trim() || "Staff" : soldBy;
+      if (advisedMode && !advisedDoctor) {
+        toast.error("Select the doctor who advised this medicine.");
+        setSaving(false);
+        return;
+      }
+      // Advised bill: the doctor is the prescriber on the visit, the receptionist is recorded as the dispenser.
+      const effectiveDoctorName = advisedDoctor || dispenserName;
+      const advisedNote = advisedDoctor
+        ? `Doctor contacted: ${advisedDoctor}. Medicine dispensed on his order. Dispensed by ${activeDoctorName} (Reception).`
+        : byReception
+        ? `Dispensed by ${activeDoctorName} (Reception).`
+        : "";
 
       const paymentStatus: "Full" | "Partial" | "Unpaid" =
         balanceDue === 0 ? "Full" : effectivePaidAmount > 0 ? "Partial" : "Unpaid";
@@ -709,12 +734,14 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         branch: "Main Clinic",
         billType: invoiceType === "NON_GST" ? ("Non-GST" as const) : ("GST" as const),
         doctorName: effectiveDoctorName,
-        diagnosis: deliveryTerms
+        diagnosis: advisedMode
+          ? "Doctor-Advised Medicine"
+          : deliveryTerms
           ? `Terms: ${deliveryTerms}`
           : customerType === "OTHER"
           ? `Retail Sale: ${otherClientType}`
           : "Counter Sale & Services",
-        clinicalNotes: remarksPrivate.trim() || undefined,
+        clinicalNotes: [advisedNote, remarksPrivate.trim()].filter(Boolean).join(" ") || undefined,
         items: lines.map((l, idx) => {
           const discPct = Math.min(100, Math.max(0, l.discountPct || 0));
           const gross = (l.quantity || 1) * (l.salePrice || 0);
@@ -775,6 +802,8 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       }
 
       onInvoiceCreated?.(res);
+      // The Billing register may be open behind a Quick Action invoice; tell it to reload.
+      window.dispatchEvent(new Event("invoices:changed"));
 
       if (andPrint) {
         // Show the real formatted invoice (same component finalized clinical visits use)
@@ -813,7 +842,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
             <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
               <Receipt className="size-4" />
             </div>
-            <h2 className="text-sm font-bold text-foreground tracking-tight">Unsaved Invoice</h2>
+            <h2 className="text-sm font-bold text-foreground tracking-tight">{advisedMode ? "Doctor-Advised Medicine Invoice" : "Unsaved Invoice"}</h2>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
@@ -864,9 +893,29 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 />
               </div>
 
+              {(advisedMode || byReception) && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-foreground">
+                    Prescribed by (doctor contacted) {advisedMode ? <span className="text-rose-500">*</span> : <span className="text-muted-foreground">(optional)</span>}
+                  </Label>
+                  <Select value={advisedDoctor} onValueChange={setAdvisedDoctor}>
+                    <SelectTrigger className="h-8 text-xs bg-background" aria-label="Doctor contacted">
+                      <SelectValue placeholder="Which doctor advised this?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {doctors.map((d) => (
+                        <SelectItem key={d.id} value={d.name}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Sold By: Interactive Dropdown with clinic staff & custom entry */}
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-foreground">Sold By</Label>
+                <Label className="text-xs font-medium text-foreground">{advisedMode || byReception ? "Dispensed by" : "Sold By"}</Label>
                 <div className="flex items-center gap-1.5">
                   <Select
                     value={CLINIC_STAFF_OPTIONS.includes(soldBy) ? soldBy : "Other"}

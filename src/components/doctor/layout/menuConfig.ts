@@ -67,10 +67,9 @@ export const MENU: MenuItem[] = [
   { id: "dashboard", side: "left", label: "Dashboard", short: "Home", icon: "LayoutGrid", to: { kind: "path", path: "/clinic" }, roles: ALL, match: [], matchPaths: ["/clinic"] },
   { id: "appointments", side: "left", label: "Appointments & Live Queue", short: "Queue", icon: "CalendarClock", to: { kind: "module", moduleId: "appointments" }, roles: CLINICAL, requires: ["appointments"], match: ["appointments"] },
   { id: "crm", side: "left", label: "Patient CRM", short: "Patients", icon: "PawPrint", to: { kind: "module", moduleId: "crm-pets" }, roles: ["doctor", "admin", "reception", "accounts"], requires: ["crm-pets"], match: ["crm-pets"], matchPaths: ["/patient/", "/doctor/patient/"] },
-  { id: "consultation", side: "left", label: "Consultation", short: "Consult", icon: "Stethoscope", to: { kind: "module", moduleId: "consultation" }, roles: CLINICAL, requires: ["appointments", "pharmacy"], match: ["consultation"], subtitle: "Start consultations, dispense and manage inpatients and surgery.",
+  { id: "consultation", side: "left", label: "Pharmacy & Retail", short: "Pharmacy", icon: "Stethoscope", to: { kind: "module", moduleId: "consultation" }, roles: CLINICAL, requires: ["appointments", "pharmacy"], match: ["consultation"], subtitle: "Start consultations, dispense and manage inpatients and surgery.",
     tabs: [
-      { id: "consultation", label: "Consultation", requires: ["appointments"] },
-      { id: "pharmacy", label: "Pharmacy", requires: ["pharmacy"] },
+      { id: "pharmacy", label: "Pharmacy & Retail", requires: ["pharmacy"] },
       { id: "ipd", label: "IPD / Hospitalization", requires: ["appointments", "pharmacy"], soon: "Inpatient admissions and ward rounds will live here." },
       { id: "surgery", label: "Surgery / OT / Anesthesia", requires: ["appointments", "pharmacy"], soon: "Operation theatre bookings and anaesthesia records will live here." },
     ] },
@@ -81,7 +80,7 @@ export const MENU: MenuItem[] = [
       { id: "boarding", label: "Boarding & Swimming", requires: ["boarding"] },
       { id: "food", label: "Food & Nutrition", requires: ["nutrition"] },
     ] },
-  { id: "communication", side: "left", label: "Client Communication", short: "Clients", icon: "MessageSquare", to: { kind: "module", moduleId: "communication" }, roles: CLINICAL, requires: ["clinical-records", "reports"], match: ["communication", "clinical-records"], subtitle: "Documents, reminders and messages for pet parents.",
+  { id: "communication", side: "left", label: "Documentation", short: "Docs", icon: "MessageSquare", to: { kind: "module", moduleId: "communication" }, roles: CLINICAL, requires: ["clinical-records", "reports"], match: ["communication", "clinical-records"], subtitle: "Consents, certificates, reminders and messages for pet parents.",
     tabs: [
       { id: "documents", label: "Certificates & Documents", requires: ["clinical-records", "reports"] },
       { id: "reminders", label: "Follow-up & Reminders", requires: ["crm-pets", "appointments"] },
@@ -99,8 +98,8 @@ export const MENU: MenuItem[] = [
       { id: "purchases", label: "Purchases", requires: ["billing"] },
       { id: "suppliers", label: "Suppliers", requires: ["billing"] },
     ] },
-  { id: "shop", side: "right", label: "Pet Shop & Product Sales", short: "Shop", icon: "ShoppingBag", to: { kind: "module", moduleId: "pharmacy" }, roles: ["doctor", "admin"], requires: ["pharmacy"], match: ["pharmacy"] },
-  { id: "accounts", side: "right", label: "Accounting & Reports", short: "Accounts", icon: "BookOpen", to: { kind: "module", moduleId: "accounts" }, roles: ALL, requires: ["accounts", "ledgers", "reports", "clinical-records", "discount-schemes", "reports-finance", "reports-platform", "payroll"], match: ["accounts", "ledgers", "discount-schemes", "reports", "reports-finance", "reports-platform", "payroll"], subtitle: "Account statements, ledgers and discount schemes.",
+  { id: "ledgers", side: "right", label: "Ledgers", short: "Ledger", icon: "BookOpen", to: { kind: "module", moduleId: "ledgers" }, roles: ["doctor", "admin", "reception", "accounts"], requires: ["ledgers"], match: ["ledgers"] },
+  { id: "accounts", side: "right", label: "Accounting & Reports", short: "Accounts", icon: "BookOpen", to: { kind: "module", moduleId: "accounts" }, roles: ALL, requires: ["accounts", "ledgers", "reports", "clinical-records", "discount-schemes", "reports-finance", "reports-platform", "payroll"], match: ["accounts", "discount-schemes", "reports", "reports-finance", "reports-platform", "payroll"], subtitle: "Account statements, ledgers and discount schemes.",
     tree: [
       { id: "statements", label: "Account Statements", icon: "Landmark", tab: "statements", children: ACCOUNT_REPORTS.map((r) => ({ id: r.id, label: r.label })) },
       { id: "ledgers", label: "Ledgers", icon: "BookOpen", tab: "ledgers", children: LEDGER_TYPES.map((t) => ({ id: t.id, label: t.label })) },

@@ -26,6 +26,7 @@ import { VaccinationDue } from "./VaccinationDue";
 import { RemindersList } from "./RemindersList";
 import { PendingApprovals } from "./PendingApprovals";
 import { DocumentationCenter } from "@/components/erp/documentation/DocumentationCenter";
+import { SavedDocuments } from "@/components/erp/documentation/SavedDocuments";
 import { HospitalProfile } from "./HospitalProfile";
 
 type InvSub = "catalogue" | "injection" | "food" | "accessories" | "stock" | "movements" | "alerts";
@@ -37,11 +38,11 @@ export const hubItemFor = (moduleId: string): MenuItem | undefined =>
 
 /** Certificates & Documents: printable forms and certificates, or the uploaded-documents register. */
 function DocumentsTab({ sub, go }: { sub?: string | undefined; go: (sub: string) => void }) {
-  const mode = sub === "uploads" ? "uploads" : "forms";
+  const mode = sub === "uploads" ? "uploads" : sub === "saved" ? "saved" : "forms";
   return (
     <div className="space-y-4">
       <div className="inline-flex rounded-lg bg-muted p-0.5 text-xs font-semibold" role="group" aria-label="Documents view">
-        {([["forms", "Forms & Certificates"], ["uploads", "Uploaded documents"]] as const).map(([id, label]) => (
+        {([["forms", "Forms & Certificates"], ["saved", "Saved documents"], ["uploads", "Uploaded documents"]] as const).map(([id, label]) => (
           <button
             key={id}
             type="button"
@@ -52,7 +53,7 @@ function DocumentsTab({ sub, go }: { sub?: string | undefined; go: (sub: string)
           </button>
         ))}
       </div>
-      {mode === "forms" ? <DocumentationCenter /> : <ClinicalReportsHub initialMode="medical-records" initialTab="upload-documents" />}
+      {mode === "forms" ? <DocumentationCenter /> : mode === "saved" ? <SavedDocuments /> : <ClinicalReportsHub initialMode="medical-records" initialTab="upload-documents" />}
     </div>
   );
 }

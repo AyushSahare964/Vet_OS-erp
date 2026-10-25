@@ -78,6 +78,8 @@ export interface RegisterTenantPayload {
   doctorQualification?: string;
   /** Data URI of the council ID card photo, client-resized before send. */
   doctorIdCardDataUri: string;
+  /** Optional supporting documents (clinic licence, GST certificate, ...), image or PDF data URIs. */
+  documents?: { name: string; dataUri: string }[];
   address: string;
   city: string;
   state: string;

@@ -19,6 +19,12 @@ export const PLAN_GST_RATE = 0.18;
 export const planChargePaise = (id: SubscriptionPlanId): number =>
   Math.round(SUBSCRIPTION_PLANS[id].monthlyPriceInr * (1 + PLAN_GST_RATE) * 100);
 
+/** Every plan includes every module; plans differ only in staff and pet limits. */
+const ALL_MODULES = {
+  crm: true, appointments: true, clinical: true, billing: true, inventory: true,
+  laboratory: true, pharmacy: true, boarding: true, accounting: true, reports: true, nutrition: true,
+};
+
 export interface SubscriptionPlan {
   planId: SubscriptionPlanId;
   name: string;
@@ -35,41 +41,25 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, SubscriptionPlan> = 
     planId: "plan_starter",
     name: "Starter",
     monthlyPriceInr: 0,
-    features: {
-      crm: true, appointments: true, clinical: true, billing: true, inventory: true,
-      laboratory: true, pharmacy: true, boarding: false, accounting: false,
-      reports: false, nutrition: false, maxUsers: 5, maxPets: 500,
-    },
+    features: { ...ALL_MODULES, maxUsers: 5, maxPets: 500 },
   },
   plan_basic: {
     planId: "plan_basic",
     name: "Basic",
     monthlyPriceInr: 999,
-    features: {
-      crm: true, appointments: true, clinical: true, billing: true, inventory: true,
-      laboratory: false, pharmacy: false, boarding: false, accounting: false,
-      reports: false, nutrition: false, maxUsers: 5, maxPets: 500,
-    },
+    features: { ...ALL_MODULES, maxUsers: 5, maxPets: 500 },
   },
   plan_professional: {
     planId: "plan_professional",
     name: "Pro",
     monthlyPriceInr: 1999,
-    features: {
-      crm: true, appointments: true, clinical: true, billing: true, inventory: true,
-      laboratory: true, pharmacy: true, boarding: true, accounting: true,
-      reports: true, nutrition: true, maxUsers: 20, maxPets: 5000,
-    },
+    features: { ...ALL_MODULES, maxUsers: 20, maxPets: 5000 },
   },
   plan_enterprise: {
     planId: "plan_enterprise",
     name: "Max",
     monthlyPriceInr: 0, // not on sale yet ("coming soon"); existing enterprise tenants keep unlimited access
-    features: {
-      crm: true, appointments: true, clinical: true, billing: true, inventory: true,
-      laboratory: true, pharmacy: true, boarding: true, accounting: true,
-      reports: true, nutrition: true, maxUsers: -1, maxPets: -1,
-    },
+    features: { ...ALL_MODULES, maxUsers: -1, maxPets: -1 },
   },
 };
 
