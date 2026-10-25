@@ -99,6 +99,9 @@ function Sidebar({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
           </motion.div>
           <div className="text-center">
             <p className="text-sm font-bold tracking-tight text-navy leading-tight">{displayName}</p>
+            {!isPlatform && clinicBranding?.tagline && (
+              <p className="text-[10px] italic text-muted-foreground leading-tight">{clinicBranding.tagline}</p>
+            )}
             <p className="text-[10px] text-muted-foreground leading-tight">{displayPerson}</p>
           </div>
         </Link>
@@ -486,6 +489,11 @@ function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | unde
             (e.target as HTMLElement).src = CLINIC_CONFIG.logoPath;
           }}
         />
+        {!isPlatform && clinicBranding?.tagline && (
+          <span className="ml-3 hidden max-w-[200px] truncate text-xs font-medium italic text-muted-foreground xl:block" title={clinicBranding.tagline}>
+            {clinicBranding.tagline}
+          </span>
+        )}
       </Link>
 
       <GlobalSearch />
