@@ -144,7 +144,7 @@ export function ClinicHome() {
 
   useEffect(() => {
     let live = true;
-    void (async () => {
+    const load = async () => {
       const [a, v, l, n, r, i, p, pt, f, b] = await Promise.all([
         has("appointments") ? safe(listAppointmentsFn(), []) : [],
         has("appointments", "crm-pets") ? safe(listVisitsFn(), []) : [],
@@ -160,9 +160,16 @@ export function ClinicHome() {
       if (!live) return;
       setAppts(a as any[]); setVisits(v as any[]); setLabs(l as any[]); setAlerts(n as any[]); setReminders(r as any[]);
       setInvoices(i as any[]); setPurchases(p as any[]); setPets(pt as any[]); setBranches(b as BranchRow[]);
-    })();
+    };
+    void load();
+    // Poll so a booking made at the front desk shows up here without a manual refresh; skip while the tab is hidden.
+    const refresh = () => document.visibilityState === "visible" && void load();
+    const timer = setInterval(refresh, 10_000);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       live = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleId]);

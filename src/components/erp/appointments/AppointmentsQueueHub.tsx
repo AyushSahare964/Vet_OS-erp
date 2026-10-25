@@ -137,6 +137,16 @@ export function AppointmentsQueueHub() {
   useEffect(() => {
     void loadAppointments();
     void loadFollowUps();
+    // Silent poll so appointments booked elsewhere appear without a manual refresh (no loading flicker, paused when tab hidden)
+    const refresh = () => {
+      if (document.visibilityState === "visible") void listAppointmentsFn().then((d) => setAppointments(d || [])).catch(() => {});
+    };
+    const timer = setInterval(refresh, 10_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
 
   const loadAppointments = async () => {
