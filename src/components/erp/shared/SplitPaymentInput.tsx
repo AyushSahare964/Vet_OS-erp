@@ -91,12 +91,15 @@ export function SplitPaymentInput({
   };
 
   const remove = (id: string) => {
-    onChange(lines.filter((l) => l.id !== id));
+    const rest = lines.filter((l) => l.id !== id);
+    // Last line standing takes the full total so the split can't be left unbalanced
+    onChange(rest.length === 1 ? [{ ...rest[0]!, amount: total }] : rest);
   };
 
   const addLine = () => {
     const accountId = defaultMode === "CASH" ? (cashAccount?._id ?? "") : (defaultBank?._id ?? "");
-    onChange([...lines, newLine(defaultMode, accountId, 0)]);
+    // Prefill the remaining balance so a second mode doesn't start at 0
+    onChange([...lines, newLine(defaultMode, accountId, Math.max(0, difference))]);
   };
 
   const fillBalance = (id: string) => {

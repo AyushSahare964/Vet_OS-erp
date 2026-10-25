@@ -1484,14 +1484,16 @@ body:has(.vd-main.in-detail)::-webkit-scrollbar {
   flex: none;
 }
 
-/* Print only the bill receipt */
+/* Print only the bill receipt. Scoped to pages that actually show a receipt: this
+   stylesheet is bundled app-wide, and an unscoped "body * { visibility: hidden }"
+   blanked every other print / Save-as-PDF output. */
 @media print {
-  html,
-  body {
+  html:has(.vd .receipt-box),
+  body:has(.vd .receipt-box) {
     overflow: visible !important;
     height: auto !important;
   }
-  body * {
+  body:has(.vd .receipt-box) * {
     visibility: hidden;
   }
   .vd {
