@@ -241,6 +241,12 @@ export function BillingDeskDashboard({
       ]);
       setExpenses(expData || []);
       setPurchases(purData || []);
+      // After saving a bill, widen the date filter if the bill's date is outside it, else the new bill looks like it vanished.
+      if (purchasesRefreshKey > 0 && purData?.length) {
+        const newest = [...purData].sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0];
+        const d = newest?.billDate;
+        if (d) setDateRange((r) => ({ ...r, from: r.from && d < r.from ? d : r.from, to: r.to && d > r.to ? d : r.to }));
+      }
       setQuotations(qtnData || []);
       setSuppliers(supData || []);
       setClients(cliData || []);
@@ -1050,6 +1056,28 @@ export function BillingDeskDashboard({
             className="size-8 text-muted-foreground hover:text-foreground bg-background/50"
           >
             <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDailySummaryOpen(true)}
+            className="gap-1.5 text-xs font-semibold bg-background/60 hover:bg-background border-border"
+            title="Daily financial collection & till summary"
+          >
+            <Calendar className="size-3.5 text-blue-600" />
+            <span className="hidden sm:inline">Daily Summary</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setStockSummaryOpen(true)}
+            className="gap-1.5 text-xs font-semibold bg-background/60 hover:bg-background border-border"
+            title="Live inventory valuation summary"
+          >
+            <Boxes className="size-3.5 text-blue-600" />
+            <span className="hidden sm:inline">Stock Valuation</span>
           </Button>
 
           <Button
@@ -3397,10 +3425,10 @@ export function BillingDeskDashboard({
                             <div className="font-medium text-foreground">{inv.petName || "General OTC"}</div>
                             {inv.breed && <div className="text-[10px] text-muted-foreground">{inv.breed}</div>}
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          <td className="px-4 py-3 text-muted-foreground">
                             {inv.doctorName || "Attending Vet"}
                             {/\(Reception\)/i.test(String(inv.clinicalNotes || "")) && (
-                              <div className="mt-0.5 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800" title={String(inv.clinicalNotes)}>
+                              <div className="mt-0.5 block w-fit max-w-[150px] rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800" title={String(inv.clinicalNotes)}>
                                 {/Doctor contacted:/i.test(String(inv.clinicalNotes)) ? "Doctor-advised · given by reception" : "Given by reception"}
                               </div>
                             )}
@@ -3482,6 +3510,11 @@ export function BillingDeskDashboard({
         open={dailySummaryOpen}
         onClose={() => setDailySummaryOpen(false)}
         invoices={invoices}
+      />
+
+      <StockSummaryModal
+        open={stockSummaryOpen}
+        onClose={() => setStockSummaryOpen(false)}
       />
 
       {/* ── PURCHASE BILL VIEW & PRINT MODAL ── */}

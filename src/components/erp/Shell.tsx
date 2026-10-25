@@ -490,7 +490,7 @@ function Topbar({ title, onMenu }: { title: string; onMenu?: (() => void) | unde
           alt={displayName}
           className="h-10 w-auto object-contain max-[760px]:h-8"
           onError={(e) => {
-            (e.target as HTMLElement).src = CLINIC_CONFIG.logoPath;
+            (e.target as HTMLImageElement).src = CLINIC_CONFIG.logoPath;
           }}
         />
         {!isPlatform && clinicBranding?.tagline && (
