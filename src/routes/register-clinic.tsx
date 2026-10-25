@@ -326,20 +326,20 @@ function RegisterClinicPage() {
         {step === 1 && (
           <div className="space-y-3 animate-in fade-in duration-150">
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Clinic Name *" value={form.clinicName} onChange={(v) => set("clinicName", v)} />
+              <Field label="Clinic Name *" value={form.clinicName} onChange={(v) => set("clinicName", v)} placeholder="Enter clinic name" />
               <Field label="Legal Name" value={form.legalName || ""} onChange={(v) => set("legalName", v)} placeholder="Same as clinic name" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Mobile Number *" value={form.phone} onChange={(v) => set("phone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.phone)} />
+              <Field label="Mobile Number *" value={form.phone} onChange={(v) => set("phone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.phone)} placeholder="Enter 10-digit mobile number" />
               <Field label="WhatsApp Number" value={form.whatsappNumber || ""} onChange={(v) => set("whatsappNumber", digits(v, 10))} placeholder="Same as mobile" prefix="+91" type="tel" inputMode="numeric" error={phoneError(form.whatsappNumber || "", false)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Contact Email *" value={form.email} onChange={(v) => set("email", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.email)} />
-              <Field label="Website" value={form.website || ""} onChange={(v) => set("website", v)} />
+              <Field label="Contact Email *" value={form.email} onChange={(v) => set("email", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.email)} placeholder="Enter contact email" />
+              <Field label="Website" value={form.website || ""} onChange={(v) => set("website", v)} placeholder="Enter website URL" />
             </div>
-            <Field label="Address *" value={form.address} onChange={(v) => set("address", v)} />
+            <Field label="Address *" value={form.address} onChange={(v) => set("address", v)} placeholder="Enter clinic address" />
             <div className="grid grid-cols-3 gap-2">
-              <Field label="City *" value={form.city} onChange={(v) => set("city", v)} />
+              <Field label="City *" value={form.city} onChange={(v) => set("city", v)} placeholder="Enter city" />
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-[#001d39]">State *</label>
                 <select
@@ -352,11 +352,11 @@ function RegisterClinicPage() {
                   ))}
                 </select>
               </div>
-              <Field label="PIN *" value={form.pin} onChange={(v) => set("pin", v.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} error={form.pin ? validatePin(form.pin, true) : null} />
+              <Field label="PIN *" value={form.pin} onChange={(v) => set("pin", v.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} error={form.pin ? validatePin(form.pin, true) : null} placeholder="Enter 6-digit PIN code" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="GSTIN" value={form.gstin || ""} onChange={(v) => set("gstin", v)} placeholder="Optional" />
-              <Field label="PAN" value={form.pan || ""} onChange={(v) => set("pan", v)} placeholder="Optional" />
+              <Field label="GSTIN" value={form.gstin || ""} onChange={(v) => set("gstin", v)} placeholder="Enter 15-digit GSTIN (optional)" />
+              <Field label="PAN" value={form.pan || ""} onChange={(v) => set("pan", v)} placeholder="Enter 10-digit PAN (optional)" />
             </div>
             <label className="flex items-center gap-1.5 cursor-pointer text-[0.68rem] text-muted-foreground select-none pt-0.5">
               <input
@@ -383,9 +383,9 @@ function RegisterClinicPage() {
             <p className="text-xs text-muted-foreground">
               Enter the registered veterinary practitioner responsible for this clinic exactly as on the state veterinary council ID card.
             </p>
-            <Field label="Doctor's Name (as on card) *" value={form.doctorName} onChange={(v) => set("doctorName", v)} />
+            <Field label="Doctor's Name (as on card) *" value={form.doctorName} onChange={(v) => set("doctorName", v)} placeholder="Enter doctor's full name" />
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Council Regn. No. *" value={form.doctorRegNo} onChange={(v) => set("doctorRegNo", v)} />
+              <Field label="Council Regn. No. *" value={form.doctorRegNo} onChange={(v) => set("doctorRegNo", v)} placeholder="Enter council registration number" />
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-[#001d39]">Valid Upto *</label>
                 <input
@@ -406,11 +406,12 @@ function RegisterClinicPage() {
                 list="vet-councils"
                 value={form.doctorCouncil}
                 onChange={(e) => set("doctorCouncil", e.target.value)}
-                className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-white px-3 text-sm outline-none focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
+                placeholder="Select or enter veterinary council"
+                className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-white px-3 text-sm outline-none placeholder:text-[#8aa3ba] focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
               />
               <datalist id="vet-councils">{COUNCILS.map((c) => <option key={c} value={c} />)}</datalist>
             </div>
-            <Field label="Qualification" value={form.doctorQualification || ""} onChange={(v) => set("doctorQualification", v)} />
+            <Field label="Qualification" value={form.doctorQualification || ""} onChange={(v) => set("doctorQualification", v)} placeholder="Enter veterinary qualification" />
 
             <div className="space-y-1">
               <label className="block text-xs font-semibold text-[#001d39]">Council Identity Card (photo / scan) *</label>
@@ -502,7 +503,7 @@ function RegisterClinicPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Tagline" value={form.tagline || ""} onChange={(v) => set("tagline", v)} />
+              <Field label="Tagline" value={form.tagline || ""} onChange={(v) => set("tagline", v)} placeholder="Enter clinic tagline" />
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-[#001d39]">Brand Colour</label>
                 <div className="flex items-center gap-2 h-8">
@@ -534,6 +535,7 @@ function RegisterClinicPage() {
                     label="Kennel Capacity"
                     value={String(form.kennelCapacity ?? 20)}
                     onChange={(v) => set("kennelCapacity", Number(v.replace(/\D/g, "")) || 0)}
+                    placeholder="Enter kennel capacity"
                   />
                 </div>
               )}
@@ -566,14 +568,14 @@ function RegisterClinicPage() {
         {step === 4 && (
           <div className="space-y-3 animate-in fade-in duration-150">
             <p className="text-xs text-muted-foreground">This account becomes the clinic's administrator.</p>
-            <Field label="Full Name *" value={form.adminFullName} onChange={(v) => set("adminFullName", v)} />
+            <Field label="Full Name *" value={form.adminFullName} onChange={(v) => set("adminFullName", v)} placeholder="Enter full name" />
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Admin Email *" value={form.adminEmail} onChange={(v) => set("adminEmail", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.adminEmail)} />
-              <Field label="Mobile Number" value={form.adminPhone || ""} onChange={(v) => set("adminPhone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.adminPhone || "", false)} />
+              <Field label="Admin Email *" value={form.adminEmail} onChange={(v) => set("adminEmail", v.toLowerCase().replace(/\s/g, ""))} type="email" inputMode="email" autoComplete="email" error={emailError(form.adminEmail)} placeholder="Enter admin email" />
+              <Field label="Mobile Number" value={form.adminPhone || ""} onChange={(v) => set("adminPhone", digits(v, 10))} prefix="+91" type="tel" inputMode="numeric" autoComplete="tel-national" error={phoneError(form.adminPhone || "", false)} placeholder="Enter 10-digit mobile number" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Password *" value={form.adminPassword} onChange={(v) => set("adminPassword", v)} type="password" />
-              <Field label="Confirm Password *" value={confirmPassword} onChange={setConfirmPassword} type="password" />
+              <Field label="Password *" value={form.adminPassword} onChange={(v) => set("adminPassword", v)} type="password" placeholder="Create admin password" />
+              <Field label="Confirm Password *" value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Confirm admin password" />
             </div>
             <div className="flex gap-2 mt-2">
               <button type="button" onClick={() => setStep(4)} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#bcd0e2] px-5 text-sm font-bold text-[#001d39] hover:bg-[#eaf3fa]">
@@ -680,7 +682,7 @@ function Field({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           aria-invalid={bad}
-          className="h-full w-full bg-transparent px-3 text-sm outline-none"
+          className="h-full w-full bg-transparent px-3 text-sm outline-none placeholder:text-[#8aa3ba]"
           {...rest}
         />
       </div>

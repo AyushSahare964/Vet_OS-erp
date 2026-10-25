@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { 
   Eye, 
@@ -392,7 +392,7 @@ function AuthPage() {
                             setLoginEmail(`${loginEmail}@gmail.com`);
                           }
                         }}
-                       
+                        placeholder="Enter work email"
                         className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] pl-9 pr-3 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none transition-all focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <datalist id="login-email-suggestions">
@@ -422,8 +422,8 @@ function AuthPage() {
                         required
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                       
-                        className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] pl-9 pr-9 text-xs text-[#08233f] outline-none transition-all focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
+                        placeholder="Enter password"
+                        className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] pl-9 pr-9 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none transition-all focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <button
                         type="button"
@@ -557,8 +557,8 @@ function AuthPage() {
                             setFpEmail(`${fpEmail}@gmail.com`);
                           }
                         }}
-                       
-                        className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-3 text-xs text-[#08233f] outline-none focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
+                        placeholder="Enter registered email"
+                        className="h-10 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-3 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none focus:bg-white focus:border-[#0a4174] focus:ring-2 focus:ring-[#7bbde8]/40"
                       />
                       <datalist id="fp-email-suggestions">
                         {COMMON_EMAIL_DOMAINS.map((dom) => {
@@ -609,8 +609,8 @@ function AuthPage() {
                         required
                         value={regData.fullName}
                         onChange={(e) => setRegData({ ...regData, fullName: e.target.value })}
-                       
-                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
+                        placeholder="Enter full name"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
                     <div className="space-y-0.5">
@@ -631,8 +631,8 @@ function AuthPage() {
                               setRegData({ ...regData, email: `${regData.email}@gmail.com` });
                             }
                           }}
-                         
-                          className="h-8.5 min-w-0 flex-1 rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
+                          placeholder="Enter work email"
+                          className="h-8.5 min-w-0 flex-1 rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none focus:bg-white focus:border-[#0a4174]"
                         />
                         {emailVerified ? (
                           <span className="inline-flex h-8.5 items-center rounded-xl bg-emerald-50 px-2 text-[0.68rem] font-bold text-emerald-700">✓ Verified</span>
@@ -661,8 +661,8 @@ function AuthPage() {
                           maxLength={6}
                           value={otp}
                           onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                         
-                          className="h-8 w-28 rounded-lg border border-[#bcd0e2] bg-white px-2 text-center text-sm font-mono tracking-[0.35em] outline-none focus:border-[#0a4174]"
+                          placeholder="6-digit code"
+                          className="h-8 w-28 rounded-lg border border-[#bcd0e2] bg-white px-2 text-center text-sm font-mono tracking-[0.35em] placeholder:tracking-normal placeholder:text-xs placeholder-[#7a93ab] outline-none focus:border-[#0a4174]"
                         />
                         <button type="button" onClick={handleConfirmOtp} disabled={loading || otp.length !== 6 || expiresIn <= 0} className="h-8 rounded-lg bg-[#001d39] px-3 text-[0.68rem] font-bold text-[#7bbde8] disabled:opacity-60">
                           Confirm
@@ -700,8 +700,8 @@ function AuthPage() {
                           const clean = clean10DigitPhone(e.target.value);
                           setRegData({ ...regData, phone: clean });
                         }}
-                       
-                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174] font-mono tracking-wide"
+                        placeholder="Enter 10-digit phone number"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none focus:bg-white focus:border-[#0a4174] font-mono tracking-wide placeholder:font-sans placeholder:tracking-normal"
                       />
                     </div>
                     <div className="space-y-0.5">
@@ -728,8 +728,8 @@ function AuthPage() {
                         required
                         value={regData.password}
                         onChange={(e) => setRegData({ ...regData, password: e.target.value })}
-                       
-                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
+                        placeholder="Create password"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
                     <div className="space-y-0.5">
@@ -739,8 +739,8 @@ function AuthPage() {
                         required
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                       
-                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
+                        placeholder="Confirm password"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
                   </div>
@@ -766,8 +766,8 @@ function AuthPage() {
                         type="text"
                         value={regData.licenseNumber}
                         onChange={(e) => setRegData({ ...regData, licenseNumber: e.target.value })}
-                       
-                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs outline-none focus:bg-white focus:border-[#0a4174]"
+                        placeholder="Enter registration or license number"
+                        className="h-8.5 w-full rounded-xl border border-[#bcd0e2] bg-[#f8fbfe] px-2.5 text-xs text-[#08233f] placeholder-[#7a93ab] outline-none focus:bg-white focus:border-[#0a4174]"
                       />
                     </div>
                   </div>

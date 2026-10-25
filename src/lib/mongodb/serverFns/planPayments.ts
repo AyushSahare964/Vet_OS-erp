@@ -10,6 +10,7 @@ import { connectDB } from "@/lib/mongodb/client";
 import { PlanPaymentModel } from "@/lib/mongodb/models/PlanPayment";
 import { SUBSCRIPTION_PLANS, planChargePaise } from "@/lib/erp/features";
 import { isValidSubscriptionSignature } from "@/lib/erp/razorpaySignature";
+import { sendEmail, appUrl, logoUrl, inr } from "@/lib/email";
 
 const API = "https://api.razorpay.com/v1";
 /** Razorpay needs a finite cycle count; 120 monthly cycles = 10 years, after which it stops billing. */
@@ -100,5 +101,31 @@ export const verifyPlanPaymentFn = createServerFn({ method: "POST" })
       { subscriptionId: data.subscriptionId, status: "CREATED" },
       { status: "PAID", paymentId: data.paymentId },
     );
-    return res.matchedCount ? { ok: true } : { ok: false, message: "Unknown or already verified payment." };
+    if (!res.matchedCount) return { ok: false, message: "Unknown or already verified payment." };
+
+    // Confirmation email (EmailJS template_if1tch1) to the address the customer typed into Razorpay checkout.
+    // Awaited (serverless would kill a floating promise); sendEmail never throws, and the status guard above
+    // means this runs once per payment.
+    try {
+      const pay = await call<{ email?: string; amount: number }>(`/payments/${encodeURIComponent(data.paymentId)}`);
+      if (pay.email) {
+        await sendEmail({
+          to: pay.email,
+          subject: "Payment received - VetechIQ Pro plan",
+          queryType: "paymentConfirmation",
+          templateParams: {
+            plan_name: SUBSCRIPTION_PLANS.plan_professional.name,
+            amount: inr(pay.amount / 100),
+            payment_id: data.paymentId,
+            subscription_id: data.subscriptionId,
+            paid_on: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+            logo_url: logoUrl("/vettechiq-logo.png"),
+            register_url: `${appUrl()}/register-clinic?plan=plan_professional&pay=${encodeURIComponent(data.paymentId)}`,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn("[razorpay] confirmation email skipped:", e);
+    }
+    return { ok: true };
   });

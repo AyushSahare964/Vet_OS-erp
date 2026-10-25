@@ -5,9 +5,10 @@
  */
 const ENDPOINT = "https://api.emailjs.com/api/v1.0/email/send";
 
-export type EmailQueryType = "registrationOTP" | "passwordReset" | "clinicWelcome" | "demoRequest";
+export type EmailQueryType = "registrationOTP" | "passwordReset" | "clinicWelcome" | "demoRequest" | "paymentConfirmation";
 
 const TEMPLATE_ENV: Record<EmailQueryType, string> = {
+  paymentConfirmation: "EMAILJS_TEMPLATE_PAYMENT_CONFIRMATION",
   registrationOTP: "EMAILJS_TEMPLATE_REGISTRATION_OTP",
   passwordReset: "EMAILJS_TEMPLATE_PASSWORD_RESET",
   clinicWelcome: "EMAILJS_TEMPLATE_CLINIC_WELCOME",
@@ -17,6 +18,7 @@ const TEMPLATE_ENV: Record<EmailQueryType, string> = {
 // Template IDs are not secrets. They match the two templates in the clinic's EmailJS account
 // (email-templates/2_registration_otp.html and 3_password_reset.html); env vars override them.
 const DEFAULT_TEMPLATE_ID: Record<EmailQueryType, string> = {
+  paymentConfirmation: "template_if1tch1", // email-templates/4_payment_confirmation.html
   registrationOTP: "template_zo51h1i",
   passwordReset: "template_rep7mlc",
   clinicWelcome: "template_1s5wswj",
