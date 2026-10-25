@@ -3,15 +3,6 @@ import { todayIST } from "@/lib/utils/dateUtils";
 
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
   Pill,
   Search,
   Plus,
@@ -31,23 +22,14 @@ import { KpiCard } from "@/components/erp/KpiCard";
 import { StatusPill } from "@/components/erp/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { NewRetailSaleModal } from "./NewRetailSaleModal";
 import { RetailReceiptModal } from "./RetailReceiptModal";
 import { listRetailSalesFn, createRetailSaleFn } from "@/lib/mongodb/serverFns/pharmacy";
 import { cn } from "@/lib/utils";
-import { InventoryProvider } from "@/components/erp/inventory/useInventoryStore";
-
-const RETAIL_SALES_SERIES = [
-  { name: "Mar", value: 0 },
-  { name: "Apr", value: 0 },
-  { name: "May", value: 0 },
-  { name: "Jun", value: 0 },
-  { name: "Jul", value: 0 },
-  { name: "Aug", value: 0 },
-];
+import { InventoryProvider, useInventory } from "@/components/erp/inventory/useInventoryStore";
+import { MovementsLog } from "@/components/erp/inventory/StockMovements";
 
 function PharmacyRetailHubInner() {
   const [bills, setBills] = useState<any[]>([]);
@@ -55,6 +37,15 @@ function PharmacyRetailHubInner() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [tab, setTab] = useState<"sales" | "ledger" | "stock">("sales");
+  const { medicines, getTotalQty, getStockStatus } = useInventory();
+
+  const stockRows = useMemo(
+    () => medicines.filter((m) => m.status === "Active").map((m) => ({ m, qty: getTotalQty(m.itemCode), status: getStockStatus(m.itemCode) })),
+    [medicines, getTotalQty, getStockStatus],
+  );
+  const outOfStock = stockRows.filter((r) => r.status === "Out of Stock").length;
+  const lowStock = stockRows.filter((r) => r.status === "Low").length;
 
   // "Today" = bills dated today (clinic local date), not every bill ever saved
   const todayBills = useMemo(() => bills.filter((b) => String(b.date ?? "").slice(0, 10) === todayIST()), [bills]);
@@ -191,55 +182,64 @@ function PharmacyRetailHubInner() {
             index={2}
           />
           <KpiCard
-            kpi={{ label: "OUT OF STOCK", value: "0", trend: "inventory sync", trendTone: "flat" }}
+            kpi={{ label: "OUT OF STOCK", value: String(outOfStock), trend: `${lowStock} low stock`, trendTone: "flat" }}
             index={3}
           />
         </div>
 
-        {/* RETAIL SALES (₹ THOUSAND) Chart (Exact Screenshot Match) */}
-        <div className="erp-card p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">RETAIL SALES (₹ THOUSAND)</p>
-              <p className="text-[11px] text-muted-foreground">Monthly pharmacy prescription &amp; pet accessory revenue</p>
-            </div>
-            <Badge variant="outline" className="text-xs font-semibold text-primary bg-primary/10">
-              Peak: ₹1,260K (Aug)
-            </Badge>
-          </div>
-
-          <div className="h-[210px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={RETAIL_SALES_SERIES} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }}
-                />
-                <Tooltip
-                  cursor={{ fill: "var(--color-muted)" }}
-                  contentStyle={{
-                    borderRadius: 10,
-                    border: "1px solid var(--color-border)",
-                    fontSize: 12,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-                  }}
-                  formatter={(val: any) => [`₹${val}K`, "Revenue"]}
-                />
-                <Bar dataKey="value" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={48} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        {/* Section tabs */}
+        <div className="flex gap-1 rounded-xl border border-border bg-muted/40 p-1 w-fit">
+          {([["sales", "Sales"], ["ledger", "Medicine Ledger"], ["stock", "Stock Status"]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setTab(k)}
+              className={cn(
+                "rounded-lg px-4 py-1.5 text-xs font-bold transition-all",
+                tab === k ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
+        {tab === "ledger" && <MovementsLog />}
+
+        {tab === "stock" && (
+          <div className="erp-card overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-muted/50 text-muted-foreground border-b border-border text-left font-bold uppercase tracking-wider text-[11px]">
+                  <th className="px-4 py-3">ITEM</th>
+                  <th className="px-4 py-3">CATEGORY</th>
+                  <th className="px-4 py-3 text-right">IN STOCK</th>
+                  <th className="px-4 py-3 text-right">REORDER LEVEL</th>
+                  <th className="px-4 py-3">STATUS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {[...stockRows].sort((a, b) => a.qty - b.qty).map(({ m, qty, status }) => (
+                  <tr key={m.itemCode} className="hover:bg-primary-soft/30">
+                    <td className="px-4 py-3"><p className="font-bold text-foreground">{m.name}</p><p className="text-[10px] font-mono text-muted-foreground">{m.itemCode}</p></td>
+                    <td className="px-4 py-3">{m.category}</td>
+                    <td className="px-4 py-3 text-right font-mono font-bold">{qty}</td>
+                    <td className="px-4 py-3 text-right font-mono">{m.reorderLevel}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn("rounded px-2 py-0.5 text-[11px] font-bold", status === "OK" ? "bg-emerald-500/10 text-emerald-600" : status === "Low" ? "bg-amber-500/10 text-amber-600" : "bg-rose-500/10 text-rose-600")}>{status}</span>
+                    </td>
+                  </tr>
+                ))}
+                {stockRows.length === 0 && (
+                  <tr><td colSpan={5} className="py-12 text-center text-xs text-muted-foreground">No inventory items yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* Table & Filters (Exact Columns: BILL, ITEM, CATEGORY, QTY, AMOUNT, PAYMENT, STATUS) */}
+        {tab === "sales" && (
         <div className="erp-card overflow-hidden shadow-xs space-y-0">
           <div className="flex flex-wrap items-center gap-3 border-b border-border p-4 bg-card">
             <div className="relative min-w-[240px] flex-1">
@@ -366,6 +366,7 @@ function PharmacyRetailHubInner() {
             </table>
           </div>
         </div>
+        )}
 
         {/* Modals */}
         <NewRetailSaleModal

@@ -722,7 +722,7 @@ function StockReconciliationPanel() {
 }
 
 // ─── Authoritative Transaction Ledger Table ──────────────────────────────────
-function MovementsLog() {
+export function MovementsLog() {
   const { ledger, medicines } = useInventory();
   const [filterType, setFilterType] = useState("all");
 
