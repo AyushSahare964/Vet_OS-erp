@@ -5,9 +5,8 @@ import { listInvoicesFn } from "@/lib/mongodb/serverFns/billing";
 import { InventoryProvider } from "@/components/erp/inventory/useInventoryStore";
 import { useClinicBranding } from "@/lib/erp/useClinicBranding";
 
-// One-Page Dashboard Component & Right Rail
+// One-Page Dashboard Component
 import { BillingDeskDashboard, type RegisterTab } from "./BillingDeskDashboard";
-import { RightRail } from "./RightRail";
 
 // Modals
 import { InvoiceDetailModal } from "./InvoiceDetailModal";
@@ -142,72 +141,52 @@ function PatientBillingHubInner({ initialRegisterTab }: { initialRegisterTab?: R
 
   return (
     <Shell title={`Billing Desk — ${CLINIC_CONFIG.fullName}`}>
-      <div className="flex gap-4 items-start mx-auto max-w-[1720px]">
-        {/* ── Main Scrolling Dashboard Area ── */}
-        <div className="flex-1 min-w-0">
-          <BillingDeskDashboard
-            invoices={invoices}
-            loading={loading}
-            deepLinkPet={deepLinkPet}
-            onRefresh={loadInvoices}
-            purchasesRefreshKey={purchasesRefreshKey}
-            suppliersRefreshKey={suppliersRefreshKey}
-            clientsRefreshKey={clientsRefreshKey}
-            {...(initialRegisterTab ? { initialRegisterTab } : {})}
-            onNewInvoice={() => setShowNewInvoiceModal(true)}
-            onNewQuotation={() => setShowQuotationModal(true)}
-            onAddPurchase={() => setShowPurchaseBillModal(true)}
-            onEditPurchaseBillDraft={(d) => {
-              setEditingBillDraft(d);
-              setShowPurchaseBillModal(true);
-            }}
-            onAddPurchaseOrder={() => setShowPurchaseOrderModal(true)}
-            onEditPurchaseOrderDraft={(d) => {
-              setEditingPoDraft(d);
-              setShowPurchaseOrderModal(true);
-            }}
-            onReceivePurchaseOrder={(po) => setReceivePO(po)}
-            onAddExpense={() => setShowExpenseModal(true)}
-            onPaymentIn={(invoiceNo) => {
-              setPayInvoiceNo(invoiceNo);
-              setShowPaymentInModal(true);
-            }}
-            onPaymentOut={() => setShowExpenseModal(true)}
-            onAddCustomer={() => setShowPetOwnerModal(true)}
-            onAddSupplier={() => {
-              setEditingSupplier(null);
-              setShowNewSupplierModal(true);
-            }}
-            onEditSupplier={(sup) => {
-              setEditingSupplier(sup);
-              setShowNewSupplierModal(true);
-            }}
-            onViewSupplierLedger={(supId) => setSelectedSupplierForLedger(supId)}
-            onAddReminder={() => setShowReminderModal(true)}
-            onViewInvoice={(invoice) => setSelectedInvoice(invoice)}
-            onConvertToInvoice={(quotation) => {
-              setShowNewInvoiceModal(true);
-              toast.success(`Converting quotation ${quotation.quotationNo} for ${quotation.petName} to Live Invoice!`);
-            }}
-          />
-        </div>
-
-        {/* ── Right Rail (Narrow Icon Rail from Plan §5.2) ── */}
-        <RightRail
+      <div className="w-full">
+        {/* ── Main Dashboard Area (Full-Width, Aligned with Shell Topbar & Floating Bars) ── */}
+        <BillingDeskDashboard
+          invoices={invoices}
+          loading={loading}
+          deepLinkPet={deepLinkPet}
+          onRefresh={loadInvoices}
+          purchasesRefreshKey={purchasesRefreshKey}
+          suppliersRefreshKey={suppliersRefreshKey}
+          clientsRefreshKey={clientsRefreshKey}
+          {...(initialRegisterTab ? { initialRegisterTab } : {})}
           onNewInvoice={() => setShowNewInvoiceModal(true)}
           onNewQuotation={() => setShowQuotationModal(true)}
           onAddPurchase={() => setShowPurchaseBillModal(true)}
+          onEditPurchaseBillDraft={(d) => {
+            setEditingBillDraft(d);
+            setShowPurchaseBillModal(true);
+          }}
+          onAddPurchaseOrder={() => setShowPurchaseOrderModal(true)}
+          onEditPurchaseOrderDraft={(d) => {
+            setEditingPoDraft(d);
+            setShowPurchaseOrderModal(true);
+          }}
+          onReceivePurchaseOrder={(po) => setReceivePO(po)}
           onAddExpense={() => setShowExpenseModal(true)}
-          onAddCustomer={() => setShowPetOwnerModal(true)}
-          onAddReminder={() => setShowReminderModal(true)}
-          onPaymentIn={() => {
-            setPayInvoiceNo(undefined);
+          onPaymentIn={(invoiceNo) => {
+            setPayInvoiceNo(invoiceNo);
             setShowPaymentInModal(true);
           }}
           onPaymentOut={() => setShowExpenseModal(true)}
-          onOpenDailySummary={() => setShowDailySummary(true)}
-          onOpenStockSummary={() => setShowStockSummary(true)}
-          onPurchaseOrder={() => setShowPurchaseOrderModal(true)}
+          onAddCustomer={() => setShowPetOwnerModal(true)}
+          onAddSupplier={() => {
+            setEditingSupplier(null);
+            setShowNewSupplierModal(true);
+          }}
+          onEditSupplier={(sup) => {
+            setEditingSupplier(sup);
+            setShowNewSupplierModal(true);
+          }}
+          onViewSupplierLedger={(supId) => setSelectedSupplierForLedger(supId)}
+          onAddReminder={() => setShowReminderModal(true)}
+          onViewInvoice={(invoice) => setSelectedInvoice(invoice)}
+          onConvertToInvoice={(quotation) => {
+            setShowNewInvoiceModal(true);
+            toast.success(`Converting quotation ${quotation.quotationNo} for ${quotation.petName} to Live Invoice!`);
+          }}
         />
 
         {/* ── 1. Full Patient Bill Detail Modal ── */}
