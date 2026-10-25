@@ -5,12 +5,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getPlanTimeline } from "@/lib/erp/planTimeline";
+import { PlanCountdown } from "./PlanCountdown";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   getTenantDetailFn,
   setTenantStatusFn,
   setTenantPlanFn,
-  extendTenantTrialFn,
   verifyTenantDoctorFn,
 } from "@/lib/mongodb/serverFns/platform";
 
@@ -120,7 +121,7 @@ export function TenantDetailDialog({ tenantId, onClose, onChanged }: { tenantId:
   const cfg = d?.config;
   const doc = t?.doctor;
   const docs: { name: string; dataUri: string; uploadedAt?: string }[] = t?.documents ?? [];
-  const daysLeft = t?.trialEndsAt ? Math.ceil((new Date(t.trialEndsAt).getTime() - Date.now()) / 864e5) : null;
+  const daysLeft = t ? getPlanTimeline(t).daysLeft : null;
   const regExpired = doc?.regValidUpto ? new Date(doc.regValidUpto).getTime() < Date.now() : false;
   const fileCount = docs.length + (doc?.idCardDataUri ? 1 : 0);
 
@@ -296,6 +297,7 @@ export function TenantDetailDialog({ tenantId, onClose, onChanged }: { tenantId:
               </TabsContent>
 
               <TabsContent value="plan" className="space-y-4 pt-4">
+                <PlanCountdown tenant={t} />
                 <Section
                   rows={[
                     ["Plan", PLAN_LABEL[t.planId] ?? t.planId],
@@ -320,11 +322,6 @@ export function TenantDetailDialog({ tenantId, onClose, onChanged }: { tenantId:
                       ))}
                     </SelectContent>
                   </Select>
-                  {[7, 14].map((n) => (
-                    <Button key={n} size="sm" variant="outline" disabled={busy} onClick={() => act(() => extendTenantTrialFn({ data: { tenantId: t.tenantId, days: n } }))}>
-                      Extend trial +{n} days
-                    </Button>
-                  ))}
                 </div>
               </TabsContent>
 

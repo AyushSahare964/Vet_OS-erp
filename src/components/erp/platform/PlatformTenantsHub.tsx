@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { listTenantsFn } from "@/lib/mongodb/serverFns/platform";
 import { SUBSCRIPTION_PLANS } from "@/lib/erp/features";
+import { getPlanTimeline } from "@/lib/erp/planTimeline";
 import { TenantDetailDialog, PLAN_LABEL } from "./TenantDetailDialog";
 
 interface TenantRow {
@@ -22,6 +23,7 @@ interface TenantRow {
   planId: string;
   subscriptionStatus: string;
   trialEndsAt?: string;
+  paidUntil?: string;
   status: "ACTIVE" | "SUSPENDED";
   doctorVerified?: boolean;
   doctor?: { fullName: string; councilRegNo: string; regValidUpto: string };
@@ -32,7 +34,6 @@ interface TenantRow {
 type Filter = "all" | "ACTIVE" | "TRIAL" | "SUSPENDED" | "UNVERIFIED";
 
 const fmtDate = (v?: string) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
-const daysLeft = (v?: string) => (v ? Math.ceil((new Date(v).getTime() - Date.now()) / 864e5) : null);
 
 const MATCHERS: Record<Filter, (t: TenantRow) => boolean> = {
   all: () => true,
@@ -162,7 +163,7 @@ export function PlatformTenantsHub() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {rows.map((t) => {
-                    const left = daysLeft(t.trialEndsAt);
+                    const left = getPlanTimeline(t).daysLeft;
                     const docCount = (t.documents?.length ?? 0) + (t.doctor ? 1 : 0); // + the council ID card from step 2
                     return (
                       <motion.tr key={t.tenantId} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="cursor-pointer hover:bg-slate-50/60" onClick={() => setOpenId(t.tenantId)}>
