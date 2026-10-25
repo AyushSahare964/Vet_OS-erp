@@ -38,6 +38,7 @@ export interface DocRecordRow {
   vaccines: Array<Record<string, string>>;
   vaccineTable: boolean;
   signatures: string[];
+  signatureImages?: Record<string, string>;
 }
 
 const saveZ = z.object({
@@ -52,6 +53,7 @@ const saveZ = z.object({
   vaccines: z.array(z.record(z.string())).max(200).default([]),
   vaccineTable: z.boolean().default(false),
   signatures: z.array(z.string()).max(6),
+  signatureImages: z.record(z.string().max(200_000)).optional(),
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

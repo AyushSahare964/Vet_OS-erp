@@ -69,13 +69,6 @@ export function exportAnalyticsCsv(activeTab: AnalyticsTabId, data: AnalyticsRes
       header = "Category,Report Count";
       rows = data.clinicalAnalytics.reportsByCategory.map((c) => `"${c.category}","${c.count}"`);
       break;
-
-    case "cross-module":
-      header = "Pet ID,Pet Name,Owner,Visits,Total Billed,Total Paid,Outstanding";
-      rows = data.crossModule.petBillingChains.map(
-        (c) => `"${c.petId}","${c.petName}","${c.ownerName}","${c.visitsCount}","₹${c.totalBilled}","₹${c.totalPaid}","₹${c.outstanding}"`
-      );
-      break;
   }
 
   const csvContent = `${header}\n${rows.join("\n")}`;

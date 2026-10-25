@@ -23,6 +23,7 @@ import {
   BellRing,
   Send,
 } from "lucide-react";
+import { loadDoctorSignature } from "@/components/erp/documentation/SignatureCapture";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1158,7 +1159,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
       const rawDisc = l.discountValue !== undefined && l.discountValue !== null ? Number(l.discountValue) : (Number(l.discountPercent) || 0);
       const discVal = Math.max(0, isNaN(rawDisc) ? 0 : rawDisc);
 
-      const isLineGstActive = isGstBill ? (l.gstApplicable !== false) : (l.gstApplicable === true);
+      const isLineGstActive = l.lineType !== "Consultation" && (isGstBill ? (l.gstApplicable !== false) : (l.gstApplicable === true));
       const rate = Number(l.gstRate) || 0;
 
       const calc = calcLineItem({
@@ -1326,7 +1327,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
         },
         items: lines.map((l) => {
           const isGstBill = billType === "GST";
-          const applyGst = isGstBill ? (l.gstApplicable !== false) : (l.gstApplicable === true);
+          const applyGst = l.lineType !== "Consultation" && (isGstBill ? (l.gstApplicable !== false) : (l.gstApplicable === true));
           const dType: "percentage" | "fixed" = (l.discountType === "fixed" || l.discountType === "₹") ? "fixed" : "percentage";
           const rawDisc = l.discountValue !== undefined && l.discountValue !== null ? Number(l.discountValue) : (Number(l.discountPercent) || 0);
           const discVal = Math.max(0, isNaN(rawDisc) ? 0 : rawDisc);
@@ -1396,7 +1397,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
 
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className={cn("max-h-[96vh] flex flex-col p-0 overflow-hidden transition-all duration-300", tab === "completed" ? "w-[98vw] max-w-[1600px]" : "max-w-5xl")}>
+      <DialogContent className={cn("flex flex-col p-0 overflow-hidden transition-all duration-300 h-screen max-h-screen w-screen max-w-none rounded-none sm:rounded-none")}>
         {/* ── Top Bar Header ────────────────────────────────────────────── */}
         <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1597,7 +1598,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                     <tbody className="divide-y divide-border/40">
                       {lines.map((l) => {
                         const isGstBill = billType === "GST";
-                        const isLineGstActive = isGstBill ? (l.gstApplicable !== false) : (l.gstApplicable === true);
+                        const isLineGstActive = l.lineType !== "Consultation" && (isGstBill ? (l.gstApplicable !== false) : (l.gstApplicable === true));
                         const dType: "percentage" | "fixed" = (l.discountType === "fixed" || l.discountType === "₹") ? "fixed" : "percentage";
                         const rawDisc = l.discountValue !== undefined && l.discountValue !== null ? Number(l.discountValue) : (Number(l.discountPercent) || 0);
                         const discVal = Math.max(0, isNaN(rawDisc) ? 0 : rawDisc);
@@ -1717,6 +1718,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                                 <div className="flex items-center justify-center gap-1.5">
                                   <Switch
                                     checked={isLineGstActive}
+                                    disabled={l.lineType === "Consultation"}
                                     onCheckedChange={(checked) => handleGstToggle(l.id, checked)}
                                     className="scale-90 shrink-0"
                                     title={isLineGstActive ? "GST enabled — click to make tax-exempt" : "GST exempt — click to apply tax"}
@@ -2648,6 +2650,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                           <p className="text-[11px] text-slate-500" style={{ color: "#64748b", fontSize: "11px", margin: 0 }}>Store temperature-sensitive medications in cool and dry place.</p>
                         </div>
                         <div className="text-center min-w-[160px]" style={{ textAlign: "center", minWidth: "160px", marginLeft: "auto" }}>
+                          {loadDoctorSignature() && <img src={loadDoctorSignature()} alt="Doctor signature" style={{ maxHeight: "48px", margin: "0 auto" }} />}
                           <div className="text-slate-500 font-serif italic text-xs pb-1" style={{ fontFamily: "Georgia, serif", fontStyle: "italic", color: "#64748b", fontSize: "11px", paddingBottom: "2px" }}>
                             Digitally Signed
                           </div>
@@ -2785,7 +2788,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                             const discVal = Math.max(0, isNaN(rawDisc) ? 0 : rawDisc);
 
                             const isGst = finalizedVisit.billType === "GST";
-                            const isLineGst = isGst ? (item.gstApplicable !== false) : (item.gstApplicable === true);
+                            const isLineGst = item.lineType !== "Consultation" && (isGst ? (item.gstApplicable !== false) : (item.gstApplicable === true));
                             const rate = isLineGst ? (Number(item.gstRate) || 0) : 0;
 
                             const lineCalc = calcLineItem({

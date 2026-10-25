@@ -150,6 +150,7 @@ export function SavedDocuments() {
                   vaccines: open.vaccines,
                   vaccineTable: open.vaccineTable,
                   signatures: open.signatures,
+                  signatureImages: open.signatureImages,
                   doctor: open.doctor,
                 }}
               />

@@ -41,6 +41,7 @@ export function DocumentationCenter() {
   // Manual edits made directly on the document; cleared when the patient / template changes
   const [hdrEdits, setHdrEdits] = useState<Record<string, string>>({});
   const [paraEdits, setParaEdits] = useState<Record<number, string>>({});
+  const [sigs, setSigs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => setHdrEdits({}), [pet?.petId]);
@@ -131,6 +132,7 @@ export function DocumentationCenter() {
     })),
     vaccineTable: !!tpl.vaccineTable,
     signatures: tpl.signatures,
+    signatureImages: sigs,
     doctor,
   };
   const edited = Object.keys(hdrEdits).length > 0 || Object.keys(paraEdits).length > 0;
@@ -152,6 +154,7 @@ export function DocumentationCenter() {
           vaccines: sheet.vaccines,
           vaccineTable: sheet.vaccineTable,
           signatures: sheet.signatures,
+          signatureImages: sigs,
         },
       });
       toast.success(`Saved as ${res.docNo} — find it under Saved documents.`);
@@ -303,6 +306,12 @@ export function DocumentationCenter() {
           data={sheet}
           onHeader={(k, v) => setHdrEdits((e) => ({ ...e, [k]: v }))}
           onParagraph={(i, v) => setParaEdits((e) => ({ ...e, [i]: v }))}
+          onSign={(label, url) =>
+            setSigs((s) => {
+              const { [label]: _drop, ...rest } = s;
+              return url ? { ...rest, [label]: url } : rest;
+            })
+          }
           emptyVaccineMessage={pet ? "No vaccination records found for this patient." : "Select a patient to fill the vaccine history."}
         />
       </div>

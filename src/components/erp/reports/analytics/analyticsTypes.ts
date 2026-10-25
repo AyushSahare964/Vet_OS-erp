@@ -9,8 +9,7 @@ export type AnalyticsTabId =
   | "payments"
   | "laboratory"
   | "inventory"
-  | "clinical"
-  | "cross-module";
+  | "clinical";
 
 export interface DrilldownTarget {
   title: string;

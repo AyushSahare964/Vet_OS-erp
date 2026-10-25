@@ -28,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { SignatureCapture, loadDoctorSignature, saveDoctorSignature } from "@/components/erp/documentation/SignatureCapture";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -256,6 +257,7 @@ export function PrescriptionWorkflow({
     visit?.status === "Paid" || visit?.status === "Settled" || visit?.status === "Closed";
 
   // Optimistic version & Ref for synchronous sequential saves
+  const [docSig, setDocSig] = useState<string>(loadDoctorSignature);
   const [version, setVersion] = useState<number>(initialRx.version || 1);
   const versionRef = useRef<number>(initialRx.version || 1);
 
@@ -1481,6 +1483,14 @@ export function PrescriptionWorkflow({
             <Calendar className="size-3.5 text-primary" />
             <span>Date: {formattedVisitDate}</span>
           </Badge>
+          <SignatureCapture
+            label="Digital Sign"
+            hasSignature={!!docSig}
+            onChange={(u) => {
+              saveDoctorSignature(u);
+              setDocSig(u);
+            }}
+          />
           {onOpenPrint && (
             <Button
               variant="outline"
