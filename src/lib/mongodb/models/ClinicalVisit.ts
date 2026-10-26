@@ -341,7 +341,7 @@ const ClinicalVisitSchema = new Schema<IClinicalVisit>(
     ownerId: { type: String, required: true, index: true },
     ownerName: { type: String, required: true },
     ownerPhone: { type: String, required: true },
-    doctorName: { type: String, default: "Dr. Rohit Sharma" },
+    doctorName: { type: String, default: "" },
     receptionistName: { type: String, default: "Front Desk" },
     appointmentToken: { type: String, index: true },
 

@@ -54,9 +54,6 @@ const STAFF_OPTIONS = [
   "Billing Counter Staff",
   "Jyoti Sahare (Front Desk)",
   "Sneha Kulkarni (Pharmacy)",
-  "Dr. Rohit Sharma",
-  "Dr. Aisha Nair",
-  "Dr. Vikram Rao",
 ];
 
 export function PaymentInModal({

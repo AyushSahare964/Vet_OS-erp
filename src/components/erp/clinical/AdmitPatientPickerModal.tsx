@@ -76,7 +76,7 @@ export function AdmitPatientPickerModal({
 }: AdmitPatientPickerModalProps) {
   const { currentUser, role } = useErp();
   const activeDoctorName =
-    currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role?.person || "Dr. Rohit Sharma");
+    currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role?.person || "");
 
   const [tab, setTab] = useState<"appointments" | "crm" | "walkin">("appointments");
   const [appointments, setAppointments] = useState<any[]>([]);

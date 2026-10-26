@@ -58,7 +58,7 @@ const QuotationSchema = new Schema<IQuotation>(
     breed: { type: String, default: "" },
     ownerName: { type: String, required: true },
     ownerPhone: { type: String, default: "" },
-    doctorName: { type: String, default: "Dr. Rohit Sharma" },
+    doctorName: { type: String, default: "" },
     address: { type: String, default: "" },
     placeOfSupply: { type: String, default: "Maharashtra" },
     clientGstin: { type: String, default: "" },

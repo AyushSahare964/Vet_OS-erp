@@ -20,7 +20,7 @@ import { ClinicHome } from "./ClinicHome";
 export function ClinicDashboard({ title = "Clinic Dashboard" }: { title?: string }) {
   const { role, roleId, currentUser } = useErp();
   const activeDoctorName =
-    currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role.person || "Dr. Rohit Sharma");
+    currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role.person || "");
 
   // Modals state
   const [showRegisterModal, setShowRegisterModal] = useState(false);

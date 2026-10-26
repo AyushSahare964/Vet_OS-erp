@@ -276,7 +276,7 @@ export function PetOwnerCrmHub() {
       ownerId: ownerInfo.ownerId || pet.ownerId,
       ownerName: ownerInfo.name,
       ownerPhone: ownerInfo.phone,
-      doctorName: "Dr. Rohit Sharma",
+      doctorName: "",
       vitals: {
         weightKg: pet.weightKg || 25,
         tempC: 38.5,

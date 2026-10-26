@@ -360,7 +360,7 @@ export function QuotationsRegisterView({ onNewQuotation, onConvertToInvoice, onV
                         )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        {q.doctorName || "Dr. Rohit Sharma"}
+                        {q.doctorName || "—"}
                       </td>
                       <td className="px-4 py-3 max-w-[220px] truncate text-muted-foreground">
                         {q.items?.[0]?.name || "Procedure Package"}

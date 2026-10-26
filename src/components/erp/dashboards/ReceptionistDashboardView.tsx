@@ -672,7 +672,7 @@ export function ReceptionistDashboardView({ role, onOpenConsultation }: Props) {
                   {v.vitals?.complaint || "Routine Checkup"}
                 </p>
                 <p className="text-blue-700 dark:text-blue-300 font-semibold">
-                  Assigned Dr: {v.doctorName || "Dr. Rohit Sharma"}
+                  Assigned Dr: {v.doctorName || "—"}
                 </p>
               </div>
 

@@ -1214,14 +1214,11 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
 
   const isAmountOver = numericAmountReceived > billSummary.totalAmount;
   const isAmountNegative = typeof amountReceived === "number" && amountReceived < 0;
-  const isPartialEmptyOrZero = paymentType === "partial" && (amountReceived === "" || numericAmountReceived <= 0);
 
   const paymentValidationError = isAmountOver
     ? "Paid amount cannot be greater than the total bill."
     : isAmountNegative
     ? "Amount received cannot be negative."
-    : isPartialEmptyOrZero
-    ? "Please enter a valid payment amount."
     : null;
 
   const handleAddMedicineFromCatalog = async () => {

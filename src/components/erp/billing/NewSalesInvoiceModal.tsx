@@ -81,9 +81,6 @@ interface InvoiceGridLine {
 const COMMON_UOMS = ["PCS", "STRIP", "TAB", "BOTTLE", "VIAL", "ML", "GM", "KG", "BOX", "DOSE", "SESSION"];
 
 const CLINIC_STAFF_OPTIONS = [
-  "Dr. Rohit Sharma",
-  "Dr. Aisha Nair",
-  "Dr. Vikram Rao",
   "Sneha Kulkarni (Pharmacy)",
   "Jyoti Sahare (Front Desk)",
   "Cashier / Front Desk",
@@ -115,7 +112,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   // Receptionist invoices always carry a "given by reception" note; the prescribing doctor is optional unless advisedMode.
   const byReception = roleId === "reception";
   const activeDoctorName =
-    currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role?.person || "Dr. Rohit Sharma");
+    currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role?.person || "");
 
   const { medicines } = useInventory();
 
@@ -126,7 +123,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   // ── 1. Invoice Header Information State ──
   const [invoiceType, setInvoiceType] = useState<"GST" | "NON_GST" | "BILL_OF_SUPPLY">("GST");
   const [docDate, setDocDate] = useState(todayIST());
-  const [soldBy, setSoldBy] = useState(activeDoctorName || "Dr. Rohit Sharma");
+  const [soldBy, setSoldBy] = useState(activeDoctorName || "");
   const [customSoldBy, setCustomSoldBy] = useState("");
   const [advisedDoctor, setAdvisedDoctor] = useState("");
   const [doctors, setDoctors] = useState<{ id: string; name: string }[]>([]);

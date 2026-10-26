@@ -343,9 +343,6 @@ export function CreateLabOrderModal({ open, onClose, onOrderCreated }: Props) {
                       {d.specialty && <span className="text-[10px] text-muted-foreground ml-1 font-normal">({d.specialty})</span>}
                     </SelectItem>
                   ))}
-                  {doctorsList.length === 0 && (
-                    <SelectItem value="Dr. Rohit Sharma">Dr. Rohit Sharma (Consultant Vet)</SelectItem>
-                  )}
                 </SelectContent>
               </Select>
             </div>

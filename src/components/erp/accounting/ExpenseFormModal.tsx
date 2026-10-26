@@ -42,7 +42,7 @@ export function ExpenseFormModal({ open, onClose, onSuccess }: ExpenseFormModalP
 
   const [payMode, setPayMode] = useState<"CASH" | "UPI" | "BANK_TRANSFER" | "CARD" | "CHEQUE">("CASH");
   const [paymentRefNo, setPaymentRefNo] = useState("");
-  const [paidBy, setPaidBy] = useState("Dr. Rohit Sharma");
+  const [paidBy, setPaidBy] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -322,7 +322,7 @@ export function ExpenseFormModal({ open, onClose, onSuccess }: ExpenseFormModalP
                     <Input
                       value={paidBy}
                       onChange={(e) => setPaidBy(e.target.value)}
-                      placeholder="Dr. Rohit Sharma"
+                      placeholder="Paid by"
                       className="h-7 text-xs bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 font-medium"
                     />
                   </div>

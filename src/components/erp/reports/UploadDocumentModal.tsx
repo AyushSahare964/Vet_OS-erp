@@ -104,7 +104,7 @@ export function UploadDocumentModal({ open, onClose, onUploaded }: Props) {
       breed: selectedPet.breed || "Mix",
       owner: selectedPet.owner?.name || "Client",
       ownerPhone: selectedPet.owner?.phone || "N/A",
-      doctor: "Dr. Rohit Sharma",
+      doctor: "",
       facility: facilityName,
       date: testDate,
       fileName: fileName || `${docTitle.toLowerCase().replace(/\s+/g, "_")}.pdf`,

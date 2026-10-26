@@ -302,7 +302,7 @@ export function AppointmentsQueueHub() {
           breed: app.breed || "Mix",
           ownerName: app.owner || "Client",
           ownerPhone: app.ownerPhone || "N/A",
-          doctorName: app.doctor || "Dr. Rohit Sharma",
+          doctorName: app.doctor || "",
           receptionistName: "Front Desk",
           vitals: {
             weightKg: 25.0,

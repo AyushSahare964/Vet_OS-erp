@@ -186,7 +186,7 @@
   flex-direction: column;
   gap: 2px;
   border-radius: 14px;
-  background: var(--bar-bg);
+  background: var(--bar-bg, linear-gradient(180deg, #00305c, #001d39));
   border: 1px solid rgb(189 216 233 / 0.28);
   box-shadow: 0 10px 24px rgb(0 29 57 / 0.4), 0 2px 4px rgb(0 29 57 / 0.3);
 }

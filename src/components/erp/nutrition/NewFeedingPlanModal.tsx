@@ -62,7 +62,7 @@ export function NewFeedingPlanModal({ open, onClose, onPlanCreated }: Props) {
     d.setDate(d.getDate() + 21);
     return d.toISOString().slice(0, 10);
   });
-  const [doctor, setDoctor] = useState("Dr. Rohit Sharma");
+  const [doctor, setDoctor] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {

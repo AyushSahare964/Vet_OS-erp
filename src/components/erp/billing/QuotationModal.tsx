@@ -141,7 +141,7 @@ export function QuotationModal({ open, onClose, onConvertToInvoice }: QuotationM
   const [searchPetQuery, setSearchPetQuery] = useState("");
   const [petName, setPetName] = useState("");
   const [species, setSpecies] = useState("Canine");
-  const [doctorName, setDoctorName] = useState("Dr. Rohit Sharma");
+  const [doctorName, setDoctorName] = useState("");
   const [showRegisterPetModal, setShowRegisterPetModal] = useState(false);
 
   // Particulars Active Entry State

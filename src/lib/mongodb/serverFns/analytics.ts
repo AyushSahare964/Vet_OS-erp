@@ -755,7 +755,7 @@ export const getCentralAnalyticsFn = createServerFn({ method: "POST" })
 
     const repDocMap = new Map<string, number>();
     periodReports.forEach((r: any) => {
-      const d = r.doctor || r.facility || "Dr. Rohit Sharma";
+      const d = r.doctor || r.facility || "—";
       repDocMap.set(d, (repDocMap.get(d) || 0) + 1);
     });
     const reportsByDoctor = Array.from(repDocMap.entries()).map(([doctor, count]) => ({ doctor, count }));

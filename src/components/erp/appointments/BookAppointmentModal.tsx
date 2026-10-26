@@ -656,7 +656,7 @@ export function BookAppointmentModal({
         ownerPhone: formattedOwnerPhone,
         ownerEmail: ownerEmail.trim() || undefined,
         ownerId: finalPet?.ownerId,
-        doctor: doctor || doctorsList[0]?.name || "Dr. Rohit Sharma",
+        doctor: doctor || doctorsList[0]?.name || "",
         type: visitType,
         priority,
         status: appointmentToEdit?.status || "Waiting",
@@ -698,7 +698,7 @@ export function BookAppointmentModal({
                 ownerName: ownerName.trim() || finalPet?.owner?.name || "Client",
                 ownerPhone: safePhone,
                 ownerId: finalPet?.ownerId,
-                doctorName: doctor || doctorsList[0]?.name || "Dr. Rohit Sharma",
+                doctorName: doctor || doctorsList[0]?.name || "",
                 allergies: allergyArray,
                 vitals: {
                   complaint: complaint.trim() || "General Clinical Health Review",
@@ -728,7 +728,7 @@ export function BookAppointmentModal({
         token: appointmentToEdit?.token ?? token,
         pet: selectedPet?.name || petName.trim() || searchPetQuery.trim(),
         owner: ownerName.trim(),
-        doctor: doctor || "Dr. Rohit Sharma",
+        doctor: doctor || "",
         status: appointmentToEdit?.status || "Waiting",
         date,
         appointment_date: date,
@@ -1128,11 +1128,6 @@ export function BookAppointmentModal({
                         )}
                       </SelectItem>
                     ))}
-                    {doctorsList.length === 0 && (
-                      <SelectItem value="Dr. Rohit Sharma">
-                        Dr. Rohit Sharma (Consultant Vet)
-                      </SelectItem>
-                    )}
                   </SelectContent>
                 </Select>
               </div>

@@ -249,7 +249,7 @@ export function PatientSpecificDossier({ reports, onViewReport, onUploadDoc }: P
                   </td>
 
                   {/* Doctor */}
-                  <td className="px-4 py-3 text-foreground">{r.doctor || r.facility || "Dr. Rohit Sharma"}</td>
+                  <td className="px-4 py-3 text-foreground">{r.doctor || r.facility || "—"}</td>
 
                   {/* Date */}
                   <td className="px-4 py-3 font-mono text-muted-foreground">{r.date}</td>

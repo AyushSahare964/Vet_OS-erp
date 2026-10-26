@@ -98,8 +98,7 @@ export function DietChartPrintModal({ open, onClose, plan }: Props) {
               <p className="font-bold text-sm text-primary font-mono">{plan.nextReview || "2026-09-15"}</p>
             </div>
             <div className="text-right">
-              <span className="font-serif italic text-sm text-slate-700 font-bold underline">Dr. Rohit Sharma</span>
-              <p className="font-bold text-slate-900 mt-1">{plan.doctor || "Dr. Rohit Sharma (Chief Clinician)"}</p>
+              <p className="font-bold text-slate-900 mt-1">{plan.doctor || "—"}</p>
               <p className="text-[10px] text-slate-400">Clinical Nutrition Specialist · Reg. No: KVC-7712</p>
             </div>
           </div>

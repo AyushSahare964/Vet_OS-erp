@@ -101,9 +101,6 @@ export function AnalyticsFilterBar({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Clinicians</SelectItem>
-                <SelectItem value="Dr. Rohit Sharma">Dr. Rohit Sharma</SelectItem>
-                <SelectItem value="Dr. Aisha Nair">Dr. Aisha Nair</SelectItem>
-                <SelectItem value="Dr. Vikram Rao">Dr. Vikram Rao</SelectItem>
               </SelectContent>
             </Select>
           )}

@@ -196,7 +196,7 @@ export function PrescriptionWorkflow({
   onSavePrescription,
   onProceedToBilling,
   onOpenPrint,
-  doctorName = "Dr. Rohit Sharma",
+  doctorName = "",
   onSyncLines,
   onRefreshVisit,
   onClonePrevious,
