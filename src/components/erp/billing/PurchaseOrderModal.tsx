@@ -1515,18 +1515,16 @@ export function PurchaseOrderModal({
                     </Button>
                   )}
 
-                  {/* Receptionists can only save drafts; admin issues the final PO */}
-                  {isAdmin && (
-                    <Button
-                      type="button"
-                      onClick={handleSaveOrder}
-                      disabled={submitting}
-                      className="h-9 px-5 gap-2 bg-[#1976d2] hover:bg-[#1565c0] text-white font-bold text-xs shadow-sm"
-                    >
-                      <Save className="size-3.5" />
-                      <span>{submitting ? "Saving..." : "Save PO"}</span>
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    onClick={handleSaveOrder}
+                    disabled={submitting}
+                    className="h-9 px-5 gap-2 bg-[#1976d2] hover:bg-[#1565c0] text-white font-bold text-xs shadow-sm"
+                  >
+                    <Save className="size-3.5" />
+                    <span>{submitting ? "Saving..." : "Save PO"}</span>
+                  </Button>
+
                 </div>
               </div>
             </div>
