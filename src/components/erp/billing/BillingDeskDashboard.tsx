@@ -644,6 +644,17 @@ export function BillingDeskDashboard({
     });
   }, [purchases, dateRange, searchQuery]);
 
+  // Drafts follow the same search and date range as saved bills
+  const filteredDrafts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return billDrafts.filter((d) => {
+      const day = d.bill.billDate;
+      if (dateRange.from && day && day < dateRange.from) return false;
+      if (dateRange.to && day && day > dateRange.to) return false;
+      return !q || d.bill.supplierName?.toLowerCase().includes(q) || d.bill.billNumber?.toLowerCase().includes(q);
+    });
+  }, [billDrafts, dateRange, searchQuery]);
+
   // Filtered Payments for Register
   const filteredPayments = useMemo(() => {
     return paymentList.filter((p) => {
@@ -2253,7 +2264,7 @@ export function BillingDeskDashboard({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {billDrafts.map((d) => {
+                  {filteredDrafts.map((d) => {
                     const editable = Date.now() <= new Date(d.editableUntil).getTime();
                     return (
                       <tr key={d.id} className="bg-amber-50/40 dark:bg-amber-950/10">
@@ -2309,7 +2320,7 @@ export function BillingDeskDashboard({
                       </tr>
                     );
                   })}
-                  {filteredPurchases.length === 0 && billDrafts.length === 0 ? (
+                  {filteredPurchases.length === 0 && filteredDrafts.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="py-12 text-center text-muted-foreground">
                         <ShoppingBag className="size-8 mx-auto text-muted-foreground/40 mb-2" />
