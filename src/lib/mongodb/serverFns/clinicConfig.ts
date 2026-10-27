@@ -58,15 +58,17 @@ export const updateClinicConfigFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => updateClinicConfigSchema.parse(raw))
   .handler(tenantScoped(async ({ data }): Promise<{ success: boolean; message: string }> => {
     await connectDB();
-    const me = await getMeFn();
-    if (me?.roleId !== "admin") throw new Error("Only the clinic admin can change the hospital profile.");
-    const tenantId = getTenantContext()?.tenantId;
+    // The role resolved from the session cookie; a pre-multi-tenancy clinic has no tenant context, so ask getMeFn.
+    const ctx = getTenantContext();
+    const me = ctx ? null : await getMeFn();
+    if ((ctx?.roleId ?? me?.roleId) !== "admin") throw new Error("Only the clinic admin can change the hospital profile.");
+    const tenantId = ctx?.tenantId;
     // Tenant clinics always have a profile; a pre-multi-tenancy clinic gets one created on its first save.
     const updated = tenantId
       ? await ClinicConfigModel.findOneAndUpdate({}, { $set: data }, { new: true })
       : await ClinicConfigModel.findOneAndUpdate(
           { tenantId: null },
-          { $set: data, ...(data.clinicName ? {} : { $setOnInsert: { clinicName: me.clinicName || "Veterinary Clinic" } }) },
+          { $set: data, ...(data.clinicName ? {} : { $setOnInsert: { clinicName: me?.clinicName || "Veterinary Clinic" } }) },
           { new: true, upsert: true },
         );
     if (!updated) return { success: false, message: "Clinic profile not found." };
