@@ -984,7 +984,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 <Input
                   value={mobileNo}
                   onChange={(e) => setMobileNo(e.target.value)}
-                  placeholder="e.g. +91 83438 43834"
+                  placeholder="Mobile number"
                   className="h-8 text-xs font-mono bg-background"
                 />
               </div>
