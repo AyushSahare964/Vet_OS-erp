@@ -660,6 +660,10 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       toast.error("Please add at least one line item to the invoice");
       return;
     }
+    if (mobileNo && mobileNo.length !== 10) {
+      toast.error("Mobile number must be 10 digits");
+      return;
+    }
     if (linkTo === "CLIENT_ACCOUNT" && !clientName.trim()) {
       toast.error("Client Name is required");
       return;
@@ -983,7 +987,9 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 <Label className="text-xs font-medium text-foreground">Mobile No.</Label>
                 <Input
                   value={mobileNo}
-                  onChange={(e) => setMobileNo(e.target.value)}
+                  onChange={(e) => setMobileNo(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  inputMode="numeric"
+                  maxLength={10}
                   placeholder="Mobile number"
                   className="h-8 text-xs font-mono bg-background"
                 />
