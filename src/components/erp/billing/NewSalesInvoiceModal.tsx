@@ -49,7 +49,7 @@ import { computeDocument, type TaxDocInput } from "@/lib/finance/taxEngine";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import { finalizeVisitAndBillFn } from "@/lib/mongodb/serverFns/clinical";
 import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
-import { getBranchStateCodeFn } from "@/lib/mongodb/serverFns/salesDocs";
+import { getBranchStateCodeFn } from "@/lib/mongodb/serverFns/branches";
 import { getItemsFn, type InventoryItemRow } from "@/lib/mongodb/serverFns/inventory";
 import { getAvailableUnits, convertToBase, type PackagingHierarchy } from "@/lib/inventory/packagingUtils";
 import { useErp } from "@/lib/erp/store";
