@@ -49,6 +49,7 @@ import { computeDocument, type TaxDocInput } from "@/lib/finance/taxEngine";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import { finalizeVisitAndBillFn } from "@/lib/mongodb/serverFns/clinical";
 import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
+import { getBranchStateCodeFn } from "@/lib/mongodb/serverFns/salesDocs";
 import { getItemsFn, type InventoryItemRow } from "@/lib/mongodb/serverFns/inventory";
 import { getAvailableUnits, convertToBase, type PackagingHierarchy } from "@/lib/inventory/packagingUtils";
 import { useErp } from "@/lib/erp/store";
@@ -129,9 +130,18 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [doctors, setDoctors] = useState<{ id: string; name: string }[]>([]);
   const [linkTo, setLinkTo] = useState<"COUNTER_SALE" | "CLIENT_ACCOUNT">("COUNTER_SALE");
   const [mobileNo, setMobileNo] = useState("");
-  const [clientName, setClientName] = useState("CASH");
+  const [clientName, setClientName] = useState("");
   const [address, setAddress] = useState("");
-  const [placeOfSupply, setPlaceOfSupply] = useState("27"); // Maharashtra
+  const [placeOfSupply, setPlaceOfSupply] = useState("");
+  const [branchStateCode, setBranchStateCode] = useState("");
+  // Clinic's own state: seller side of GST, and the default Place of Supply (editable)
+  useEffect(() => {
+    if (!open) return;
+    getBranchStateCodeFn().then((c) => {
+      setBranchStateCode(c);
+      setPlaceOfSupply((p) => p || c);
+    }).catch(() => {});
+  }, [open]);
   const [clientGstin, setClientGstin] = useState("");
 
   // Customer Type: Patient vs Other / General Client
@@ -160,7 +170,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [itemName, setItemName] = useState("");
   const [itemDescription, setItemDescription] = useState("");
   const [uom, setUom] = useState("PCS");
-  const [quantity, setQuantity] = useState<number>(1);
+  const [quantity, setQuantity] = useState<number>(0);
   const [salePrice, setSalePrice] = useState<number>(0);
   const [discountPct, setDiscountPct] = useState<number>(0);
   const [gstRate, setGstRate] = useState<number>(18);
@@ -384,9 +394,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
   // When Link To changes
   useEffect(() => {
-    if (linkTo === "COUNTER_SALE" && !clientName) {
-      setClientName("CASH");
-    } else if (linkTo === "CLIENT_ACCOUNT" && clientName === "CASH") {
+    if (linkTo === "CLIENT_ACCOUNT" && clientName === "CASH") {
       setClientName("");
     }
   }, [linkTo]);
@@ -516,7 +524,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         gstRate: taxInvoiceType === "GST" ? l.gstRate : 0,
       })),
       invoiceType: taxInvoiceType,
-      branchStateCode: "27",
+      branchStateCode: branchStateCode || placeOfSupply,
       placeOfSupply,
       shippingAmount: addShipping ? Math.max(0, shippingCost || 0) : 0,
     };
@@ -534,7 +542,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       roundOff: res.roundOff,
       grandTotal: res.grandTotal,
     };
-  }, [lines, invoiceType, placeOfSupply, addShipping, shippingCost]);
+  }, [lines, invoiceType, placeOfSupply, branchStateCode, addShipping, shippingCost]);
 
   // Sync paidAmount when grandTotal changes based on paymentType
   useEffect(() => {
@@ -617,7 +625,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
     setItemName("");
     setSelectedItem(null);
     setItemDescription("");
-    setQuantity(1);
+    setQuantity(0);
     setSalePrice(0);
     setDiscountPct(0);
     setLineSerialNo("");
@@ -656,7 +664,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       toast.error("Please add at least one line item to the invoice");
       return;
     }
-    if (!clientName.trim()) {
+    if (linkTo === "CLIENT_ACCOUNT" && !clientName.trim()) {
       toast.error("Client Name is required");
       return;
     }
@@ -987,13 +995,12 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-foreground">
-                  Client Name <span className="text-rose-500">*</span>
+                  Client Name
                 </Label>
                 <Input
-                  required
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
-                  placeholder="CASH"
+                  placeholder="Customer name (blank = CASH)"
                   className="h-8 text-xs font-semibold bg-background"
                 />
               </div>
@@ -1006,7 +1013,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 <Input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Nagpur / Local Address..."
+                  placeholder="Street, city, PIN..."
                   className="h-8 text-xs bg-background"
                 />
               </div>
@@ -1017,7 +1024,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 </Label>
                 <Select value={placeOfSupply} onValueChange={setPlaceOfSupply}>
                   <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue />
+                    <SelectValue placeholder="Select state" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
                     {STATE_CODES.map((s) => (
@@ -1034,7 +1041,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 <Input
                   value={clientGstin}
                   onChange={(e) => setClientGstin(e.target.value.toUpperCase())}
-                  placeholder="27AAAAA0000A1Z5"
+                  placeholder="15-character GSTIN"
                   className="h-8 text-xs font-mono bg-background"
                 />
               </div>
@@ -1068,7 +1075,6 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                       onClick={() => {
                         setCustomerType("OTHER");
                         setSelectedPetId("");
-                        if (!clientName) setClientName("CASH");
                       }}
                       className={cn(
                         "px-2 py-0.5 rounded transition-all",
@@ -1474,6 +1480,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                   min="0.01"
                   step="any"
                   value={quantity || ""}
+                  placeholder="Qty"
                   onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
                   className="h-8 text-xs bg-background text-center font-mono font-bold"
                 />

@@ -1090,6 +1090,13 @@ export interface InvoicePrintPayload {
   payments: Array<{ docNumber: string; docDate: string; modes: string; amount: number }>;
 }
 
+/** The clinic's own GST state code (seller side of the intra/inter-state decision). */
+export const getBranchStateCodeFn = createServerFn({ method: "GET" })
+  .handler(tenantScoped(async (): Promise<string> => {
+    await connectDB();
+    return (await getDefaultBranch()).stateCode;
+  }));
+
 export const getInvoicePrintPayloadFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) => z.object({ id: z.string().min(1) }).parse(raw))
   .handler(tenantScoped(async ({ data }): Promise<InvoicePrintPayload> => {
