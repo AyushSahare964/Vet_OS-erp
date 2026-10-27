@@ -1000,7 +1000,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 <Input
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Customer name (blank = CASH)"
+                  placeholder="Customer name"
                   className="h-8 text-xs font-semibold bg-background"
                 />
               </div>
