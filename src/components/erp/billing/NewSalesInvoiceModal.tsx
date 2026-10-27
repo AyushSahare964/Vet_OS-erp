@@ -129,7 +129,9 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [advisedDoctor, setAdvisedDoctor] = useState("");
   const [doctors, setDoctors] = useState<{ id: string; name: string }[]>([]);
   const [linkTo, setLinkTo] = useState<"COUNTER_SALE" | "CLIENT_ACCOUNT">("COUNTER_SALE");
-  const [mobileNo, setMobileNo] = useState("");
+  const [mobileNo, setMobileNoRaw] = useState("");
+  // Digits only, last 10 — drops a +91 / 0 prefix from stored or pasted numbers
+  const setMobileNo = (v: string) => setMobileNoRaw(v.replace(/\D/g, "").slice(-10));
   const [clientName, setClientName] = useState("");
   const [address, setAddress] = useState("");
   const [placeOfSupply, setPlaceOfSupply] = useState("");
@@ -987,7 +989,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 <Label className="text-xs font-medium text-foreground">Mobile No.</Label>
                 <Input
                   value={mobileNo}
-                  onChange={(e) => setMobileNo(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => setMobileNo(e.target.value)}
                   inputMode="numeric"
                   maxLength={10}
                   placeholder="Mobile number"
