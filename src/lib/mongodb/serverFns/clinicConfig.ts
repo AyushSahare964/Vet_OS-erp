@@ -5,6 +5,7 @@ import { ClinicConfigModel } from "@/lib/mongodb/models/ClinicConfig";
 import { getTenantContext } from "@/lib/mongodb/tenantContext";
 import { OrgBranchModel } from "@/lib/mongodb/models/OrgBranch";
 import { getMeFn } from "./auth";
+import { validateGstin, validatePin } from "@/lib/finance/validators";
 import { TenantModel } from "@/lib/mongodb/models/Tenant";
 
 function toPlain<T>(v: unknown): T {
@@ -39,11 +40,11 @@ const updateClinicConfigSchema = z.object({
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
-  pin: z.string().trim().regex(/^d{6}$/, "PIN code must be 6 digits").optional(),
-  phone: z.string().trim().refine((v) => v.replace(/D/g, "").length >= 10 && v.replace(/D/g, "").length <= 13, "Enter a valid phone number").optional(),
+  pin: z.string().trim().refine((v) => validatePin(v) === null, "PIN code must be 6 digits").optional(),
+  phone: z.string().trim().refine((v) => v.replace(/\D/g, "").length >= 10 && v.replace(/\D/g, "").length <= 13, "Enter a valid phone number").optional(),
   email: z.string().trim().email("Enter a valid email address").optional(),
   website: z.string().optional(),
-  gstin: z.string().optional(),
+  gstin: z.string().trim().toUpperCase().refine((v) => validateGstin(v) === null, "GSTIN format is invalid").optional(),
   invoiceFooter: z.string().optional(),
   doctorName: z.string().optional(),
   doctorQualifications: z.string().optional(),

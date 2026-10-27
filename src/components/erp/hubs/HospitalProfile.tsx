@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useErp } from "@/lib/erp/store";
 import { useClinicBranding } from "@/lib/erp/useClinicBranding";
+import { STATE_CODES } from "@/lib/finance/stateCodes";
+import { validateGstin, validatePin } from "@/lib/finance/validators";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateClinicConfigFn } from "@/lib/mongodb/serverFns/clinicConfig";
 
 const FIELDS = [
@@ -26,6 +29,14 @@ const FIELDS = [
 /** Optional fields may be cleared; the rest are required. */
 const OPTIONAL = new Set<Field>(["tagline", "website", "gstin", "doctorName", "doctorQualifications", "doctorLicenseNumber"]);
 type Field = (typeof FIELDS)[number][0];
+
+const PLACEHOLDERS: Partial<Record<Field, string>> = {
+  clinicName: "Hospital name", address: "Street / building", city: "City", pin: "6-digit PIN code",
+  phone: "Phone number", email: "name@clinic.com", website: "www.yourclinic.com", gstin: "15-character GSTIN",
+};
+/** Keep PIN digit-only, phone to digits/+/spaces, GSTIN upper-case. */
+const clean = (k: Field, v: string) =>
+  k === "pin" ? v.replace(/\D/g, "").slice(0, 6) : k === "phone" ? v.replace(/[^\d+\s-]/g, "") : k === "gstin" ? v.toUpperCase() : v;
 
 /** Clinic profile (name, address, registration, branding) from the clinic's own configuration; admin can edit contact details. */
 export function HospitalProfile() {
@@ -48,10 +59,13 @@ export function HospitalProfile() {
       toast.error(`Required: ${missing.join(", ")}.`);
       return;
     }
-    if (!/^d{6}$/.test(form.pin.trim())) return void toast.error("PIN code must be 6 digits.");
-    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(form.email.trim())) return void toast.error("Enter a valid email address.");
-    const digits = form.phone.replace(/D/g, "").length;
+    const pinErr = validatePin(form.pin, true);
+    if (pinErr) return void toast.error(pinErr + ".");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return void toast.error("Enter a valid email address.");
+    const digits = form.phone.replace(/\D/g, "").length;
     if (digits < 10 || digits > 13) return void toast.error("Enter a valid phone number.");
+    const gstErr = validateGstin(form.gstin);
+    if (gstErr) return void toast.error(gstErr + ".");
     setSaving(true);
     try {
       const res = await updateClinicConfigFn({
@@ -105,7 +119,23 @@ export function HospitalProfile() {
           {FIELDS.map(([k, label]) => (
             <div key={k} className={k === "address" || k === "tagline" ? "space-y-1 sm:col-span-2" : "space-y-1"}>
               <Label className="text-xs font-bold">{label}{!OPTIONAL.has(k) && " *"}</Label>
-              <Input value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} className="h-9 text-sm" />
+              {k === "state" ? (
+                <Select value={form.state} onValueChange={(v) => setForm((f) => ({ ...f, state: v }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select state" /></SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {STATE_CODES.map((st) => <SelectItem key={st.code} value={st.name}>{st.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={form[k]}
+                  onChange={(e) => setForm((f) => ({ ...f, [k]: clean(k, e.target.value) }))}
+                  inputMode={k === "pin" || k === "phone" ? "numeric" : undefined}
+                  maxLength={k === "pin" ? 6 : k === "gstin" ? 15 : undefined}
+                  placeholder={PLACEHOLDERS[k]}
+                  className="h-9 text-sm"
+                />
+              )}
             </div>
           ))}
           <div className="flex gap-2 sm:col-span-2">
