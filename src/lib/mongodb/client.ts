@@ -65,6 +65,8 @@ function getMongoUri(): string {
  * happens before we know the tenant, and offline scripts (migrations) have
  * no cookie at all, so both must run unscoped.
  */
+const tenantCache = new Map<string, { ctx: TenantContext; exp: number }>();
+
 async function resolveCurrentTenant(): Promise<TenantContext | undefined> {
   let rawToken: string | undefined;
   try {
@@ -76,10 +78,16 @@ async function resolveCurrentTenant(): Promise<TenantContext | undefined> {
 
   try {
     const payload = verifyRefreshToken(rawToken);
+    // One DB round trip per server call is the biggest fixed cost; a page load fires many calls.
+    // ponytail: 30s TTL, so a role/tenant change can take up to 30s to apply. Lower it if that matters.
+    const hit = tenantCache.get(payload.sub);
+    if (hit && hit.exp > Date.now()) return hit.ctx;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const user = await User.findById(payload.sub).select("tenantId roleId").lean() as any;
     if (user?.tenantId) {
-      return { tenantId: String(user.tenantId), userId: payload.sub, roleId: String(user.roleId ?? "") };
+      const ctx = { tenantId: String(user.tenantId), userId: payload.sub, roleId: String(user.roleId ?? "") };
+      tenantCache.set(payload.sub, { ctx, exp: Date.now() + 30_000 });
+      return ctx;
     }
     return undefined;
   } catch {

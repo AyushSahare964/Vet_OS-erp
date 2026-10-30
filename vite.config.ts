@@ -26,5 +26,8 @@ export default defineConfig({
   nitro: {
     // Target Vercel (real Node.js serverless functions)
     preset: "vercel",
+    // Run functions next to the Atlas cluster (Mumbai). Default is iad1 (US East): ~200ms per DB round trip.
+    // @ts-expect-error vercel options are accepted by nitro but missing from the wrapper's type
+    vercel: { functions: { regions: ["bom1"] } },
   },
 });
