@@ -22,11 +22,20 @@ export function StartConsultPicker({ open, onClose }: { open: boolean; onClose: 
   const [addOpen, setAddOpen] = useState(false);
   const [visit, setVisit] = useState<any | null>(null);
   const [appts, setAppts] = useState<any[]>([]);
+  // The list loads when the box opens. Until it has, say so: an empty list used to read as "No matching pet".
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  const loadPets = () => {
+    setStatus("loading");
+    listPetsWithOwnersFn()
+      .then((p) => { setPets(p ?? []); setStatus("ready"); })
+      .catch(() => setStatus("error"));
+  };
 
   useEffect(() => {
     if (!open) return;
     setQuery("");
-    listPetsWithOwnersFn().then((p) => setPets(p ?? [])).catch(() => setPets([]));
+    loadPets();
     listAppointmentsFn().then((a) => setAppts(a ?? [])).catch(() => setAppts([]));
   }, [open]);
 
@@ -128,7 +137,22 @@ export function StartConsultPicker({ open, onClose }: { open: boolean; onClose: 
                 </span>
               </button>
             ))}
-            {matches.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No matching pet. Use Add New Pet.</p>}
+            {status === "loading" && matches.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">Loading pets…</p>
+            )}
+            {status === "error" && matches.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Could not load the pets.{" "}
+                <button type="button" onClick={loadPets} className="font-semibold text-primary underline">
+                  Try again
+                </button>
+              </p>
+            )}
+            {status === "ready" && matches.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {query.trim() ? "No matching pet. Use Add New Pet." : "No pets registered yet. Use Add New Pet."}
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
