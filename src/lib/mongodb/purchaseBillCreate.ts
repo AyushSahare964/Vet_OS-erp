@@ -5,6 +5,7 @@ import { SupplierModel } from "@/lib/mongodb/models/Supplier";
 import { SupplierPaymentModel } from "@/lib/mongodb/models/SupplierPayment";
 import { todayIST, fiscalYearRange } from "@/lib/utils/dateUtils";
 import { nextSeq } from "@/lib/mongodb/serverFns/counters";
+import { getTenantContext, runWithTenant } from "@/lib/mongodb/tenantContext";
 import { InventoryItem } from "@/lib/mongodb/models/InventoryItem";
 import { receiveStockBatch } from "@/lib/mongodb/stockReceipt";
 import { convertToBase } from "@/lib/inventory/packagingUtils";
@@ -19,6 +20,10 @@ function monthEnd(v: string): string {
 
 export async function createPurchaseBill(data: CreateBillParsed): Promise<{ ok: boolean; _id: string; internalRef: string; stockPosted: number; stockErrors: string[] }> {
   await connectDB();
+  // A bill (and its stock batches) must belong to a clinic. Without a tenant it is saved with no tenantId and
+  // shares the bare counters, which is how stock batches ended up with tenantId null and clashed on B-0001.
+  const tenantCtx = getTenantContext();
+  if (!tenantCtx) throw new Error("Your session has expired. Please sign out and sign in again.");
   const supplier = await SupplierModel.findById(data.supplierId).lean();
   const supplierName = supplier?.name ?? data.supplierName ?? "Unknown Supplier";
 
@@ -174,6 +179,8 @@ export async function createPurchaseBill(data: CreateBillParsed): Promise<{ ok: 
   let stockPosted = 0;
   const stockErrors: string[] = [];
   if (data.receiveStock) {
+    // Re-enter the tenant explicitly so the batch, its counter and its ledger row all carry this clinic.
+    await runWithTenant(tenantCtx, async () => {
     for (const it of data.items) {
       const item = resolved.get(it.lineNo);
       if (!item) continue;
@@ -213,6 +220,7 @@ export async function createPurchaseBill(data: CreateBillParsed): Promise<{ ok: 
         stockErrors.push(`${it.description}: ${e?.message ?? "stock posting failed"}`);
       }
     }
+    });
   }
 
   return { ok: true, _id: billId, internalRef, stockPosted, stockErrors };
