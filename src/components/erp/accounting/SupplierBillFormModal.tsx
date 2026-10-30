@@ -199,8 +199,8 @@ export function SupplierBillFormModal({
 
   // Bottom row: shipping, remarks, reminder
   const [addShipping, setAddShipping] = useState(false);
-  // Off by default: stock is otherwise added through Add Stock, so ticking this on every bill would double-count.
-  const [receiveStock, setReceiveStock] = useState(false);
+  // On by default: a purchase bill for inventory items must add its stock. Untick only if the stock is added separately via Add Stock (else it double-counts).
+  const [receiveStock, setReceiveStock] = useState(true);
   const [shippingCost, setShippingCost] = useState<number>(0);
   const [remarks, setRemarks] = useState("");
 
@@ -267,7 +267,7 @@ export function SupplierBillFormModal({
     setHsnCode("");
     setBatchNo("");
     setExpiry("");
-    setReceiveStock(false);
+    setReceiveStock(true);
     setFreeQty(0);
     setDiscountPct(0);
     setDiscount2Pct(0);
@@ -1231,7 +1231,7 @@ export function SupplierBillFormModal({
 
                   <label
                     className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300"
-                    title="Creates a stock batch for each inventory line (needs Batch No. and Expiry). Leave off if you add this stock separately via Add Stock."
+                    title="Creates a stock batch for each inventory line (needs Batch No. and Expiry). Untick only if you add this stock separately via Add Stock, otherwise it is counted twice."
                   >
                     <input
                       type="checkbox"
