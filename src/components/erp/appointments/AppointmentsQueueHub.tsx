@@ -138,10 +138,13 @@ export function AppointmentsQueueHub() {
     void loadAppointments();
     void loadFollowUps();
     // Silent poll so appointments booked elsewhere appear without a manual refresh (no loading flicker, paused when tab hidden)
+    let busy = false; // don't start another while the last one is still running
     const refresh = () => {
-      if (document.visibilityState === "visible") void listAppointmentsFn().then((d) => setAppointments(d || [])).catch(() => {});
+      if (document.visibilityState !== "visible" || busy) return;
+      busy = true;
+      void listAppointmentsFn().then((d) => setAppointments(d || [])).catch(() => {}).finally(() => { busy = false; });
     };
-    const timer = setInterval(refresh, 10_000);
+    const timer = setInterval(refresh, 30_000);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       clearInterval(timer);

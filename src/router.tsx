@@ -1,8 +1,10 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { installServerFnCache } from "@/lib/serverFnCache";
 
 export const getRouter = () => {
+  if (typeof window !== "undefined") installServerFnCache();
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {

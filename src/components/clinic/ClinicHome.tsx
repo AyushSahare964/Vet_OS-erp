@@ -201,9 +201,15 @@ export function ClinicHome() {
       setInvoices(i as any[]); setPurchases(p as any[]); setPets(pt as any[]); setBranches(b as BranchRow[]);
     };
     void load();
-    // Poll so a booking made at the front desk shows up here without a manual refresh; skip while the tab is hidden.
-    const refresh = () => document.visibilityState === "visible" && void load();
-    const timer = setInterval(refresh, 10_000);
+    // Poll so a booking made at the front desk shows up here without a manual refresh; skip while the tab is
+    // hidden, and never start a reload while the previous one is still running (stalled polls used to pile up).
+    let busy = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || busy) return;
+      busy = true;
+      try { await load(); } finally { busy = false; }
+    };
+    const timer = setInterval(refresh, 30_000);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       live = false;
