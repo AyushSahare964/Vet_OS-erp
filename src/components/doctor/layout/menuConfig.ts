@@ -157,7 +157,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { id: "quotation", shortcut: "Alt+Q", label: "New Quotation", icon: "FileText", requires: ["billing"] },
   { id: "enquiry", label: "Enquiry", dash: "Enquiry", icon: "MessageSquare", requires: ["crm-pets", "appointments"] },
   { id: "purchaseOrder", shortcut: "Alt+O", label: "Purchase Order", dash: "Purchase Order", icon: "ShoppingBag", requires: ["billing"], roles: ["admin", "accounts", "reception"] },
-  { id: "purchaseBill", shortcut: "Alt+P", label: "Add Purchase / GRN", dash: "Add Purchase / GRN", icon: "Package", requires: ["billing"], roles: ["admin", "accounts", "reception"] },
+  { id: "purchaseBill", shortcut: "Alt+P", label: "Add Purchase Bill", dash: "Add Purchase Bill", icon: "Package", requires: ["billing"], roles: ["admin", "accounts", "reception"] },
   { id: "labOrder", label: "New Lab Order", dash: "New Lab Order", icon: "FlaskConical", requires: ["laboratory"] },
   { id: "documentation", label: "Documentation", dash: "Documentation", icon: "FileText", requires: ["clinical-records", "reports"] },
   { id: "reminder", shortcut: "Alt+R", label: "Add Reminder", dash: "Add Reminder", icon: "Bell", requires: ["billing"] },
