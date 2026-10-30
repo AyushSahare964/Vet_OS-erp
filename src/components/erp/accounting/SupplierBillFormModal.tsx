@@ -1370,6 +1370,18 @@ export function SupplierBillFormModal({
 
                 {/* Save Button matching reference screenshot */}
                 <div className="flex items-center justify-end gap-2">
+                  {/* Anyone can save a new bill; an existing draft is posted by admin only (deleting the draft is admin-only) */}
+                  {(!draft || isAdmin) && (
+                    <Button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={submitting}
+                      className="h-9 px-6 gap-2 bg-[#1976d2] hover:bg-[#1565c0] text-white font-bold text-xs shadow-sm"
+                    >
+                      <Save className="size-3.5" />
+                      <span>{submitting ? "Saving..." : "Save"}</span>
+                    </Button>
+                  )}
                   {(!draft || isAdmin) && (
                     <Button
                       type="button"
@@ -1380,18 +1392,6 @@ export function SupplierBillFormModal({
                     >
                       <FileSpreadsheet className="size-3.5" />
                       <span>{draft ? "Update Draft" : "Save as Draft"}</span>
-                    </Button>
-                  )}
-                  {/* Receptionists can only save drafts; admin saves the final bill */}
-                  {isAdmin && (
-                    <Button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={submitting}
-                      className="h-9 px-6 gap-2 bg-[#1976d2] hover:bg-[#1565c0] text-white font-bold text-xs shadow-sm"
-                    >
-                      <Save className="size-3.5" />
-                      <span>{submitting ? "Saving..." : "Save"}</span>
                     </Button>
                   )}
                 </div>
