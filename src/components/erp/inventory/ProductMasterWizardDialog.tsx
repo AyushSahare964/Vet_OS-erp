@@ -65,6 +65,7 @@ import {
   getAvailableUnits,
   convertToBase,
   resolveUnitPrice,
+  normalizeHierarchy,
   type PackagingHierarchy,
 } from "@/lib/inventory/packagingUtils";
 import { peekItemCodeFn } from "@/lib/mongodb/serverFns/inventory";
@@ -825,7 +826,8 @@ export function ProductMasterWizardDialog({
             intermediateUnitsPerPurchase: form.pkgHasIntermediate ? Number(form.pkgIntermediateUnitsPerPurchase) || undefined : undefined,
             baseUnitsPerIntermediate: form.pkgHasIntermediate ? Number(form.pkgBaseUnitsPerIntermediate) || undefined : undefined,
           };
-          return h;
+          // purchase unit = base unit means one level (1 Vial = 1 Vial), never "1 Vial = 10 Vial"
+          return normalizeHierarchy(h);
         })(),
 
         // Opening stock: entered in openingStockUnit → convert to base units
@@ -838,6 +840,7 @@ export function ProductMasterWizardDialog({
           const openingUnit = form.openingStockUnit;
           const pkgPurchaseUnit = form.pkgPurchaseUnit || "Box";
           const pkgBaseUnit = form.pkgBaseUnit || form.unit;
+          if (openingUnit === pkgBaseUnit) return openingQty; // same unit as stock: no multiplier (10 Vial opened must stay 10)
           if (openingUnit === pkgPurchaseUnit) return openingQty * baseUnitsPerPurchase;
           if (openingUnit === form.pkgIntermediateUnit && form.pkgHasIntermediate)
             return openingQty * (Number(form.pkgBaseUnitsPerIntermediate) || 1);

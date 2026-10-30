@@ -38,6 +38,20 @@ export interface PackagingHierarchy {
   baseUnitsPerIntermediate?: number;
 }
 
+/**
+ * A product bought in the same unit it is stocked in (purchase unit = base unit, e.g. a Vial sold as a Vial) is a
+ * single level: 1 of itself, with no unit in between. Some items were saved as "1 Vial = 10 Vial" or with a stray
+ * in-between unit ("ml"), which divided the price by 10 (₹800 shown as ₹80) and turned 10 bought into 300 in stock.
+ * Every conversion below reads the hierarchy through this, so bad saved data cannot change a price or a quantity.
+ */
+export function normalizeHierarchy(h: PackagingHierarchy): PackagingHierarchy;
+export function normalizeHierarchy(h: PackagingHierarchy | undefined): PackagingHierarchy | undefined;
+export function normalizeHierarchy(h: PackagingHierarchy | undefined): PackagingHierarchy | undefined {
+  if (!h || h.purchaseUnit !== h.baseUnit) return h;
+  if (h.baseUnitsPerPurchase === 1 && !h.hasIntermediateUnit) return h;
+  return { baseUnit: h.baseUnit, purchaseUnit: h.purchaseUnit, baseUnitsPerPurchase: 1, hasIntermediateUnit: false };
+}
+
 // ─── Smart Defaults by Product/Form Type ──────────────────────────────────────
 
 /**
@@ -120,6 +134,7 @@ export function convertToBase(
   hierarchy: PackagingHierarchy
 ): number {
   if (!hierarchy) return qty;
+  hierarchy = normalizeHierarchy(hierarchy);
 
   const normalised = unit?.trim();
 
@@ -156,6 +171,7 @@ export function convertFromBase(
   hierarchy: PackagingHierarchy
 ): number {
   if (!hierarchy) return baseQty;
+  hierarchy = normalizeHierarchy(hierarchy);
 
   const normalised = targetUnit?.trim();
 
@@ -192,6 +208,7 @@ export function convertFromBase(
  */
 export function getAvailableUnits(hierarchy: PackagingHierarchy | undefined): string[] {
   if (!hierarchy) return [];
+  hierarchy = normalizeHierarchy(hierarchy);
 
   const units: string[] = [hierarchy.baseUnit];
 
@@ -226,6 +243,7 @@ export function stockDisplayLabel(
   opts?: { showBreakdown?: boolean }
 ): string {
   if (!hierarchy) return `${baseQty}`;
+  hierarchy = normalizeHierarchy(hierarchy);
 
   const showBreakdown = opts?.showBreakdown ?? true;
   const rounded = Math.max(0, Math.round(baseQty * 100) / 100);
@@ -289,6 +307,7 @@ export function resolveUnitPrice(
   hierarchy: PackagingHierarchy
 ): number {
   if (!hierarchy || hierarchy.baseUnitsPerPurchase <= 0) return purchaseUnitMrp;
+  hierarchy = normalizeHierarchy(hierarchy);
 
   const baseUnitsInDispensingUnit = convertToBase(1, dispensingUnit, hierarchy);
   const pricePerBase = purchaseUnitMrp / hierarchy.baseUnitsPerPurchase;

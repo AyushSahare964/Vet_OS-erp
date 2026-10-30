@@ -231,7 +231,7 @@ export function CatalogueSearch({
     if (!trimmed) return;
     handleSelectItem({
       name: trimmed,
-      unitPrice: type === "food" ? 850 : type === "accessory" ? 320 : 150,
+      unitPrice: 0, // typed-in item: staff enter the real price (an invented one would be billed)
       unit: type === "food" ? "Kg" : type === "accessory" ? "Piece" : "Tablet",
     });
   };

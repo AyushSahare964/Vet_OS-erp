@@ -253,10 +253,8 @@ export function InventoryItemSection({
   );
 
   const handleSelectItem = (rawItem: any) => {
-    const fullPrice =
-      rawItem.defaultSalePrice ??
-      rawItem.mrp ??
-      (catalogueType === "food" ? 850 : catalogueType === "accessory" ? 320 : catalogueType === "injection" ? 200 : 150);
+    // Never invent a price: an item with no sale price or MRP starts at 0 so staff see it must be set.
+    const fullPrice = rawItem.defaultSalePrice ?? rawItem.mrp ?? 0;
 
     const defaultUnit =
       rawItem.unit ||

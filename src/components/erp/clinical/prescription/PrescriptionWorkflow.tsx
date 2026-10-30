@@ -368,7 +368,7 @@ export function PrescriptionWorkflow({
           dispensingUnit: unit,
           packagingHierarchy: hierarchy,
           baseSalePrice,
-          unitPrice: unitPrice > 0 ? unitPrice : 120,
+          unitPrice,
           discountPercent: 0,
           note: m.note || m.remarks || "",
         };
@@ -446,7 +446,7 @@ export function PrescriptionWorkflow({
         route: m.route || "SC",
         quantity: Number(m.quantity) || 1,
         unit: m.doseUnit || "ml",
-        unitPrice: Number(m.unitPrice) || 480,
+        unitPrice: Number(m.unitPrice) || 0,
         discountPercent: 0,
       }));
     }
@@ -552,7 +552,7 @@ export function PrescriptionWorkflow({
       name: f.name,
       quantity: Number(f.quantity) || 1,
       unit: f.unit || "Kg",
-      unitPrice: Number(f.unitPrice) || 1850,
+      unitPrice: Number(f.unitPrice) || 0,
       discountPercent: Number(f.discountPercent || 0),
     }));
   }, [visit?.visitId, initialRx]);
@@ -568,7 +568,7 @@ export function PrescriptionWorkflow({
       name: f.name,
       quantity: Number(f.quantity) || 1,
       unit: f.unit || "Kg",
-      unitPrice: Number(f.unitPrice) || 2450,
+      unitPrice: Number(f.unitPrice) || 0,
       dosageInstructions: f.instructions,
       duration: f.duration || "14 days",
       discountPercent: 0,
@@ -587,7 +587,7 @@ export function PrescriptionWorkflow({
       category: a.category,
       quantity: Number(a.quantity) || 1,
       unit: "Piece",
-      unitPrice: Number(a.unitPrice) || 320,
+      unitPrice: Number(a.unitPrice) || 0,
       discountPercent: Number(a.discountPercent || 0),
     }));
   }, [visit?.visitId, initialRx]);
