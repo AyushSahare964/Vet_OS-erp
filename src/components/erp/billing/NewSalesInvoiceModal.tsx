@@ -59,6 +59,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { OwnerPetRegistrationModal } from "@/components/erp/crm/OwnerPetRegistrationModal";
 import { InvoicePrintView } from "@/components/erp/clinical/InvoicePrintView";
+import { vetNameOf } from "@/lib/clinical/attendingVet";
 
 interface InvoiceGridLine {
   id: string;
@@ -713,7 +714,8 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         return;
       }
       // Advised bill: the doctor is the prescriber on the visit, the receptionist is recorded as the dispenser.
-      const effectiveDoctorName = advisedDoctor || dispenserName;
+      // The doctor on the visit is the prescriber (advised doctor), or the logged-in vet; never the dispensing receptionist.
+      const effectiveDoctorName = advisedDoctor || vetNameOf(currentUser);
       const advisedNote = advisedDoctor
         ? `Doctor contacted: ${advisedDoctor}. Medicine dispensed on his order. Dispensed by ${activeDoctorName} (Reception).`
         : byReception

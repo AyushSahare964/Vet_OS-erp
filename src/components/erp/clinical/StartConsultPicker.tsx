@@ -10,6 +10,7 @@ import { listVisitsFn } from "@/lib/mongodb/serverFns/clinical";
 import { listAppointmentsFn, updateAppointmentStatusFn } from "@/lib/mongodb/serverFns/appointments";
 import { useErp } from "@/lib/erp/store";
 import { todayIST } from "@/lib/utils/dateUtils";
+import { vetNameOf } from "@/lib/clinical/attendingVet";
 
 /**
  * Start Consult: find an existing pet (name, owner, phone) or "Add New Pet", then go straight on to the
@@ -65,7 +66,7 @@ export function StartConsultPicker({ open, onClose }: { open: boolean; onClose: 
     const today = todayIST();
     const visits = await listVisitsFn().catch(() => [] as any[]);
     const existing = (visits ?? []).find((v: any) => v.petId === pet.petId && v.date === today && ["Admitted", "In Consultation", "Diagnosed"].includes(v.status));
-    const doctorName = currentUser?.fullName || role.person;
+    const doctorName = vetNameOf(currentUser);
     const appt = apptOf(pet);
     if (appt?.token) void updateAppointmentStatusFn({ data: { token: appt.token, status: "In consultation" } });
     setVisit(

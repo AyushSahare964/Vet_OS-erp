@@ -1,5 +1,6 @@
 import { useErp, type ClinicBranding } from "./store";
 import { CLINIC_CONFIG } from "@/lib/config/clinicConfig";
+import { vetNameOf, isVetRole } from "@/lib/clinical/attendingVet";
 
 /**
  * Same shape as the static CLINIC_CONFIG (so every existing
@@ -59,8 +60,8 @@ export function useClinicBranding(): ResolvedClinicBranding {
     shortName: name,
     fullName: name,
     subName: cb?.tagline || fb("subName"),
-    doctorName: cb?.doctorName || currentUser?.fullName || fb("doctorName"),
-    doctorQualifications: cb?.doctorQualifications || currentUser?.qualification || fb("doctorQualifications"),
+    doctorName: cb?.doctorName || vetNameOf(currentUser) || fb("doctorName"),
+    doctorQualifications: cb?.doctorQualifications || (isVetRole(currentUser?.roleId) ? currentUser?.qualification : undefined) || fb("doctorQualifications"),
     doctorDesignation: fb("doctorDesignation"),
     addressLine1: cb?.address || fb("addressLine1"),
     addressLine2: cityState || fb("addressLine2"),

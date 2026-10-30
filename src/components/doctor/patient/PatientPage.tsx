@@ -7,6 +7,7 @@ import { VisitWorkspaceModal } from "@/components/erp/clinical/VisitWorkspaceMod
 import { BrandChip } from "../shared/BrandChip";
 import { SECTION_ICON } from "../shared/sectionIcons";
 import { StatusCard } from "./StatusCard";
+import { vetNameOf } from "@/lib/clinical/attendingVet";
 
 const BUTTONS: [Section, string, string][] = [
   ["medical", "Medical", "Visits and treatments"],
@@ -39,7 +40,7 @@ export function PatientPage({ pet, p360 }: PatientPageProps) {
   // otherwise open the workspace with a new admitted-visit draft.
   const { currentUser, role } = useErp();
   const [workspaceVisit, setWorkspaceVisit] = useState<any | null>(null);
-  const activeDoctorName = currentUser?.fullName || role.person || "Attending Veterinarian";
+  const activeDoctorName = vetNameOf(currentUser);
 
   const startConsultation = () => {
     const p = p360?.pet;

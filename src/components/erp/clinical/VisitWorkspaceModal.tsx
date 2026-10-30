@@ -46,6 +46,7 @@ import { InvoicePrintView } from "./InvoicePrintView";
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
 import { getPetFn } from "@/lib/mongodb/serverFns/crm";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
+import { vetNameOf } from "@/lib/clinical/attendingVet";
 import { calcLineItem, calcBillSummary, validateDiscount, roundMoney, addMoney } from "@/lib/utils/moneyUtils";
 
 interface VisitWorkspaceProps {
@@ -103,7 +104,8 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
     }
   }, [visit]);
 
-  const activeDoctorName = activeVisit?.doctorName || visit?.doctorName || currentUser?.fullName || role?.person || CLINIC_CONFIG.doctorName || "Attending Veterinarian";
+  // Only a doctor/admin is ever filled in automatically; a receptionist picks the attending vet below.
+  const activeDoctorName = activeVisit?.doctorName || visit?.doctorName || vetNameOf(currentUser) || "";
 
   // Doctor specialty/title lookup — keeps the printed Rx/invoice letterhead accurate per treating doctor
   const [doctorsList, setDoctorsList] = useState<Array<{ id: string; name: string; specialty?: string }>>([]);
@@ -112,6 +114,14 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
       .then((docs) => setDoctorsList(docs || []))
       .catch((e) => console.warn("Could not load doctors list:", e));
   }, []);
+  // No vet on the visit yet: the logged-in vet, else the clinic's only vet. A receptionist is never filled in.
+  useEffect(() => {
+    if (activeVisit?.doctorName || doctorsList.length === 0) return;
+    const me = vetNameOf(currentUser);
+    const pick =
+      doctorsList.find((d) => me && (d.name === me || d.name === `Dr. ${me}`)) ?? (doctorsList.length === 1 ? doctorsList[0] : undefined);
+    if (pick) setActiveVisit((v: any) => (v ? { ...v, doctorName: pick.name } : v));
+  }, [doctorsList, activeVisit?.doctorName, currentUser]);
   const getDoctorTitle = (doctorName: string | undefined) => {
     const doc = doctorsList.find((d) => d.name === doctorName || d.name === `Dr. ${doctorName}`);
     if (doc?.specialty && doc.specialty !== "Administration" && doc.specialty !== "Admin") {
@@ -1514,6 +1524,26 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                 </div>
               </div>
             )}
+
+            {/* Which vet signs the prescription and the bill (the receptionist is never the vet) */}
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+              <span className="font-semibold">Attending vet</span>
+              <span className="text-xs text-muted-foreground">signs the prescription and the bill</span>
+              <select
+                value={activeVisit?.doctorName || ""}
+                onChange={(e) => setActiveVisit((v: any) => (v ? { ...v, doctorName: e.target.value } : v))}
+                className="ml-auto h-8 min-w-[220px] rounded-md border border-input bg-background px-2 text-sm"
+                aria-label="Attending vet"
+              >
+                <option value="">Select the attending vet…</option>
+                {activeVisit?.doctorName && !doctorsList.some((d) => d.name === activeVisit.doctorName) && (
+                  <option value={activeVisit.doctorName}>{activeVisit.doctorName}</option>
+                )}
+                {doctorsList.map((d) => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
 
             {/* ── Prescription Workflow Module (Sections + Live Summary Panel) ── */}
             <PrescriptionWorkflow
@@ -2979,7 +3009,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                           {/* Right: Dual signature block */}
                           <div style={{ display: "flex", gap: "40px", alignItems: "flex-end", marginLeft: "auto", flexWrap: "wrap" }}>
                             {/* Doctor Signature */}
-                            {finalizedVisit.doctorName && (
+                            {(finalizedVisit.doctorName || CLINIC_CONFIG.doctorName) && (
                               <div style={{ textAlign: "center", minWidth: "140px" }}>
                                 <div style={{ marginBottom: "20px", position: "relative" }}>
                                   {/* Cursive signature over the line */}
@@ -2991,11 +3021,11 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                                     letterSpacing: "0.5px",
                                     lineHeight: 1,
                                   }}>
-                                    {finalizedVisit.doctorName}
+                                    {finalizedVisit.doctorName || CLINIC_CONFIG.doctorName}
                                   </p>
                                   <div style={{ height: "1px", backgroundColor: "#cbd5e1", width: "100%" }} />
                                 </div>
-                                <p style={{ fontSize: "11px", fontWeight: 700, color: "#1e293b", margin: "0 0 1px 0" }}>{finalizedVisit.doctorName}</p>
+                                <p style={{ fontSize: "11px", fontWeight: 700, color: "#1e293b", margin: "0 0 1px 0" }}>{finalizedVisit.doctorName || CLINIC_CONFIG.doctorName}</p>
                                 <p style={{ fontSize: "10px", color: "#64748b", margin: 0 }}>{CLINIC_CONFIG.doctorQualifications || "BVSc & AH"} · Attending Veterinarian</p>
                               </div>
                             )}

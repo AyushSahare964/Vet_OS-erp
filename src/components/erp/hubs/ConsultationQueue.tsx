@@ -10,6 +10,7 @@ import { VisitWorkspaceModal } from "@/components/erp/clinical/VisitWorkspaceMod
 import { listAppointmentsFn, updateAppointmentStatusFn } from "@/lib/mongodb/serverFns/appointments";
 import { listVisitsFn } from "@/lib/mongodb/serverFns/clinical";
 import { useErp } from "@/lib/erp/store";
+import { vetNameOf } from "@/lib/clinical/attendingVet";
 
 const todayIso = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 const FINAL = ["completed", "cancelled", "no-show", "no show"];
@@ -19,7 +20,7 @@ export function ConsultationQueue() {
   const { roleId, currentUser, role } = useErp();
   // Starting a consultation is a doctor/admin action; reception sees the queue and links to Appointments.
   const canStart = roleId === "doctor" || roleId === "admin";
-  const doctorName = currentUser?.fullName || role.person;
+  const doctorName = vetNameOf(currentUser);
   const [appts, setAppts] = useState<any[]>([]);
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

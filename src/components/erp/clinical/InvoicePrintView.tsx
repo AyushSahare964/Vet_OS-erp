@@ -390,7 +390,7 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
               {/* Right: Dual signature block */}
               <div className="flex gap-10 items-end shrink-0">
                 {/* Doctor Signature */}
-                {visit?.doctorName && (
+                {(visit?.doctorName || CLINIC_CONFIG.doctorName) && (
                   <div className="text-center min-w-[140px]">
                     <div className="mb-5">
                       {/* Decorative signature line area */}
@@ -401,11 +401,11 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
                           className="absolute -top-4 left-0 right-0 text-center text-gray-600 text-[15px] leading-none"
                           style={{ fontFamily: "'Dancing Script', 'Brush Script MT', cursive", letterSpacing: "0.5px" }}
                         >
-                          {visit.doctorName}
+                          {visit.doctorName || CLINIC_CONFIG.doctorName}
                         </p>
                       </div>
                     </div>
-                    <p className="text-[11px] font-bold text-gray-800">{visit.doctorName}</p>
+                    <p className="text-[11px] font-bold text-gray-800">{visit.doctorName || CLINIC_CONFIG.doctorName}</p>
                     <p className="text-[10px] text-gray-500">{CLINIC_CONFIG.doctorQualifications || "BVSc & AH"} · Attending Veterinarian</p>
                   </div>
                 )}

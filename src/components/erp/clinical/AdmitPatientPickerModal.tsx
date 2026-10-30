@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { useErp } from "@/lib/erp/store";
 import { listAppointmentsFn, updateAppointmentStatusFn } from "@/lib/mongodb/serverFns/appointments";
 import { searchOwnersFn, createOwnerWithMultiplePetsFn } from "@/lib/mongodb/serverFns/crm";
+import { vetNameOf } from "@/lib/clinical/attendingVet";
 
 const COMMON_BREEDS_BY_SPECIES: Record<string, string[]> = {
   Canine: ["Labrador Retriever", "Golden Retriever", "German Shepherd", "Indie / Mixed", "Shih Tzu", "Beagle", "Rottweiler", "Pomeranian", "Pug"],
@@ -75,8 +76,8 @@ export function AdmitPatientPickerModal({
   onSelectPatient,
 }: AdmitPatientPickerModalProps) {
   const { currentUser, role } = useErp();
-  const activeDoctorName =
-    currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role?.person || "");
+  // Only a doctor/admin is recorded as the attending vet; for reception it stays blank and a doctor is chosen.
+  const activeDoctorName = vetNameOf(currentUser);
 
   const [tab, setTab] = useState<"appointments" | "crm" | "walkin">("appointments");
   const [appointments, setAppointments] = useState<any[]>([]);
