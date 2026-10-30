@@ -3,6 +3,7 @@ import type { HistoryPageData, HistoryRecord } from "./records";
 import type { GraphData, Metric, Point } from "./graphs";
 import { formatDate } from "./dates";
 import { rupee, fmtDate } from "./format";
+import { resolveTemp } from "@/lib/clinical/temperature";
 
 /** Transforms MongoDB patient360 response into the Doctor UI Pet format */
 const VACCINE_RX =
@@ -164,14 +165,23 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
   if (section === "medical") {
     const records: HistoryRecord[] = visits.map((v: any) => {
       const vDate = v.date ? new Date(v.date) : new Date(v.createdAt || Date.now());
+      // The app fills "Clinical Consultation" / "OPD Consultation" / "Clinical Examination Completed" when nothing was
+      // typed. Those are placeholders, not findings: show what was actually recorded, or say it was not recorded.
+      const real = (s: unknown) => {
+        const t = typeof s === "string" ? s.trim() : "";
+        return t && !/^(clinical consultation|opd consultation|clinical examination completed)$/i.test(t) ? t : "";
+      };
       const complaint =
-        v.clinicalNotes ||
-        v.prescriptionData?.previousHistory ||
-        v.prescriptionData?.symptomsText ||
-        v.vitals?.complaint ||
-        v.complaint ||
-        "OPD Consultation";
-      const diagnosis = v.diagnosis ? `Clinical Diagnosis: ${v.diagnosis}` : undefined;
+        real(v.clinicalNotes) ||
+        real(v.prescriptionData?.symptomsText) ||
+        real(v.vitals?.complaint) ||
+        real(v.complaint) ||
+        real(v.prescriptionData?.previousHistory);
+      const findingsText = Array.isArray(v.prescriptionData?.clinicalFindings)
+        ? v.prescriptionData.clinicalFindings.filter(Boolean).join(", ")
+        : "";
+      const dx = real(v.diagnosis);
+      const diagnosis = dx ? `Clinical Diagnosis: ${dx}` : undefined;
 
       const items = Array.isArray(v.items) ? v.items : [];
       const prescribedMeds = Array.isArray(v.prescriptionData?.prescribedMedicines)
@@ -241,17 +251,21 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
         followUpParts.push(`Next Deworming: ${v.nextDewormingDate}`);
       }
 
-      const tempStr = v.vitals?.temp
-        ? `${v.vitals.temp} ${v.vitals.tempUnit || "°F"}${v.vitals.tempC ? ` (${v.vitals.tempC} °C)` : ""}`
-        : v.vitals?.tempC
-        ? `${v.vitals.tempC} °C`
-        : "--";
+      // Read the stored value in the right unit (38.5 saved as °F used to show as "3.6 °C")
+      const rawTemp = Number(v.vitals?.temp ?? v.prescriptionData?.bodyTemperature ?? v.vitals?.tempC);
+      const tRes = rawTemp > 0
+        ? resolveTemp(rawTemp, v.vitals?.temp != null || v.prescriptionData?.bodyTemperature != null ? v.vitals?.tempUnit ?? v.prescriptionData?.temperatureUnit : "°C")
+        : null;
+      const tempStr = tRes ? `${tRes.c} °C (${tRes.f} °F)` : "Not recorded";
+      const wt = v.vitals?.weightKg || v.vitals?.weight;
 
       const fields: [string, string, boolean][] = [
-        ["Attending Vet", v.doctorName || "Dr. Staff Vet", false],
-        ["Clinical Findings / History", complaint, false],
+        ["Attending Vet", v.doctorName || "Not recorded", false],
+        ["Chief Complaint", complaint || "Not recorded", false],
+        ["Clinical Findings", findingsText || "Not recorded", false],
+        ["Diagnosis", dx || "Not recorded", false],
         ["Body Temperature", tempStr, false],
-        ["Weight", `${v.vitals?.weightKg || v.vitals?.weight || "--"} kg`, false],
+        ["Weight", wt ? `${wt} kg` : "Not recorded", false],
         ["Prescription No", v.prescriptionNo || `RX-${v.visitId}`, false],
         ["Total Amount", rupee(v.totalAmount || 0), false],
       ];
@@ -262,7 +276,7 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
 
       return {
         date: vDate,
-        title: v.diagnosis || complaint,
+        title: dx || complaint || "Consultation",
         bill: v.invoiceNo,
         tag: v.status || "Completed",
         tone: "ok" as const,
@@ -621,11 +635,13 @@ export function buildRealGraphData(pet: Pet, section: Section, p360: any): Graph
       });
     }
 
-    if (v.vitals?.tempC && v.vitals.tempC > 0) {
+    const rawT = Number(v.vitals?.temp ?? v.vitals?.tempC);
+    if (rawT > 0) {
+      const tr = resolveTemp(rawT, v.vitals?.temp != null ? v.vitals?.tempUnit : "°C");
       tempPoints.push({
         date: d,
-        v: Number(v.vitals.tempC),
-        sub: `${v.vitals.tempC} °C · ${dateStr}`,
+        v: tr.c,
+        sub: `${tr.c} °C · ${dateStr}`,
         why: v.vitals?.complaint || "Body Temp",
       });
     }

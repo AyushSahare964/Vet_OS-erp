@@ -164,7 +164,7 @@ export function ClinicHome() {
         ownerId: a.ownerId,
         ownerName: a.owner || "Client",
         ownerPhone: a.ownerPhone || "N/A",
-        doctorName: a.doctor || currentUser?.fullName,
+        doctorName: a.doctor || (currentUser && ["doctor", "admin"].includes(currentUser.roleId) ? currentUser.fullName : undefined),
         appointmentToken: a.token ? String(a.token) : undefined,
         vitals: { weightKg: a.vitals?.weightKg, tempC: a.vitals?.tempC, complaint: a.complaint || "OPD Consultation" },
         status: "Admitted",

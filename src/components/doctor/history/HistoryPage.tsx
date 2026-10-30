@@ -44,9 +44,9 @@ export function HistoryPage({ pet, section, p360 }: { pet: Pet; section: Section
     const ownerName = found?.ownerName || p360?.owner?.name || pet.owner;
     const ownerPhone = found?.ownerPhone || p360?.owner?.phone || pet.phone;
     const ownerId = found?.ownerId || p360?.owner?.ownerId || p360?.pet?.ownerId || "CLIENT";
-    const doctorName = found?.doctorName || "Dr Bharat Menon";
+    const doctorName = found?.doctorName || "Attending vet";
     const totalAmount = Number(found?.totalAmount ?? 0);
-    const amountPaid = Number(found?.amountPaid ?? (totalAmount > 0 ? totalAmount : 500));
+    const amountPaid = Number(found?.amountPaid ?? totalAmount);
     const balanceDue = Number(found?.balanceDue ?? Math.max(0, totalAmount - amountPaid));
     const billType = found?.billType || "GST";
 
@@ -70,8 +70,8 @@ export function HistoryPage({ pet, section, p360 }: { pet: Pet; section: Section
                 found?.vitals?.complaint ||
                 "Veterinary Consultation & Physical Examination",
               quantity: 1,
-              unitPrice: totalAmount > 0 ? totalAmount : 500,
-              lineTotal: totalAmount > 0 ? totalAmount : 500,
+              unitPrice: totalAmount,
+              lineTotal: totalAmount,
               lineType: "Consultation",
             },
           ];
@@ -109,8 +109,8 @@ export function HistoryPage({ pet, section, p360 }: { pet: Pet; section: Section
       ownerId,
       doctorName,
       items,
-      totalAmount: totalAmount > 0 ? totalAmount : (items[0]?.lineTotal || 500),
-      amountPaid: amountPaid > 0 ? amountPaid : (items[0]?.lineTotal || 500),
+      totalAmount: totalAmount > 0 ? totalAmount : items.reduce((s: number, i: any) => s + (Number(i.lineTotal) || 0), 0),
+      amountPaid,
       balanceDue,
       payments,
       paymentMode: found?.paymentMode || "Cash / UPI",
@@ -159,7 +159,7 @@ export function HistoryPage({ pet, section, p360 }: { pet: Pet; section: Section
             {pet.name} · {page.title}
           </h2>
           <p>
-            {page.records.length} records · every detail, newest first · graph report on the side
+            {page.records.length} {page.records.length === 1 ? "record" : "records"} · every detail, newest first · graph report on the side
           </p>
         </div>
       </div>

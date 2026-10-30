@@ -19,8 +19,10 @@ import { ClinicHome } from "./ClinicHome";
 /** The original home dashboard (moved unchanged from src/routes/index.tsx; only the Shell title is a prop). */
 export function ClinicDashboard({ title = "Clinic Dashboard" }: { title?: string }) {
   const { role, roleId, currentUser } = useErp();
+  // Only a vet (or the clinic admin, who may treat) is recorded as the attending vet; a receptionist who starts the
+  // visit used to be saved as "Attending Vet".
   const activeDoctorName =
-    currentUser?.fullName || (currentUser?.roleId === "doctor" ? currentUser.fullName : role.person || "");
+    currentUser && ["doctor", "admin"].includes(currentUser.roleId) ? currentUser.fullName || "" : "";
 
   // Modals state
   const [showRegisterModal, setShowRegisterModal] = useState(false);

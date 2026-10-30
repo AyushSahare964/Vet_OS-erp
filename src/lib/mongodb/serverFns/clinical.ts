@@ -9,6 +9,7 @@ import { StockBatch } from "@/lib/mongodb/models/StockBatch";
 import { InventoryItem } from "@/lib/mongodb/models/InventoryItem";
 import { FinanceTransaction } from "@/lib/mongodb/models/FinanceTransaction";
 import { ErpRow } from "@/lib/mongodb/models/ErpRow";
+import { resolveTemp } from "@/lib/clinical/temperature";
 import { FoodPurchase } from "@/lib/mongodb/models/FoodPurchase";
 import { nextSeq } from "./counters";
 import { calcLineItem, calcBillSummary, roundMoney } from "@/lib/utils/moneyUtils";
@@ -326,7 +327,8 @@ export const savePrescriptionFn = createServerFn({ method: "POST" })
       const tVal = data.vitals.temp ?? data.vitals.tempC;
       
       const wKg = wVal !== undefined ? (wUnit === "lb" ? +(wVal * 0.453592).toFixed(2) : wVal) : visit.vitals?.weightKg;
-      const tC = tVal !== undefined ? (tUnit === "°F" ? +((tVal - 32) * 5 / 9).toFixed(1) : tVal) : visit.vitals?.tempC;
+      const tRes = tVal !== undefined ? resolveTemp(tVal, tUnit) : undefined;
+      const tC = tRes ? tRes.c : visit.vitals?.tempC;
 
       visit.vitals = {
         ...visit.vitals,
@@ -336,7 +338,7 @@ export const savePrescriptionFn = createServerFn({ method: "POST" })
         weight: wVal,
         weightUnit: wUnit,
         temp: tVal,
-        tempUnit: tUnit,
+        tempUnit: tRes ? tRes.unit : tUnit,
       };
     }
 
@@ -567,11 +569,12 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
         }
 
         if (temp !== undefined && !isNaN(temp)) {
+          const tRes = resolveTemp(temp, tempUnit);
           visit.vitals.temp = temp;
-          visit.vitals.tempC = tempUnit === "°F" ? Math.round(((temp - 32) * 5 / 9) * 10) / 10 : temp;
-          visit.vitals.tempUnit = tempUnit;
+          visit.vitals.tempC = tRes.c;
+          visit.vitals.tempUnit = tRes.unit;
           visit.prescriptionData.bodyTemperature = temp;
-          visit.prescriptionData.temperatureUnit = tempUnit;
+          visit.prescriptionData.temperatureUnit = tRes.unit;
         } else {
           visit.vitals.temp = undefined;
           visit.vitals.tempC = undefined;
@@ -1351,7 +1354,8 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
       const wVal = data.vitals.weight ?? data.vitals.weightKg;
       const tVal = data.vitals.temp ?? data.vitals.tempC;
       const wKg = wVal !== undefined ? (wUnit === "lb" ? +(wVal * 0.453592).toFixed(2) : wVal) : visit.vitals?.weightKg;
-      const tC = tVal !== undefined ? (tUnit === "°F" ? +((tVal - 32) * 5 / 9).toFixed(1) : tVal) : visit.vitals?.tempC;
+      const tRes = tVal !== undefined ? resolveTemp(tVal, tUnit) : undefined;
+      const tC = tRes ? tRes.c : visit.vitals?.tempC;
 
       visit.vitals = {
         ...visit.vitals,
@@ -1361,7 +1365,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
         weight: wVal,
         weightUnit: wUnit,
         temp: tVal,
-        tempUnit: tUnit,
+        tempUnit: tRes ? tRes.unit : tUnit,
       };
     }
     visit.diagnosis = data.diagnosis || undefined;

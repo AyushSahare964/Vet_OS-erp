@@ -1545,3 +1545,8 @@ body:has(.vd-main.in-detail)::-webkit-scrollbar {
   .vd .gc-top { flex-wrap: wrap; }
   .vd .gc-side { flex-direction: row; align-items: center; }
 }
+
+/* Vitals chart: do not stretch taller than the screen on a wide panel (one reading made a tall, empty plot) */
+.vd .g-chart:not(.big) svg {
+  max-height: 300px;
+}
