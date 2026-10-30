@@ -290,7 +290,8 @@ export function SupplierBillFormModal({
       setLines(f.lines);
       setAddShipping(f.addShipping);
       setShippingCost(f.shippingCost);
-      setReceiveStock(f.receiveStock);
+      // drafts saved before stock-receive became the default carry receiveStock=false; admin can still untick it
+      setReceiveStock(true);
       setPayStatus(f.payStatus);
       setPayLines(f.payLines);
       setPayDate(f.payDate);

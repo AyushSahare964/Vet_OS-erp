@@ -58,7 +58,10 @@ export const listBillDraftsFn = createServerFn({ method: "GET" })
     for (const d of expired) {
       try {
         const { createPurchaseBill } = await import("@/lib/mongodb/purchaseBillCreate");
-        await createPurchaseBill((d.data as any).bill);
+        const bill = (d.data as any).bill;
+        // receive stock too (old drafts say false), but only if every linked line has batch + expiry, else the post would fail
+        const canReceive = bill.items.every((i: any) => !i.inventoryItemId || (i.batchNo?.trim() && i.expiryDate?.trim()));
+        await createPurchaseBill({ ...bill, receiveStock: canReceive });
         await ErpRow.deleteOne({ _id: d._id });
       } catch (e) {
         console.error("[purchaseBillDrafts] auto-save failed for", String(d._id), e);
