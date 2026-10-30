@@ -143,6 +143,12 @@ export async function connectDB(): Promise<typeof mongoose> {
       socketTimeoutMS: 45000,
       connectTimeoutMS: 15000,
       retryWrites: true,
+      // Serverless: a function is frozen between requests, so pooled sockets go stale and the first calls after a
+      // thaw hang until the driver's 10s heartbeat notices (matches the ~10s page stalls seen on the live site).
+      // Drop connections idle for more than 10s so a stale one is replaced at checkout, and notice dead servers sooner.
+      // ponytail: costs one new TLS connection after idle; if that shows up, use @vercel/functions attachDatabasePool.
+      maxIdleTimeMS: 10_000,
+      heartbeatFrequencyMS: 5_000,
       ...(isWin ? { family: 4 } : {}),
     };
 
