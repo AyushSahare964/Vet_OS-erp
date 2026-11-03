@@ -78,7 +78,18 @@ interface InvoiceGridLine {
   itemCode?: string | undefined;
   quantityBase?: number | undefined;
   baseLabel?: string | undefined;
+  /** Consultation-fee line added from the Doctor-Advised fee chips. */
+  isFee?: boolean | undefined;
 }
+
+const FEE_PRESETS = [
+  { code: "FREE", label: "Free / Follow-up", amount: 0 },
+  { code: "RECHECK", label: "Re-check", amount: 300 },
+  { code: "STANDARD", label: "Standard", amount: 500 },
+  { code: "SPECIALIST", label: "Specialist", amount: 800 },
+  { code: "EMERGENCY", label: "Emergency / Surgery", amount: 1200 },
+  { code: "HOME_VISIT", label: "Home Visit", amount: 0 }, // price typed by the user
+];
 
 const COMMON_UOMS = ["PCS", "STRIP", "TAB", "BOTTLE", "VIAL", "ML", "GM", "KG", "BOX", "DOSE", "SESSION"];
 
@@ -181,6 +192,8 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
   // Grid Lines
   const [lines, setLines] = useState<InvoiceGridLine[]>([]);
+  const [symptoms, setSymptoms] = useState("");
+  const [diagnosisText, setDiagnosisText] = useState("");
 
   // ── 4. Footer, Shipping & Partial Payment Details ──
   const [addShipping, setAddShipping] = useState(false);
@@ -631,6 +644,26 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
     itemInputRef.current?.focus();
   };
 
+  // Fee chips are multi-select: each selected chip is its own Consultation line on the bill.
+  const feeLine = (code: string) => lines.find((l) => l.id === `fee_${code}`);
+  const toggleFee = (p: (typeof FEE_PRESETS)[number]) => {
+    setLines((prev) => {
+      const id = `fee_${p.code}`;
+      const next = prev.some((l) => l.id === id)
+        ? prev.filter((l) => l.id !== id)
+        : [
+            ...prev,
+            {
+              id, sNo: 0, tag: "", itemName: p.code === "HOME_VISIT" ? "Home Visit" : `Consultation - ${p.label}`,
+              quantity: 1, uom: "SESSION", salePrice: p.amount, discountPct: 0, gstRate: 18, amount: p.amount, isFee: true,
+            } as InvoiceGridLine,
+          ];
+      return next.map((l, i) => ({ ...l, sNo: i + 1, tag: `SR-${String(i + 1).padStart(3, "0")}` }));
+    });
+  };
+  const setFeePrice = (code: string, price: number) =>
+    setLines((prev) => prev.map((l) => (l.id === `fee_${code}` ? { ...l, salePrice: price, amount: price } : l)));
+
   const handleRemoveLine = (idx: number) => {
     setLines((prev) => {
       const filtered = prev.filter((_, i) => i !== idx);
@@ -744,13 +777,13 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         billType: invoiceType === "NON_GST" ? ("Non-GST" as const) : ("GST" as const),
         doctorName: effectiveDoctorName,
         diagnosis: advisedMode
-          ? "Doctor-Advised Medicine"
+          ? diagnosisText.trim() || "Doctor-Advised Medicine"
           : deliveryTerms
           ? `Terms: ${deliveryTerms}`
           : customerType === "OTHER"
           ? `Retail Sale: ${otherClientType}`
           : "Counter Sale & Services",
-        clinicalNotes: [advisedNote, remarksPrivate.trim()].filter(Boolean).join(" ") || undefined,
+        clinicalNotes: [advisedNote, symptoms.trim() && `Symptoms: ${symptoms.trim()}.`, remarksPrivate.trim()].filter(Boolean).join(" ") || undefined,
         items: lines.map((l, idx) => {
           const discPct = Math.min(100, Math.max(0, l.discountPct || 0));
           const gross = (l.quantity || 1) * (l.salePrice || 0);
@@ -758,7 +791,8 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
           const taxable = Math.max(0, gross - discAmt);
           return {
             // food and accessories are billed as such, not as pharmacy
-            lineType: ((): "Pharmacy" | "Food" | "Accessory" => {
+            lineType: ((): "Pharmacy" | "Food" | "Accessory" | "Consultation" => {
+              if (l.isFee) return "Consultation";
               const t = inventoryItems.find((x) => x.itemCode === l.itemCode)?.productType;
               return t === "FOOD" ? "Food" : t === "ACCESSORY" ? "Accessory" : "Pharmacy";
             })(),
@@ -1137,6 +1171,53 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
               </div>
             </div>
           </fieldset>
+
+          {advisedMode && (
+            <fieldset className="rounded-xl border border-border bg-card/60 p-3.5 space-y-3 relative">
+              <legend className="px-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Symptoms, Diagnosis &amp; Consultation Fee
+              </legend>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Symptoms</Label>
+                  <Input value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Vomiting, loss of appetite" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Diagnosis</Label>
+                  <Input value={diagnosisText} onChange={(e) => setDiagnosisText(e.target.value)} placeholder="e.g. Gastroenteritis" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Consultation Fee (select one or more)</Label>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {FEE_PRESETS.map((p) => {
+                    const on = !!feeLine(p.code);
+                    return (
+                      <span key={p.code} className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleFee(p)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-bold border transition-all",
+                            on ? "bg-primary text-primary-foreground border-primary" : "bg-muted/40 text-foreground border-border hover:bg-muted"
+                          )}
+                        >
+                          {p.label} {p.code === "HOME_VISIT" ? "(₹ ____)" : `(₹${p.amount})`}
+                        </button>
+                        {on && p.code === "HOME_VISIT" && (
+                          <Input
+                            type="number" min={0} className="h-8 w-24 font-mono" placeholder="₹ amount"
+                            value={feeLine("HOME_VISIT")?.salePrice || ""}
+                            onChange={(e) => setFeePrice("HOME_VISIT", Math.max(0, Number(e.target.value) || 0))}
+                          />
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </fieldset>
+          )}
 
           {/* ── 2. GROUPBOX: Particulars Line Entry (Matching Image 4) ── */}
           <fieldset className="rounded-xl border border-border bg-card/60 p-3.5 space-y-3 relative">
