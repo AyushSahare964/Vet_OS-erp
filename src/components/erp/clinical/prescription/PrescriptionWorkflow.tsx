@@ -969,7 +969,7 @@ export function PrescriptionWorkflow({
       linesList.push({
         id: `rx-fee-${visit?.visitId || Date.now()}`,
         lineType: "Consultation",
-        name: consultationFeePreset === "HOME_VISIT" ? "Home Visit" : "Veterinary Consultation & Physical Examination",
+        name: consultationFeePreset?.includes("HOME_VISIT") ? "Home Visit" : "Veterinary Consultation & Physical Examination",
         quantity: 1,
         unitPrice: Number(consultationFee),
         discountPercent: 0,

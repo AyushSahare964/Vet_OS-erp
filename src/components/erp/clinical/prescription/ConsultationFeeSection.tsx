@@ -39,32 +39,22 @@ export function ConsultationFeeSection({
   isLocked = false,
 }: ConsultationFeeSectionProps) {
   const amountRef = useRef<HTMLInputElement>(null);
-  const isHomeVisit = preset === HOME_VISIT;
+  // Multi-select: `preset` holds comma-joined codes; `amount` is the running total.
+  const selected = preset ? preset.split(",") : [];
+  const isHomeVisit = selected.includes(HOME_VISIT);
 
-  const handleSelectHomeVisit = () => {
+  const toggle = (code: string, pAmount: number) => {
     if (isLocked) return;
-    onChangeAmount(null, HOME_VISIT);
-    amountRef.current?.focus();
-  };
-
-  const handleSelectPreset = (pAmount: number, pCode: string) => {
-    if (isLocked) return;
-    onChangeAmount(pAmount, pCode);
+    const on = selected.includes(code);
+    const next = on ? selected.filter((c) => c !== code) : [...selected, code];
+    const total = Math.max(0, (amount ?? 0) + (on ? -pAmount : pAmount));
+    onChangeAmount(next.length || amount !== null ? total : null, next.join(",") || null);
+    if (code === HOME_VISIT && !on) amountRef.current?.focus();
   };
 
   const handleCustomInputChange = (valStr: string) => {
     if (isLocked) return;
-    if (!valStr.trim()) {
-      onChangeAmount(null, isHomeVisit ? HOME_VISIT : null);
-      return;
-    }
-    const num = Math.max(0, Number(valStr) || 0);
-    if (isHomeVisit) {
-      onChangeAmount(num, HOME_VISIT);
-      return;
-    }
-    const matchedPreset = PRESETS.find((p) => p.amount === num);
-    onChangeAmount(num, matchedPreset ? matchedPreset.code : null);
+    onChangeAmount(valStr.trim() ? Math.max(0, Number(valStr) || 0) : null, preset);
   };
 
   return (
@@ -88,15 +78,14 @@ export function ConsultationFeeSection({
           </Label>
           <div className="flex flex-wrap gap-2">
             {PRESETS.map((p) => {
-              const isSelected =
-                (preset && preset === p.code) || (!preset && amount === p.amount);
+              const isSelected = selected.includes(p.code);
 
               return (
                 <button
                   key={p.code}
                   type="button"
                   disabled={isLocked}
-                  onClick={() => handleSelectPreset(p.amount, p.code)}
+                  onClick={() => toggle(p.code, p.amount)}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5",
                     isSelected
@@ -112,7 +101,7 @@ export function ConsultationFeeSection({
             <button
               type="button"
               disabled={isLocked}
-              onClick={handleSelectHomeVisit}
+              onClick={() => toggle(HOME_VISIT, 0)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5",
                 isHomeVisit
@@ -129,7 +118,7 @@ export function ConsultationFeeSection({
         {/* Custom Input */}
         <div className="max-w-xs space-y-1 pt-1">
           <Label htmlFor="custom-consultation-fee" className="text-[11px] font-semibold text-muted-foreground">
-            {isHomeVisit ? "Home Visit Charge (₹) — enter amount" : "Custom Consultation Amount (₹)"}
+            {isHomeVisit ? "Total (₹) — add the Home Visit charge" : "Total Consultation Amount (₹)"}
           </Label>
           <div className="relative flex items-center">
             <span className="absolute left-3 text-xs font-bold text-muted-foreground pointer-events-none">
