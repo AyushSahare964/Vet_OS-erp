@@ -1,3 +1,4 @@
+import { getHospitalSignature, getSignatureForDoctor } from "@/lib/erp/hospitalSignature";
 import React from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -397,12 +398,16 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
                       <div className="relative">
                         <div className="h-px bg-gray-300 w-full" />
                         {/* Stylized cursive signature text */}
-                        <p
-                          className="absolute -top-4 left-0 right-0 text-center text-gray-600 text-[15px] leading-none"
-                          style={{ fontFamily: "'Dancing Script', 'Brush Script MT', cursive", letterSpacing: "0.5px" }}
-                        >
-                          {visit.doctorName || CLINIC_CONFIG.doctorName}
-                        </p>
+                        {getSignatureForDoctor(visit.doctorName || CLINIC_CONFIG.doctorName) ? (
+                          <img src={getSignatureForDoctor(visit.doctorName || CLINIC_CONFIG.doctorName)} alt="Doctor signature" className="absolute -top-9 left-1/2 max-h-11 -translate-x-1/2 object-contain" />
+                        ) : (
+                          <p
+                            className="absolute -top-4 left-0 right-0 text-center text-gray-600 text-[15px] leading-none"
+                            style={{ fontFamily: "'Dancing Script', 'Brush Script MT', cursive", letterSpacing: "0.5px" }}
+                          >
+                            {visit.doctorName || CLINIC_CONFIG.doctorName}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <p className="text-[11px] font-bold text-gray-800">{visit.doctorName || CLINIC_CONFIG.doctorName}</p>
@@ -413,6 +418,7 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
                 {/* Clinic Authorization */}
                 <div className="text-right min-w-[140px]">
                   <p className="font-bold text-gray-700 text-[11px] mb-5">For {CLINIC_CONFIG.fullName || CLINIC_CONFIG.shortName}</p>
+                  {getHospitalSignature() && <img src={getHospitalSignature()} alt="Authorized signature" className="ml-auto -mt-5 mb-0.5 max-h-12 object-contain" />}
                   <div className="h-px bg-gray-300 w-full" />
                   <p className="pt-1 text-gray-400 text-[10px]">Authorized Signatory</p>
                 </div>

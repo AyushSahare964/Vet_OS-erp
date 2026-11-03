@@ -1,3 +1,5 @@
+import { setHospitalSignature, setDoctorSignatures } from "@/lib/erp/hospitalSignature";
+import { listDoctorSignaturesFn } from "@/lib/mongodb/serverFns/doctorSignatures";
 import {
   createContext,
   useCallback,
@@ -98,8 +100,12 @@ export function ErpProvider({ children }: { children: ReactNode }) {
     try {
       const config = await getClinicConfigFn();
       setClinicBranding(config as ClinicBranding | null);
+      const cfg = config as { signatureUrl?: string; doctorName?: string } | null;
+      setHospitalSignature(cfg?.signatureUrl, cfg?.doctorName);
+      void listDoctorSignaturesFn().then(setDoctorSignatures).catch(() => {});
     } catch {
       setClinicBranding(null);
+      setHospitalSignature("");
     }
   }, []);
 

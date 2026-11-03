@@ -49,6 +49,7 @@ const updateClinicConfigSchema = z.object({
   doctorName: z.string().optional(),
   doctorQualifications: z.string().optional(),
   doctorLicenseNumber: z.string().optional(),
+  signatureUrl: z.string().max(500_000, "Signature image is too large").optional(),
   kennelCapacity: z.number().optional(),
   hasBoardingFacility: z.boolean().optional(),
   hasSwimmingPool: z.boolean().optional(),
@@ -64,14 +65,18 @@ export const updateClinicConfigFn = createServerFn({ method: "POST" })
     if ((ctx?.roleId ?? me?.roleId) !== "admin") throw new Error("Only the clinic admin can change the hospital profile.");
     const tenantId = ctx?.tenantId;
     // Tenant clinics always have a profile; a pre-multi-tenancy clinic gets one created on its first save.
+    // strict:false so a newly added field (e.g. signatureUrl) is stored even while a running server holds the older schema
     const updated = tenantId
-      ? await ClinicConfigModel.findOneAndUpdate({}, { $set: data }, { new: true })
+      ? await ClinicConfigModel.findOneAndUpdate({}, { $set: data }, { new: true, strict: false }).lean()
       : await ClinicConfigModel.findOneAndUpdate(
           { tenantId: null },
           { $set: data, ...(data.clinicName ? {} : { $setOnInsert: { clinicName: me?.clinicName || "Veterinary Clinic" } }) },
-          { new: true, upsert: true },
-        );
+          { new: true, upsert: true, strict: false },
+        ).lean();
     if (!updated) return { success: false, message: "Clinic profile not found." };
+    if (data.signatureUrl !== undefined && ((updated as { signatureUrl?: string }).signatureUrl ?? "") !== data.signatureUrl) {
+      return { success: false, message: "The signature could not be stored. Please restart the server and try again." };
+    }
     // The default branch prints on invoices, so it follows the profile's address.
     const addr: Record<string, string> = {};
     for (const k of ["address", "city", "pin", "phone", "email"] as const) if (data[k] !== undefined) addr[k] = data[k];

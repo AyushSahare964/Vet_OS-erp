@@ -1,3 +1,6 @@
+import { useErp } from "@/lib/erp/store";
+import { getSignatureForDoctor, setDoctorSignatures } from "@/lib/erp/hospitalSignature";
+import { setDoctorSignatureFn, listDoctorSignaturesFn } from "@/lib/mongodb/serverFns/doctorSignatures";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   User,
@@ -257,7 +260,8 @@ export function PrescriptionWorkflow({
     visit?.status === "Paid" || visit?.status === "Settled" || visit?.status === "Closed";
 
   // Optimistic version & Ref for synchronous sequential saves
-  const [docSig, setDocSig] = useState<string>(loadDoctorSignature);
+  const { currentUser: signer } = useErp();
+  const [docSig, setDocSig] = useState<string>(() => loadDoctorSignature() || getSignatureForDoctor(signer?.fullName));
   const [version, setVersion] = useState<number>(initialRx.version || 1);
   const versionRef = useRef<number>(initialRx.version || 1);
 
@@ -1489,6 +1493,12 @@ export function PrescriptionWorkflow({
             onChange={(u) => {
               saveDoctorSignature(u);
               setDocSig(u);
+              if (signer?.id) {
+                void setDoctorSignatureFn({ data: { userId: signer.id, signatureUrl: u } })
+                  .then(() => listDoctorSignaturesFn())
+                  .then(setDoctorSignatures)
+                  .catch(() => {});
+              }
             }}
           />
           {onOpenPrint && (

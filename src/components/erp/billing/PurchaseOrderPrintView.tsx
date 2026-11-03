@@ -1,4 +1,5 @@
 import React from "react";
+import { getHospitalSignature } from "@/lib/erp/hospitalSignature";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -336,6 +337,7 @@ export function PurchaseOrderPrintView({
                   <div className="font-bold text-xs text-slate-900 dark:text-white">
                     For {CLINIC_CONFIG.clinicName || "Harmony Veterinary Hospital"}
                   </div>
+                  {getHospitalSignature() && <img src={getHospitalSignature()} alt="Authorized signature" className="mx-auto -mb-5 max-h-12 object-contain" />}
                   <div className="text-[11px] text-slate-500 mt-6">
                     Authorized Signatory / Medical Superintendent
                   </div>

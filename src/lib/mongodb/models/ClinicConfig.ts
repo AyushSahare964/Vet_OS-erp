@@ -26,6 +26,8 @@ export interface IClinicConfig extends Document {
   doctorName?: string;
   doctorQualifications?: string;
   doctorLicenseNumber?: string;
+  /** Hospital signature as a PNG data URL, used on prescriptions, invoices and purchase documents */
+  signatureUrl?: string;
   kennelCapacity?: number;
   hasBoardingFacility: boolean;
   hasSwimmingPool: boolean;
@@ -51,6 +53,7 @@ const ClinicConfigSchema = new Schema<IClinicConfig>(
     doctorName: { type: String },
     doctorQualifications: { type: String },
     doctorLicenseNumber: { type: String },
+    signatureUrl: { type: String },
     kennelCapacity: { type: Number, default: 20 },
     hasBoardingFacility: { type: Boolean, default: true },
     hasSwimmingPool: { type: Boolean, default: false },

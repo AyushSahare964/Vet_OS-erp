@@ -1,3 +1,4 @@
+import { getSignatureForDoctor } from "@/lib/erp/hospitalSignature";
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -525,6 +526,9 @@ export function PrescriptionPrintView({ visit, open, onClose }: Props) {
                 <p>• In case of severe vomiting, diarrhea or distress, contact emergency immediately.</p>
               </div>
               <div className="text-center space-y-1 min-w-[180px]">
+                {getSignatureForDoctor(resolvedDoctor.name) && (
+                  <img src={getSignatureForDoctor(resolvedDoctor.name)} alt="Doctor signature" className="mx-auto max-h-12 object-contain" />
+                )}
                 <div className="w-44 border-b border-slate-400 pb-3 text-center text-slate-400 font-serif italic text-[10px]">
                   Digitally Signed
                 </div>

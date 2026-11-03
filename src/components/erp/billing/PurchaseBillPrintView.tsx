@@ -1,3 +1,4 @@
+import { getHospitalSignature } from "@/lib/erp/hospitalSignature";
 import React from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -345,7 +346,9 @@ export function PurchaseBillPrintView({
                 <span>Receiver / Store In-Charge</span>
               </div>
               <div>
-                <div className="border-b border-slate-300 dark:border-slate-700 w-40 mx-auto mb-1.5 h-8"></div>
+                <div className="border-b border-slate-300 dark:border-slate-700 w-40 mx-auto mb-1.5 h-8 flex items-end justify-center">
+                  {getHospitalSignature() && <img src={getHospitalSignature()} alt="Authorized signature" className="max-h-8 object-contain" />}
+                </div>
                 <span>Authorized Signatory</span>
               </div>
             </div>

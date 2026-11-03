@@ -1,3 +1,4 @@
+import { getHospitalSignature, getSignatureForDoctor, doctorKey } from "@/lib/erp/hospitalSignature";
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -2677,7 +2678,12 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                           <p className="text-[11px] text-slate-500" style={{ color: "#64748b", fontSize: "11px", margin: 0 }}>Store temperature-sensitive medications in cool and dry place.</p>
                         </div>
                         <div className="text-center min-w-[160px]" style={{ textAlign: "center", minWidth: "160px", marginLeft: "auto" }}>
-                          {loadDoctorSignature() && <img src={loadDoctorSignature()} alt="Doctor signature" style={{ maxHeight: "48px", margin: "0 auto" }} />}
+                          {(() => {
+                            const who = finalizedVisit.doctorName || activeDoctorName || CLINIC_CONFIG.doctorName;
+                            // that doctor's own signature; the signed-in doctor's device signature is the fallback for themselves only
+                            const sig = getSignatureForDoctor(who) || (doctorKey(who) === doctorKey(currentUser?.fullName) ? loadDoctorSignature() : "");
+                            return sig ? <img src={sig} alt="Doctor signature" style={{ maxHeight: "48px", margin: "0 auto" }} /> : null;
+                          })()}
                           <div className="text-slate-500 font-serif italic text-xs pb-1" style={{ fontFamily: "Georgia, serif", fontStyle: "italic", color: "#64748b", fontSize: "11px", paddingBottom: "2px" }}>
                             Digitally Signed
                           </div>
@@ -3013,16 +3019,20 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                               <div style={{ textAlign: "center", minWidth: "140px" }}>
                                 <div style={{ marginBottom: "20px", position: "relative" }}>
                                   {/* Cursive signature over the line */}
-                                  <p style={{
-                                    fontFamily: "'Dancing Script', 'Brush Script MT', cursive",
-                                    fontSize: "16px",
-                                    color: "#334155",
-                                    margin: "0 0 2px 0",
-                                    letterSpacing: "0.5px",
-                                    lineHeight: 1,
-                                  }}>
-                                    {finalizedVisit.doctorName || CLINIC_CONFIG.doctorName}
-                                  </p>
+                                  {getSignatureForDoctor(finalizedVisit.doctorName || CLINIC_CONFIG.doctorName) ? (
+                                    <img src={getSignatureForDoctor(finalizedVisit.doctorName || CLINIC_CONFIG.doctorName)} alt="Doctor signature" style={{ maxHeight: "44px", display: "block", margin: "0 auto 2px" }} />
+                                  ) : (
+                                    <p style={{
+                                      fontFamily: "'Dancing Script', 'Brush Script MT', cursive",
+                                      fontSize: "16px",
+                                      color: "#334155",
+                                      margin: "0 0 2px 0",
+                                      letterSpacing: "0.5px",
+                                      lineHeight: 1,
+                                    }}>
+                                      {finalizedVisit.doctorName || CLINIC_CONFIG.doctorName}
+                                    </p>
+                                  )}
                                   <div style={{ height: "1px", backgroundColor: "#cbd5e1", width: "100%" }} />
                                 </div>
                                 <p style={{ fontSize: "11px", fontWeight: 700, color: "#1e293b", margin: "0 0 1px 0" }}>{finalizedVisit.doctorName || CLINIC_CONFIG.doctorName}</p>
@@ -3033,6 +3043,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
                             {/* Clinic Authorization */}
                             <div style={{ textAlign: "right", minWidth: "140px" }}>
                               <p style={{ fontWeight: 700, color: "#334155", fontSize: "11px", margin: "0 0 20px 0" }}>For {CLINIC_CONFIG.fullName || CLINIC_CONFIG.shortName}</p>
+                              {getHospitalSignature() && <img src={getHospitalSignature()} alt="Authorized signature" style={{ maxHeight: "48px", marginLeft: "auto", marginTop: "-22px", display: "block" }} />}
                               <div style={{ height: "1px", backgroundColor: "#cbd5e1", width: "100%" }} />
                               <p style={{ fontSize: "10px", color: "#94a3b8", margin: "4px 0 0 0" }}>Authorized Signatory</p>
                             </div>

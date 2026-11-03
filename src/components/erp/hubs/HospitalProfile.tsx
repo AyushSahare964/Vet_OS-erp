@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,54 @@ import { STATE_CODES } from "@/lib/finance/stateCodes";
 import { validateGstin, validatePin } from "@/lib/finance/validators";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateClinicConfigFn } from "@/lib/mongodb/serverFns/clinicConfig";
+import { SignatureCapture } from "@/components/erp/documentation/SignatureCapture";
+import { listDoctorSignaturesFn, setDoctorSignatureFn, type DoctorSignatureRow } from "@/lib/mongodb/serverFns/doctorSignatures";
+import { setDoctorSignatures } from "@/lib/erp/hospitalSignature";
+
+/** One row per doctor: their own signature, used on that doctor's prescriptions and bills. Admin edits all; a doctor edits their own. */
+function DoctorSignatures({ isAdmin, myId }: { isAdmin: boolean; myId?: string | undefined }) {
+  const [rows, setRows] = useState<DoctorSignatureRow[]>([]);
+  const load = async () => {
+    const r = await listDoctorSignaturesFn();
+    setRows(r);
+    setDoctorSignatures(r); // prescriptions and bills read from this
+  };
+  useEffect(() => { void load().catch(() => {}); }, []);
+  const save = async (id: string, url: string) => {
+    try {
+      await setDoctorSignatureFn({ data: { userId: id, signatureUrl: url } });
+      await load();
+      toast.success(url ? "Signature saved." : "Signature removed.");
+    } catch (e: any) {
+      toast.error(e.message || "Could not save the signature.");
+    }
+  };
+  if (rows.length === 0) return null;
+  return (
+    <div className="w-full space-y-2 border-t border-border pt-4">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Doctor signatures</p>
+      <p className="text-xs text-muted-foreground">Each doctor's signature appears on that doctor's own prescriptions and bills.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {rows.map((r) => (
+          <div key={r.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
+            <div className="flex h-14 w-32 shrink-0 items-center justify-center rounded border border-dashed border-border bg-white">
+              {r.signatureUrl ? <img src={r.signatureUrl} alt={`${r.name} signature`} className="max-h-full max-w-full object-contain" /> : <span className="text-[10px] text-muted-foreground">No signature</span>}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-foreground">{r.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{r.designation}</p>
+              {(isAdmin || r.id === myId) && (
+                <div className="mt-1 flex items-center">
+                  <SignatureCapture label="Add signature" hasSignature={!!r.signatureUrl} onChange={(u) => save(r.id, u)} />
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const FIELDS = [
   ["clinicName", "Hospital name"],
@@ -41,7 +89,7 @@ const clean = (k: Field, v: string) =>
 /** Clinic profile (name, address, registration, branding) from the clinic's own configuration; admin can edit contact details. */
 export function HospitalProfile() {
   const c = useClinicBranding();
-  const { roleId, clinicBranding, refreshClinicBranding } = useErp();
+  const { roleId, clinicBranding, refreshClinicBranding, currentUser } = useErp();
   const cfg = (clinicBranding ?? {}) as Partial<Record<Field, string>>;
   const blank = Object.fromEntries(FIELDS.map(([k]) => [k, ""])) as Record<Field, string>;
   const [editing, setEditing] = useState(false);
@@ -85,6 +133,17 @@ export function HospitalProfile() {
     }
   };
 
+  const saveSignature = async (url: string) => {
+    try {
+      const res = await updateClinicConfigFn({ data: { signatureUrl: url } });
+      if (!res.success) return void toast.error(res.message);
+      await refreshClinicBranding();
+      toast.success(url ? "Signature saved. It is now used on prescriptions, invoices and purchase documents." : "Signature removed.");
+    } catch (e: any) {
+      toast.error(e.message || "Could not save the signature.");
+    }
+  };
+
   const rows: [string, string][] = [
     ["Hospital", c.fullName],
     ["Tagline", c.tagline],
@@ -114,6 +173,27 @@ export function HospitalProfile() {
           <Pencil className="size-3.5" /> Edit hospital details
         </Button>
       )}
+      <div className="w-full space-y-2 border-t border-border pt-4">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Signature</p>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex h-20 w-56 items-center justify-center rounded-lg border border-dashed border-border bg-white">
+            {c.signatureUrl ? (
+              <img src={c.signatureUrl} alt="Hospital signature" className="max-h-full max-w-full object-contain" />
+            ) : (
+              <span className="text-xs text-muted-foreground">No signature added</span>
+            )}
+          </div>
+          {roleId === "admin" && (
+            <div className="flex items-center gap-1.5">
+              <SignatureCapture label="Add signature" hasSignature={!!c.signatureUrl} onChange={saveSignature} />
+            </div>
+          )}
+          <p className="max-w-sm text-xs text-muted-foreground">
+            The hospital's authorised signature: used on invoices and purchase orders / bills. Draw it or upload a photo (rotate and crop it).
+          </p>
+        </div>
+      </div>
+      <DoctorSignatures isAdmin={roleId === "admin"} myId={currentUser?.id} />
       {editing && (
         <div className="grid w-full gap-3 border-t border-border pt-4 sm:grid-cols-2">
           {FIELDS.map(([k, label]) => (

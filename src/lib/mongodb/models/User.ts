@@ -22,6 +22,8 @@ export interface IUser {
   initials: string;
   licenseNumber?: string;
   qualification?: string;
+  /** PNG/JPEG data URL of this doctor's signature */
+  signatureUrl?: string;
   department?: string;
   specialty?: "Canine" | "Feline" | "Avian" | "Exotic" | "Surgery" | "General Practice" | "Administration";
   avatarUrl?: string;
@@ -53,6 +55,7 @@ const userSchema = new Schema<UserDocument>(
     initials:        { type: String, required: true },
     licenseNumber:   { type: String },
     qualification:   { type: String },
+    signatureUrl:    { type: String },
     department:      { type: String },
     specialty:       { type: String, enum: ["Canine", "Feline", "Avian", "Exotic", "Surgery", "General Practice", "Administration"] },
     avatarUrl:       { type: String },

@@ -25,6 +25,8 @@ export interface ResolvedClinicBranding {
   gstin: string;
   regNo: string;
   logoPath: string;
+  /** Hospital signature image (data URL), "" when none is set */
+  signatureUrl: string;
   tagline: string;
   subTagline: string;
 }
@@ -41,6 +43,7 @@ interface FullClinicConfig extends ClinicBranding {
   gstin?: string;
   doctorQualifications?: string;
   doctorLicenseNumber?: string;
+  signatureUrl?: string;
 }
 
 export function useClinicBranding(): ResolvedClinicBranding {
@@ -71,6 +74,7 @@ export function useClinicBranding(): ResolvedClinicBranding {
     gstin: cb?.gstin || fb("gstin"),
     regNo: cb?.doctorLicenseNumber || currentUser?.licenseNumber || fb("regNo"),
     logoPath: cb?.logoUrl || (isTenant ? "/favicon.svg" : CLINIC_CONFIG.logoPath),
+    signatureUrl: cb?.signatureUrl || "",
     tagline: cb?.tagline || fb("tagline"),
     subTagline: fb("subTagline"),
   };
