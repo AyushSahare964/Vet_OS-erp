@@ -108,6 +108,7 @@ import { type ClinicPurchaseOrderRecord } from "./PurchaseOrderModal";
 import { cn } from "@/lib/utils";
 import { useErp } from "@/lib/erp/store";
 import { useClinicBranding } from "@/lib/erp/useClinicBranding";
+import { draftEditableUntil } from "@/lib/draftWindow";
 import { listPoDraftsFn, deletePoDraftFn } from "@/lib/mongodb/serverFns/poDrafts";
 import { listBillDraftsFn, deleteBillDraftFn, type PurchaseBillDraft } from "@/lib/mongodb/serverFns/purchaseBillDrafts";
 
@@ -230,7 +231,7 @@ export function BillingDeskDashboard({
 
   const loadExtraRegisters = async () => {
     try {
-      // First, so drafts past their 30 days are posted as bills before the bill list is read
+      // First, so drafts from a previous month are posted as bills before the bill list is read
       setBillDrafts(await listBillDraftsFn().catch(() => [] as PurchaseBillDraft[]));
       const [expData, purData, qtnData, supData, cliData] = await Promise.all([
         listExpensesFn({ data: { status: "ALL", from: "2020-01-01", to: "2030-12-31" } }).catch(() => []),
@@ -644,16 +645,14 @@ export function BillingDeskDashboard({
     });
   }, [purchases, dateRange, searchQuery]);
 
-  // Drafts follow the same search and date range as saved bills
+  // Drafts are pending work, so only the search filters them: a back-dated bill (bill date outside the
+  // date range of the register) must still show up here until it is posted.
   const filteredDrafts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return billDrafts.filter((d) => {
-      const day = d.bill.billDate;
-      if (dateRange.from && day && day < dateRange.from) return false;
-      if (dateRange.to && day && day > dateRange.to) return false;
       return !q || d.bill.supplierName?.toLowerCase().includes(q) || d.bill.billNumber?.toLowerCase().includes(q);
     });
-  }, [billDrafts, dateRange, searchQuery]);
+  }, [billDrafts, searchQuery]);
 
   // Filtered Payments for Register
   const filteredPayments = useMemo(() => {
@@ -2291,7 +2290,7 @@ export function BillingDeskDashboard({
                                 disabled={!editable}
                                 onClick={() => onEditPurchaseBillDraft?.(d)}
                                 className="h-6 px-2 text-[10px] font-bold gap-1"
-                                title={editable ? "Edit draft" : "Drafts can only be changed within 30 days"}
+                                title={editable ? "Edit draft" : "Drafts can only be changed within the month they were created"}
                               >
                                 <Pencil className="size-3" />
                                 <span>{editable ? "Edit" : "Locked"}</span>
@@ -3201,7 +3200,7 @@ export function BillingDeskDashboard({
                             {po.draftCreatedAt ? (
                               // Draft: receptionist etc. can only have saved it; admin edits (within 30 days) or deletes it
                               isAdmin && (() => {
-                                const editable = Date.now() - new Date(po.draftCreatedAt).getTime() <= 30 * 864e5;
+                                const editable = Date.now() <= draftEditableUntil(po.draftCreatedAt);
                                 return (
                                   <div className="flex items-center justify-center gap-1">
                                     <Button
@@ -3210,7 +3209,7 @@ export function BillingDeskDashboard({
                                       disabled={!editable}
                                       onClick={() => onEditPurchaseOrderDraft?.(po)}
                                       className="h-6 px-2 text-[10px] font-bold gap-1"
-                                      title={editable ? "Edit draft, then save the final PO" : "Drafts can only be changed within 30 days"}
+                                      title={editable ? "Edit draft, then save the final PO" : "Drafts can only be changed within the month they were created"}
                                     >
                                       <Pencil className="size-3" />
                                       <span>{editable ? "Edit" : "Locked"}</span>

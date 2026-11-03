@@ -97,6 +97,9 @@ export interface ClinicPurchaseOrderRecord {
   grnDate?: string | undefined;
   linkedBillNo?: string | undefined;
   receipts?: Record<string, { checked: boolean; receivedQty: number; damagedQty: number }> | undefined;
+  /** Overall discount on the whole order (%), already deducted from subTotal and GST. */
+  billDiscountPct?: number | undefined;
+  billDiscountAmount?: number | undefined;
   /** Set only on server-side drafts (see poDrafts.ts) */
   draftCreatedAt?: string | undefined;
 }
@@ -223,6 +226,7 @@ export function PurchaseOrderModal({
   // Bottom section
   const [addShipping, setAddShipping] = useState(false);
   const [shippingCost, setShippingCost] = useState<number>(0);
+  const [billDiscPct, setBillDiscPct] = useState<number>(0);
   const [remarks, setRemarks] = useState(
     "All biologicals and vaccines must be dispatched with certified cold chain ice-packs (2-8°C). Minimum 18 months expiry required upon delivery."
   );
@@ -257,6 +261,7 @@ export function PurchaseOrderModal({
       // fresh form per open so a previously viewed draft/PO never leaks into a new one
       setLines([]);
       setPoNumber("");
+      setBillDiscPct(0);
       return;
     }
     setOrderType(draft.orderType);
@@ -268,6 +273,7 @@ export function PurchaseOrderModal({
     setTransportMode(draft.transportMode);
     setDeliveryLocation(draft.deliveryLocation);
     setLines(draft.items);
+    setBillDiscPct(draft.billDiscountPct ?? 0);
     setAddShipping(draft.shippingCost > 0);
     setShippingCost(draft.shippingCost);
     setRemarks(draft.remarks);
@@ -415,8 +421,12 @@ export function PurchaseOrderModal({
   };
 
   // Summary calculations
-  const subTotal = r2(lines.reduce((acc, l) => acc + l.taxableAmount, 0));
-  const gstTotal = r2(lines.reduce((acc, l) => acc + l.taxAmount, 0));
+  // Overall discount comes off the taxable value, so GST shrinks with it
+  const billF = 1 - Math.min(100, Math.max(0, billDiscPct || 0)) / 100;
+  const grossSub = r2(lines.reduce((acc, l) => acc + l.taxableAmount, 0));
+  const subTotal = r2(grossSub * billF);
+  const billDiscAmt = r2(grossSub - subTotal);
+  const gstTotal = r2(lines.reduce((acc, l) => acc + l.taxAmount, 0) * billF);
   const cgstTotal = isInterState ? 0 : r2(gstTotal / 2);
   const sgstTotal = isInterState ? 0 : r2(gstTotal / 2);
   const igstTotal = isInterState ? gstTotal : 0;
@@ -631,6 +641,8 @@ export function PurchaseOrderModal({
     deliveryLocation,
     items: lines,
     subTotal,
+    billDiscountPct: billDiscPct || undefined,
+    billDiscountAmount: billDiscAmt || undefined,
     gstTotal,
     cgstTotal,
     sgstTotal,
@@ -1438,8 +1450,22 @@ export function PurchaseOrderModal({
                 <div className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 space-y-2 shadow-xs">
                   <div className="flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
                     <span>Sub Total ({lines.length} items)</span>
-                    <span className="font-mono text-sm">₹ {subTotal.toFixed(2)}</span>
+                    <span className="font-mono text-sm">₹ {grossSub.toFixed(2)}</span>
                   </div>
+
+                  <div className="flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <label className="flex items-center gap-1.5">
+                      Overall Discount %
+                      <input
+                        type="number" min={0} max={100} step="0.01" placeholder="0"
+                        className="h-7 w-20 rounded border border-slate-300 dark:border-slate-700 bg-transparent px-1.5 text-right font-mono"
+                        value={billDiscPct || ""}
+                        onChange={(e) => setBillDiscPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                      />
+                    </label>
+                    <span className="font-mono">{billDiscAmt > 0 ? `- ₹ ${billDiscAmt.toFixed(2)}` : ""}</span>
+                  </div>
+
 
                   {gstTotal > 0 &&
                     (isInterState ? (
@@ -1708,8 +1734,14 @@ export function PurchaseOrderModal({
                   <div className="border border-slate-200 rounded p-3 bg-slate-50 space-y-1.5 font-medium">
                     <div className="flex justify-between text-slate-700">
                       <span>Sub Total:</span>
-                      <span className="font-mono">₹{subTotal.toFixed(2)}</span>
+                      <span className="font-mono">₹{grossSub.toFixed(2)}</span>
                     </div>
+                    {billDiscAmt > 0 && (
+                      <div className="flex justify-between text-slate-700">
+                        <span>Overall Discount ({billDiscPct}%):</span>
+                        <span className="font-mono">- ₹{billDiscAmt.toFixed(2)}</span>
+                      </div>
+                    )}
                     {gstTotal > 0 && (
                       <div className="flex justify-between text-slate-700">
                         <span>GST ({isInterState ? "IGST" : "CGST+SGST"}):</span>

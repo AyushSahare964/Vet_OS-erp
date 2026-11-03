@@ -1,7 +1,7 @@
 /**
  * Purchase-bill drafts — shared server-side (erp_rows), same rules as PO drafts:
- * admin/reception/accounts/doctor can create; only admin can edit/delete, and only within 30 days.
- * A draft nobody edited within 30 days is saved as a real purchase bill automatically
+ * admin/reception/accounts/doctor can create; only admin can edit/delete, and only within the month they were created.
+ * A draft nobody edited within the month they were created is saved as a real purchase bill automatically
  * (swept whenever the drafts are listed).
  */
 
@@ -13,8 +13,7 @@ import { getMeFn } from "./auth";
 import { CreateBillZ } from "./purchaseBills";
 
 const MODULE_ID = "purchase-bill-drafts";
-const EDIT_DAYS = 30;
-const DAY = 864e5;
+import { draftEditableUntil, currentMonthStart } from "@/lib/draftWindow";
 
 /** `bill` is the ready-to-post payload; `form` is the modal's own state, to reopen it. */
 export interface PurchaseBillDraft {
@@ -42,7 +41,7 @@ const toDraft = (d: any): PurchaseBillDraft => ({
   bill: d.data.bill,
   form: d.data.form,
   createdAt: d.createdAt.toISOString(),
-  editableUntil: new Date(d.createdAt.getTime() + EDIT_DAYS * DAY).toISOString(),
+  editableUntil: new Date(draftEditableUntil(d.createdAt)).toISOString(),
 });
 
 export const listBillDraftsFn = createServerFn({ method: "GET" })
@@ -53,7 +52,7 @@ export const listBillDraftsFn = createServerFn({ method: "GET" })
     // since used) the draft stays, locked, until an admin deletes it.
     const expired = await ErpRow.find({
       moduleId: MODULE_ID,
-      createdAt: { $lt: new Date(Date.now() - EDIT_DAYS * DAY) },
+      createdAt: { $lt: new Date(currentMonthStart()) },
     });
     for (const d of expired) {
       try {
@@ -80,7 +79,7 @@ export const saveBillDraftFn = createServerFn({ method: "POST" })
     return { id: String(doc._id) };
   }));
 
-/** Admin only, and only while the draft is younger than EDIT_DAYS. */
+/** Admin only, and only while the draft is from the current month. */
 export const updateBillDraftFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => inputZ.extend({ id: z.string() }).parse(raw))
   .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
@@ -88,8 +87,8 @@ export const updateBillDraftFn = createServerFn({ method: "POST" })
     await connectDB();
     const doc = await ErpRow.findOne({ _id: data.id, moduleId: MODULE_ID });
     if (!doc) throw new Error("Draft not found");
-    if (Date.now() - doc.createdAt.getTime() > EDIT_DAYS * DAY) {
-      throw new Error(`Draft is older than ${EDIT_DAYS} days and can no longer be changed`);
+    if (Date.now() > draftEditableUntil(doc.createdAt)) {
+      throw new Error(`Draft is from a previous month and can no longer be changed`);
     }
     doc.data = { bill: data.bill, form: data.form };
     doc.markModified("data");

@@ -202,6 +202,7 @@ export function SupplierBillFormModal({
   // On by default: a purchase bill for inventory items must add its stock. Untick only if the stock is added separately via Add Stock (else it double-counts).
   const [receiveStock, setReceiveStock] = useState(true);
   const [shippingCost, setShippingCost] = useState<number>(0);
+  const [billDiscPct, setBillDiscPct] = useState<number>(0);
   const [remarks, setRemarks] = useState("");
 
   // Payment right away (optional): status + one line per mode + date
@@ -256,6 +257,7 @@ export function SupplierBillFormModal({
     setLines([]);
     setAddShipping(false);
     setShippingCost(0);
+    setBillDiscPct(0);
     setRemarks("");
     setProductName("");
     setSelectedItem(null);
@@ -290,6 +292,7 @@ export function SupplierBillFormModal({
       setLines(f.lines);
       setAddShipping(f.addShipping);
       setShippingCost(f.shippingCost);
+      setBillDiscPct(Number(f.billDiscPct) || 0);
       // drafts saved before stock-receive became the default carry receiveStock=false; admin can still untick it
       setReceiveStock(true);
       setPayStatus(f.payStatus);
@@ -383,10 +386,15 @@ export function SupplierBillFormModal({
 
   // Per-line GST, derived at render time so switching Purchase Type re-prices every line
   const lineGst = (l: PurchaseLine) => (isGst ? l.gstPct : 0);
-  const lineTax = (l: PurchaseLine) => r2((l.amount * lineGst(l)) / 100);
+  // Overall bill discount (%) comes off every line's taxable value, so GST shrinks with it
+  const billF = 1 - Math.min(100, Math.max(0, billDiscPct || 0)) / 100;
+  const lineNet = (l: PurchaseLine) => r2(l.amount * billF);
+  const lineTax = (l: PurchaseLine) => r2((lineNet(l) * lineGst(l)) / 100);
 
   // Totals
-  const subTotal = r2(lines.reduce((sum, l) => sum + (l.amount || 0), 0)); // taxable (after discount)
+  const lineSum = r2(lines.reduce((sum, l) => sum + (l.amount || 0), 0)); // after line discounts
+  const subTotal = r2(lines.reduce((sum, l) => sum + lineNet(l), 0)); // taxable (after line + overall discount)
+  const billDiscAmt = r2(lineSum - subTotal);
   const grossTotal = r2(lines.reduce((sum, l) => sum + l.quantity * l.purchasePrice, 0));
   const discountTotal = r2(Math.max(0, grossTotal - subTotal));
   const gstTotal = r2(lines.reduce((sum, l) => sum + lineTax(l), 0));
@@ -613,11 +621,11 @@ export function SupplierBillFormModal({
             purchaseRate: l.purchasePrice,
             mrp: l.mrp || undefined,
             // one combined % keeps the stored taxable amount identical to Disc 1 then Disc 2
-            discountPct: combinedDiscPct(l),
+            discountPct: Math.round((1 - (1 - combinedDiscPct(l) / 100) * billF) * 1e4) / 1e2,
             gstPct: lineGst(l),
-            taxableAmount: l.amount,
+            taxableAmount: lineNet(l),
             taxAmount: lineTax(l),
-            lineTotal: r2(l.amount + lineTax(l)),
+            lineTotal: r2(lineNet(l) + lineTax(l)),
           })),
     };
   };
@@ -654,7 +662,7 @@ export function SupplierBillFormModal({
     if (!bill) return;
     const form = {
       purchaseType, billDate, supplierId, placeOfSupply, poNumber, purchaseBillNo, lines,
-      addShipping, shippingCost, receiveStock, payStatus, payLines, payDate, remarks,
+      addShipping, shippingCost, billDiscPct, receiveStock, payStatus, payLines, payDate, remarks,
     };
     setSubmitting(true);
     try {
@@ -1277,8 +1285,22 @@ export function SupplierBillFormModal({
                 <div className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 space-y-2 shadow-xs">
                   <div className="flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
                     <span>Sub Total</span>
-                    <span className="font-mono text-sm">₹ {subTotal.toFixed(2)}</span>
+                    <span className="font-mono text-sm">₹ {lineSum.toFixed(2)}</span>
                   </div>
+
+                  <div className="flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <label className="flex items-center gap-1.5">
+                      Overall Discount %
+                      <input
+                        type="number" min={0} max={100} step="0.01" placeholder="0"
+                        className="h-7 w-20 rounded border border-slate-300 dark:border-slate-700 bg-transparent px-1.5 text-right font-mono"
+                        value={billDiscPct || ""}
+                        onChange={(e) => setBillDiscPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                      />
+                    </label>
+                    <span className="font-mono">{billDiscAmt > 0 ? `- ₹ ${billDiscAmt.toFixed(2)}` : ""}</span>
+                  </div>
+
 
                   {gstTotal > 0 &&
                     (isInterState ? (

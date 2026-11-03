@@ -294,8 +294,14 @@ export function PurchaseOrderPrintView({
                 <div className="bg-slate-50 dark:bg-slate-900/60 rounded border border-slate-200 dark:border-slate-800 p-3 space-y-1.5 font-medium">
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
                     <span>Taxable Subtotal:</span>
-                    <span className="font-mono">₹{(order.subTotal || 0).toFixed(2)}</span>
+                    <span className="font-mono">₹{((order.subTotal || 0) + (order.billDiscountAmount || 0)).toFixed(2)}</span>
                   </div>
+                  {(order.billDiscountAmount || 0) > 0 && (
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Overall Discount ({order.billDiscountPct}%):</span>
+                      <span className="font-mono">- ₹{(order.billDiscountAmount || 0).toFixed(2)}</span>
+                    </div>
+                  )}
                   {order.cgstTotal > 0 && (
                     <div className="flex justify-between text-slate-600 dark:text-slate-400">
                       <span>CGST:</span>

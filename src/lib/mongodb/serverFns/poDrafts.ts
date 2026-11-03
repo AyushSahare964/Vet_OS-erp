@@ -1,7 +1,7 @@
 /**
  * Purchase-order drafts — shared server-side so a receptionist's draft shows up
  * in the admin's register. Stored in the generic erp_rows collection.
- * Admin/reception/accounts/doctor can create; only admin can edit/delete, and only within 30 days.
+ * Admin/reception/accounts/doctor can create; only admin can edit/delete, and only within the month they were created.
  */
 
 import { createServerFn } from "@tanstack/react-start";
@@ -12,7 +12,7 @@ import { getMeFn } from "./auth";
 import type { ClinicPurchaseOrderRecord } from "@/components/erp/billing/PurchaseOrderModal";
 
 const MODULE_ID = "purchase-order-drafts";
-const PO_DRAFT_EDIT_DAYS = 30;
+import { draftEditableUntil } from "@/lib/draftWindow";
 
 const recordZ = z.record(z.unknown());
 
@@ -50,7 +50,7 @@ export const savePoDraftFn = createServerFn({ method: "POST" })
     return { id: String(doc._id) };
   }));
 
-/** Admin only, and only while the draft is younger than PO_DRAFT_EDIT_DAYS. */
+/** Admin only, and only while the draft is from the current month. */
 export const updatePoDraftFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => z.object({ id: z.string(), record: recordZ }).parse(raw))
   .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
@@ -58,8 +58,8 @@ export const updatePoDraftFn = createServerFn({ method: "POST" })
     await connectDB();
     const doc = await ErpRow.findOne({ _id: data.id, moduleId: MODULE_ID });
     if (!doc) throw new Error("Draft not found");
-    if (Date.now() - doc.createdAt.getTime() > PO_DRAFT_EDIT_DAYS * 864e5) {
-      throw new Error(`Draft is older than ${PO_DRAFT_EDIT_DAYS} days and can no longer be changed`);
+    if (Date.now() > draftEditableUntil(doc.createdAt)) {
+      throw new Error(`Draft is from a previous month and can no longer be changed`);
     }
     doc.data = data.record;
     doc.markModified("data");
