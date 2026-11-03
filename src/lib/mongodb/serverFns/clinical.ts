@@ -25,12 +25,18 @@ async function maxVisitSeq(): Promise<number> {
   return isNaN(num) ? 0 : num;
 }
 
+/**
+ * Highest invoice number in use ("INV/2026-27-2035" -> 2035). The number is the digits after the last "-":
+ * splitting on "/" and parseInt-ing "2026-27-2035" used to give 2026 for every invoice, so the counter was never
+ * moved past the existing invoices and a new visit could be handed a number that already exists (E11000 duplicate key).
+ */
 async function maxInvoiceSeq(): Promise<number> {
-  const latest = (await ClinicalVisit.findOne({}).sort({ invoiceNo: -1 }).lean()) as { invoiceNo?: string } | null;
-  if (!latest?.invoiceNo) return 0;
-  const parts = latest.invoiceNo.split("/");
-  const num = parseInt(parts[parts.length - 1] || "", 10);
-  return isNaN(num) ? 0 : num;
+  const latest = (await ClinicalVisit.findOne({ invoiceNo: { $regex: /^INV\/2026-27-\d+$/ } })
+    .sort({ invoiceNo: -1 })
+    .collation({ locale: "en", numericOrdering: true }) // 9999 < 10000, not "9999" > "10000"
+    .lean()) as { invoiceNo?: string } | null;
+  const m = /-(\d+)$/.exec(latest?.invoiceNo ?? "");
+  return m ? parseInt(m[1]!, 10) : 0;
 }
 
 async function maxRxSeq(): Promise<number> {
