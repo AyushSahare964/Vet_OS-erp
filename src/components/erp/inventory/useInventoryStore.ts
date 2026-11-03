@@ -38,7 +38,7 @@ import {
 
 // ─── Data Types ───────────────────────────────────────────────────────────────
 
-export type ProductType = "MEDICINE" | "INJECTION" | "FOOD" | "ACCESSORY";
+export type ProductType = "MEDICINE" | "INJECTION" | "FOOD" | "ACCESSORY" | "CONSUMABLE";
 export type MedicineCategory = "Medicine" | "Injection" | "Food" | "Accessory" | "Consumable" | "Animal Food" | "Animal Accessories";
 export type UnitOfMeasure =
   | "Tablet" | "ml" | "Vial" | "Box" | "Strip"
@@ -228,6 +228,7 @@ export function resolveProductType(
   if (category === "Injection") return "INJECTION";
   if (category === "Food" || category === "Animal Food") return "FOOD";
   if (category === "Accessory" || category === "Animal Accessories") return "ACCESSORY";
+  if (category === "Consumable") return "CONSUMABLE";
   return "MEDICINE";
 }
 

@@ -42,7 +42,7 @@ import type { PackagingHierarchy } from "@/lib/inventory/packagingUtils";
 
 export interface SeedItem {
   itemCode: string;
-  productType: "MEDICINE" | "INJECTION" | "FOOD" | "ACCESSORY";
+  productType: "MEDICINE" | "INJECTION" | "FOOD" | "ACCESSORY" | "CONSUMABLE";
   name: string;
   genericName: string;
   brand: string;

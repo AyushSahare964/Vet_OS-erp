@@ -35,7 +35,7 @@ export interface PackagingHierarchy {
   baseUnitsPerIntermediate?: number;
 }
 
-export type ProductType = "MEDICINE" | "INJECTION" | "FOOD" | "ACCESSORY";
+export type ProductType = "MEDICINE" | "INJECTION" | "FOOD" | "ACCESSORY" | "CONSUMABLE";
 
 export interface MedicineDetails {
   composition?: string;
@@ -64,6 +64,14 @@ export interface AccessoryDetails {
   petSize?: string;
   material?: string;
   color?: string;
+}
+
+/** Cotton, gloves, syringes, sutures... */
+export interface ConsumableDetails {
+  size?: string;
+  material?: string;
+  sterile?: string;
+  singleUse?: string;
 }
 
 export interface InjectionDetails {
@@ -100,6 +108,7 @@ export interface IInventoryItem {
   medicineDetails?: MedicineDetails;
   foodDetails?: FoodDetails;
   accessoryDetails?: AccessoryDetails;
+  consumableDetails?: ConsumableDetails;
   injectionDetails?: InjectionDetails;
 
   // ── Stock & Inventory ─────────────────────────────────────────────────────
@@ -235,6 +244,16 @@ const accessoryDetailsSchema = new Schema<AccessoryDetails>(
   { _id: false },
 );
 
+const consumableDetailsSchema = new Schema<ConsumableDetails>(
+  {
+    size: { type: String, default: "" },
+    material: { type: String, default: "" },
+    sterile: { type: String, default: "" },
+    singleUse: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
 const injectionDetailsSchema = new Schema<InjectionDetails>(
   {
     composition: { type: String, default: "" },
@@ -260,7 +279,7 @@ const inventoryItemSchema = new Schema<InventoryItemDocument>(
     itemCode: { type: String, required: true, index: true },
     productType: {
       type: String,
-      enum: ["MEDICINE", "INJECTION", "FOOD", "ACCESSORY"],
+      enum: ["MEDICINE", "INJECTION", "FOOD", "ACCESSORY", "CONSUMABLE"],
       default: "MEDICINE",
       index: true,
     },
@@ -281,6 +300,7 @@ const inventoryItemSchema = new Schema<InventoryItemDocument>(
     medicineDetails: { type: medicineDetailsSchema, default: () => ({}) },
     foodDetails: { type: foodDetailsSchema, default: () => ({}) },
     accessoryDetails: { type: accessoryDetailsSchema, default: () => ({}) },
+    consumableDetails: { type: consumableDetailsSchema, default: () => ({}) },
     injectionDetails: { type: injectionDetailsSchema, default: () => ({}) },
 
     // Stock & Inventory

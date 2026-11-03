@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
-import { X, PackagePlus, Save, Pill, Syringe, Bone, Tag, type LucideIcon, Layers, IndianRupee, Calendar, PackageCheck, Sparkles, ChevronDown } from "lucide-react";
+import { X, PackagePlus, Save, Pill, Syringe, Bone, Tag, Package, Plus, Trash2, type LucideIcon, Layers, IndianRupee, Calendar, PackageCheck, Sparkles, ChevronDown } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,13 +58,25 @@ const SUB_GROUPS = [
   "Shampoo",
   "Prescription Food",
 ];
+const ACCESSORY_GROUPS = ["Collar / Leash / Harness", "Bowl / Feeder", "Bed / Mattress", "Toy", "Clothing", "Carrier / Crate", "Grooming Tools", "Hygiene / Litter"];
+const CONSUMABLE_GROUPS = [
+  "Cotton & Gauze", "Gloves", "Syringes & Needles", "Sutures", "Bandages & Dressings", "Swabs & Ear Buds",
+  "IV Sets & Cannulas", "Catheters & Tubes", "Cleaning & Disinfection", "Disposable Sheets & Masks", "Lab Consumables",
+];
+const COLOURS = ["Black", "White", "Red", "Blue", "Green", "Yellow", "Pink", "Brown", "Grey", "Orange", "Purple", "Multi"];
+const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "Free Size"];
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** One size / colour combination of an accessory; saved as its own inventory item (own stock and prices). */
+interface Variant { color: string; size: string; purchase: string; sale: string; mrp: string; reorder: string; qty: string }
+const emptyVariant = (): Variant => ({ color: "", size: "", purchase: "", sale: "", mrp: "", reorder: "", qty: "" });
 
 const CATEGORIES: { type: ProductType; label: string; category: string; Icon: LucideIcon; activeClass: string }[] = [
   { type: "MEDICINE", label: "Medicine", category: "Medicine", Icon: Pill, activeClass: "border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-600 shadow-xs ring-1 ring-emerald-500/20" },
   { type: "INJECTION", label: "Injection", category: "Injection", Icon: Syringe, activeClass: "border-rose-500 bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-600 shadow-xs ring-1 ring-rose-500/20" },
   { type: "FOOD", label: "Animal Food", category: "Animal Food", Icon: Bone, activeClass: "border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-600 shadow-xs ring-1 ring-amber-500/20" },
   { type: "ACCESSORY", label: "Accessories", category: "Animal Accessories", Icon: Tag, activeClass: "border-blue-500 bg-blue-50 text-blue-800 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-600 shadow-xs ring-1 ring-blue-500/20" },
+  { type: "CONSUMABLE", label: "Consumables", category: "Consumable", Icon: Package, activeClass: "border-violet-500 bg-violet-50 text-violet-800 dark:bg-violet-950/60 dark:text-violet-200 dark:border-violet-600 shadow-xs ring-1 ring-violet-500/20" },
 ];
 
 /** Auto HSN + GST suggestion */
@@ -76,6 +88,13 @@ export function suggestHsn(type: ProductType, text: string): { hsn: string; gst:
     if (/vitamin|mineral|supplement|calcium/.test(t)) return { hsn: "2936", gst: 12 };
     if (/shampoo|soap/.test(t)) return { hsn: "3305", gst: 18 };
     return { hsn: "3004", gst: 12 };
+  }
+  if (type === "CONSUMABLE") {
+    if (/glove/.test(t)) return { hsn: "4015", gst: 18 };
+    if (/syringe|needle|cannula|catheter|iv set|infusion/.test(t)) return { hsn: "9018", gst: 12 };
+    if (/suture|vicryl|catgut|silk|prolene|nylon thread/.test(t)) return { hsn: "3006", gst: 12 };
+    if (/ear ?bud|cotton bud/.test(t)) return { hsn: "5601", gst: 12 };
+    return { hsn: "3005", gst: 12 }; // cotton, gauze, swab, bandage, dressing, plaster
   }
   if (type === "FOOD") return /treat|biscuit|chew/.test(t) ? { hsn: "2309", gst: 18 } : { hsn: "2309", gst: 5 };
   if (/bowl|feeder/.test(t)) return { hsn: "3924", gst: 18 };
@@ -253,6 +272,14 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
   const [lifeStage, setLifeStage] = useState("");
   const [accessoryType, setAccessoryType] = useState("");
   const [petSize, setPetSize] = useState("");
+  const [material, setMaterial] = useState("");
+  // Consumable specifics (cotton, gloves, syringes, sutures...)
+  const [cSize, setCSize] = useState("");
+  const [sterile, setSterile] = useState("");
+  const [singleUse, setSingleUse] = useState("");
+  // Accessory variants (size / colour grid)
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [vd, setVd] = useState<Variant>(emptyVariant);
 
   // Packaging hierarchy — default empty
   const [pkg, setPkg] = useState<Pkg>(emptyPkg);
@@ -277,6 +304,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
   const [saving, setSaving] = useState(false);
 
   const isRx = type === "MEDICINE" || type === "INJECTION";
+  const isAcc = type === "ACCESSORY";
   const setP = (patch: Partial<Pkg>) => setPkg((p) => ({ ...p, ...patch }));
 
   // Reset to empty / 0 on open
@@ -287,12 +315,18 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
     setGenericName(""); setBrand(""); setManufacturer(""); setSubGroup(""); setStrength("");
     setDosageForm(""); setRoute(""); setSchedule(""); setSpecies(""); setLifeStage("");
     setAccessoryType(""); setPetSize(""); setStorageLocation("");
+    setMaterial(""); setCSize(""); setSterile(""); setSingleUse(""); setVariants([]); setVd(emptyVariant());
     setPkg(emptyPkg());
     setPurchasePrice(""); setMrp(""); setSalePrice("");
     setCurrentStock("0"); setReorderLevel("0");
     setBatchNo(""); setExpiryDate(""); setManufacturingDate("");
     setHsn(""); setGst("0");
   }, [open, initialName, defaultType]);
+
+  // Accessories are counted in pieces: no packaging questions
+  useEffect(() => {
+    if (open && type === "ACCESSORY") setPkg({ baseUnit: "Piece", interUnit: "", basePerInter: "", purchaseUnit: "Piece", perPurchase: "1", hasInter: false });
+  }, [open, type]);
 
   // Peek the auto item ID for the chosen category
   useEffect(() => {
@@ -305,6 +339,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
   // Category switch
   const switchType = (t: ProductType) => {
     setType(t);
+    setPkg(emptyPkg());
     setDosageForm("");
     setRoute("");
     setSchedule("");
@@ -312,7 +347,8 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
     setLifeStage("");
     setAccessoryType("");
     setPetSize("");
-    setBatchTracking(t === "MEDICINE" || t === "INJECTION");
+    setMaterial(""); setCSize(""); setSterile(""); setSingleUse(""); setSubGroup("");
+    setBatchTracking(t === "MEDICINE" || t === "INJECTION" || t === "CONSUMABLE");
   };
 
   const handleAutoSuggestHsn = () => {
@@ -337,8 +373,17 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
 
   const perBase = useMemo(() => (p: string) => (Number(p) > 0 ? r2(Number(p) / baseUnitsPerPurchase) : 0), [baseUnitsPerPurchase]);
 
+  const addVariant = () => {
+    if (!(Number(vd.sale) > 0 || Number(vd.mrp) > 0)) { toast.error("Enter the selling price."); return; }
+    const key = (v: Variant) => [v.color, v.size].map((x) => x.trim().toLowerCase()).join("|");
+    if (variants.some((v) => key(v) === key(vd))) { toast.error("That colour and size is already in the list."); return; }
+    setVariants((p) => [...p, vd]);
+    setVd((p) => ({ ...emptyVariant(), color: p.color })); // keep the colour to add the next size quickly
+  };
+
   const handleSave = async () => {
     if (!name.trim()) { toast.error("Item Name is required."); return; }
+    if (type === "ACCESSORY" && variants.length === 0) { toast.error("Add at least one row to the price list (colour / size, price and stock)."); return; }
     if (!pkg.baseUnit.trim() || !pkg.purchaseUnit.trim()) { toast.error("Base unit and purchase unit are required."); return; }
     if (pkg.hasInter && !pkg.interUnit.trim()) { toast.error("Enter the middle unit (e.g. Strip) or untick it."); return; }
 
@@ -348,15 +393,14 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
 
     setSaving(true);
     try {
-      const created = await addItemFn({
-        data: {
+      const mk = (o: Record<string, any> = {}) => ({
           productType: type,
           category: cat.category,
           name: name.trim(),
           genericName: genericName.trim(),
           brand: brand.trim(),
           manufacturer: manufacturer.trim(),
-          subGroup: subGroup.trim(),
+          subGroup: (type === "ACCESSORY" ? accessoryType : subGroup).trim(),
           description: "",
           unit: pkg.baseUnit.trim(),
           purchaseUom: pkg.purchaseUnit.trim(),
@@ -370,7 +414,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
             intermediateUnitsPerPurchase: pkg.hasInter ? Number(pkg.perPurchase) || 1 : undefined,
             baseUnitsPerIntermediate: pkg.hasInter ? Number(pkg.basePerInter) || 1 : undefined,
           },
-          valuationMethod: isRx ? "FEFO" : "FIFO",
+          valuationMethod: isRx || type === "CONSUMABLE" ? "FEFO" : "FIFO",
           reorderLevel: Number(reorderLevel) || 0,
           minStockLevel: Number(reorderLevel) || 0,
           batchTracking,
@@ -385,7 +429,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
           defaultSupplierId: supplierId || "",
           defaultSupplierName: supplierName || "",
           leadTimeDays: 0,
-          costCenter: isRx ? "Pharmacy" : "Retail Store",
+          costCenter: isRx ? "Pharmacy" : type === "CONSUMABLE" ? "Clinic Consumables" : "Retail Store",
           currentStock: Number(currentStock) || 0,
           batchNo: batchNo.trim(),
           expiryDate: expiryDate.trim(),
@@ -393,9 +437,43 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
           medicineDetails: type === "MEDICINE" ? { strength, dosageForm, route, schedule, ...details } : undefined,
           injectionDetails: type === "INJECTION" ? { strength, route, schedule, coldChainRequired: true, ...details } : undefined,
           foodDetails: type === "FOOD" ? { targetSpecies: species, lifeStage } : undefined,
-          accessoryDetails: type === "ACCESSORY" ? { accessoryType, petSize } : undefined,
-        } as any,
-      });
+          accessoryDetails: type === "ACCESSORY" ? { accessoryType, material } : undefined,
+          consumableDetails: type === "CONSUMABLE" ? { size: cSize, material, sterile, singleUse } : undefined,
+          ...o,
+        } as any);
+
+      // Accessory with a variant grid: one inventory item per size / colour, each with its own price and stock
+      if (type === "ACCESSORY" && variants.length > 0) {
+        const made: InventoryItemRow[] = [];
+        try {
+          for (const v of variants) {
+            const sale = Number(v.sale) || Number(v.mrp) || 0;
+            made.push(await addItemFn({
+              data: mk({
+                name: [name.trim(), [v.color.trim(), v.size.trim()].filter(Boolean).join(" / ")].filter(Boolean).join(" - "),
+                hasVariants: true,
+                accessoryDetails: { accessoryType, petSize: v.size.trim(), material, color: v.color.trim() },
+                defaultPurchasePrice: Number(v.purchase) || 0,
+                valuationRate: Number(v.purchase) || 0,
+                defaultSalePrice: sale,
+                mrp: Number(v.mrp) || sale,
+                reorderLevel: Number(v.reorder) || 0,
+                minStockLevel: Number(v.reorder) || 0,
+                currentStock: Number(v.qty) || 0,
+              }),
+            }));
+          }
+        } catch (err) {
+          if (made.length) toast.error(`Only ${made.length} of ${variants.length} variants were saved before an error.`);
+          throw err;
+        }
+        toast.success(`${made.length} variants of ${name.trim()} added (${made[0]!.itemCode} - ${made[made.length - 1]!.itemCode}).`);
+        onSuccess?.(made[0]!);
+        onClose();
+        return;
+      }
+
+      const created = await addItemFn({ data: mk() });
       toast.success(`${created.name} added (${created.itemCode}).`);
       onSuccess?.(created);
       onClose();
@@ -465,12 +543,12 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
           </button>
         </div>
 
-        <p id="new-item-desc" className="sr-only">Add a medicine, injection, animal food or accessory item with packaging, pricing and stock.</p>
+        <p id="new-item-desc" className="sr-only">Add a medicine, injection, animal food, accessory or consumable item with packaging, pricing and stock.</p>
 
         {/* Content Container */}
         <div className="p-4 space-y-3">
           {/* Category Selector Tabs */}
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
             {CATEGORIES.map(({ type: t, label, Icon, activeClass }) => (
               <button
                 key={t}
@@ -490,7 +568,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
           </div>
 
           {/* 3-Column Ergonomic Form Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 items-start">
+          <div className={cn("grid grid-cols-1 gap-3.5 items-start", isAcc ? "md:grid-cols-2" : "md:grid-cols-3")}>
 
             {/* ─── COLUMN 1: Item Details ─── */}
             <SectionCard title="Item Details" icon={Pill}>
@@ -504,15 +582,15 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                     className={cn(inputCls, "font-medium")}
                   />
                 </FormField>
-                <FormField label={isRx ? "Generic Name" : "Description"} className="col-span-2">
+                {!isAcc && <FormField label={isRx ? "Generic Name" : "Description"} className="col-span-2">
                   <Input
                     value={genericName}
                     onChange={(e) => setGenericName(e.target.value)}
                     placeholder={isRx ? "e.g. Amoxicillin Trihydrate" : "e.g. High protein food"}
                     className={inputCls}
                   />
-                </FormField>
-                <FormField label="Brand">
+                </FormField>}
+                <FormField label="Brand" className={isAcc ? "col-span-2" : ""}>
                   <Input
                     value={brand}
                     onChange={(e) => setBrand(e.target.value)}
@@ -520,23 +598,23 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                     className={inputCls}
                   />
                 </FormField>
-                <FormField label="Manufacturer">
+                {!isAcc && <FormField label="Manufacturer">
                   <Input
                     value={manufacturer}
                     onChange={(e) => setManufacturer(e.target.value)}
                     placeholder="e.g. Mankind Pharma"
                     className={inputCls}
                   />
-                </FormField>
-                <FormField label="Sub Group" className="col-span-2">
+                </FormField>}
+                {!isAcc && <FormField label="Sub Group" className="col-span-2">
                   <Combo
                     value={subGroup}
                     onChange={setSubGroup}
-                    options={SUB_GROUPS}
+                    options={type === "CONSUMABLE" ? CONSUMABLE_GROUPS : SUB_GROUPS}
                     className={inputCls}
-                    placeholder={isRx ? "e.g. Antibiotics" : "e.g. Dog Food"}
+                    placeholder={isRx ? "e.g. Antibiotics" : type === "CONSUMABLE" ? "e.g. Cotton & Gauze" : "e.g. Dog Food"}
                   />
-                </FormField>
+                </FormField>}
 
                 {type === "MEDICINE" && (
                   <>
@@ -595,16 +673,28 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
 
                 {type === "ACCESSORY" && (
                   <>
-                    <FormField label="Accessory Type">
-                      <Input
-                        value={accessoryType}
-                        onChange={(e) => setAccessoryType(e.target.value)}
-                        placeholder="e.g. Collar, Leash"
-                        className={inputCls}
-                      />
+                    <FormField label="Accessory Type" className="col-span-2">
+                      <Combo value={accessoryType} onChange={setAccessoryType} options={ACCESSORY_GROUPS} className={inputCls} placeholder="e.g. Collar, Bowl, Bed" />
                     </FormField>
-                    <FormField label="Pet Size">
-                      {sel(petSize, setPetSize, ["Small", "Medium", "Large", "XL"], "Select pet size...")}
+                    <FormField label="Material (optional)" className="col-span-2">
+                      <Input value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="e.g. Nylon, Leather, Cotton" className={inputCls} />
+                    </FormField>
+                  </>
+                )}
+
+                {type === "CONSUMABLE" && (
+                  <>
+                    <FormField label="Size / Specification">
+                      <Input value={cSize} onChange={(e) => setCSize(e.target.value)} placeholder="e.g. Large, 5x5 cm, 2 ml, 1-0" className={inputCls} />
+                    </FormField>
+                    <FormField label="Material">
+                      <Input value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="e.g. Latex, Cotton, Vicryl" className={inputCls} />
+                    </FormField>
+                    <FormField label="Sterile">
+                      {sel(sterile, setSterile, ["Yes", "No"], "Select...")}
+                    </FormField>
+                    <FormField label="Single Use">
+                      {sel(singleUse, setSingleUse, ["Yes (disposable)", "No (reusable)"], "Select...")}
                     </FormField>
                   </>
                 )}
@@ -612,7 +702,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
             </SectionCard>
 
             {/* ─── COLUMN 2: Packaging & Stock ─── */}
-            <div className="space-y-3.5">
+            {!isAcc && <div className="space-y-3.5">
               <SectionCard title="Packaging Hierarchy" icon={Layers}>
                 <div className="grid grid-cols-2 gap-2.5">
                   <FormField label="Single (Base) Unit" required className="col-span-2">
@@ -744,22 +834,22 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                   </div>
                 </div>
               </SectionCard>
-            </div>
+            </div>}
 
             {/* ─── COLUMN 3: Pricing, Tax & Batch ─── */}
             <div className="space-y-3.5">
-              <SectionCard title="Pricing & Tax" icon={IndianRupee}>
-                <div className="text-[10px] text-slate-500 -mt-1 mb-1 font-medium">
+              <SectionCard title={isAcc ? "Tax" : "Pricing & Tax"} icon={IndianRupee}>
+                <div className={cn("text-[10px] text-slate-500 -mt-1 mb-1 font-medium", isAcc && "hidden")}>
                   {pkg.purchaseUnit ? `Prices per 1 ${pkg.purchaseUnit}` : "Prices per purchase unit"}
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
-                  <FormField label="Buy Price">
+                  <FormField label="Buy Price" className={isAcc ? "hidden" : ""}>
                     <MoneyInput value={purchasePrice} onChange={setPurchasePrice} placeholder="0" />
                   </FormField>
-                  <FormField label="MRP">
+                  <FormField label="MRP" className={isAcc ? "hidden" : ""}>
                     <MoneyInput value={mrp} onChange={setMrp} placeholder="0" />
                   </FormField>
-                  <FormField label="Selling Price" className="col-span-2">
+                  <FormField label="Selling Price" className={isAcc ? "hidden" : "col-span-2"}>
                     <MoneyInput value={salePrice} onChange={setSalePrice} placeholder="0" />
                   </FormField>
 
@@ -797,7 +887,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                 </div>
               </SectionCard>
 
-              <SectionCard title="Batch & Expiry Date" icon={Calendar}>
+              <SectionCard title="Batch & Expiry Date" icon={Calendar} className={isAcc ? "hidden" : ""}>
                 <div className="grid grid-cols-2 gap-2.5">
                   <FormField label="Batch Number" className="col-span-2">
                     <Input
@@ -833,6 +923,56 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
               </SectionCard>
             </div>
           </div>
+
+          {type === "ACCESSORY" && (
+            <SectionCard title="Price & stock list - one row per colour / size" icon={Layers}>
+              <p className="text-[10px] text-slate-500 -mt-1">
+                Add a row for every colour and size you stock (leave both empty if the item has only one kind). Each row is saved as its own item with its own price and stock.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 items-end">
+                <FormField label="Colour"><Combo value={vd.color} onChange={(v) => setVd({ ...vd, color: v })} options={COLOURS} className={inputCls} placeholder="e.g. Black" /></FormField>
+                <FormField label="Size"><Combo value={vd.size} onChange={(v) => setVd({ ...vd, size: v })} options={SIZES} className={inputCls} placeholder="e.g. M" /></FormField>
+                <FormField label="Buying Price"><MoneyInput value={vd.purchase} onChange={(v) => setVd({ ...vd, purchase: v })} /></FormField>
+                <FormField label="Selling Price" required><MoneyInput value={vd.sale} onChange={(v) => setVd({ ...vd, sale: v })} /></FormField>
+                <FormField label="MRP"><MoneyInput value={vd.mrp} onChange={(v) => setVd({ ...vd, mrp: v })} /></FormField>
+                <FormField label="Stock in hand"><Input type="number" min="0" value={vd.qty} onChange={(e) => setVd({ ...vd, qty: e.target.value })} placeholder="0" className={cn(inputCls, "font-mono")} /></FormField>
+                <FormField label="Alert when below"><Input type="number" min="0" value={vd.reorder} onChange={(e) => setVd({ ...vd, reorder: e.target.value })} placeholder="0" className={cn(inputCls, "font-mono")} /></FormField>
+                <Button type="button" onClick={addVariant} className="h-8 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"><Plus className="size-3.5" /> Add</Button>
+              </div>
+              {variants.length > 0 && (
+                <div className="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-800">
+                  <table className="w-full text-[11px]">
+                    <thead className="bg-blue-600 text-white">
+                      <tr>
+                        {["#", "Colour", "Size", "Buying", "Selling", "MRP", "Stock", "Alert below", ""].map((h) => (
+                          <th key={h} className="px-2 py-1.5 text-left font-semibold">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {variants.map((v, i) => (
+                        <tr key={i}>
+                          <td className="px-2 py-1">{i + 1}</td>
+                          <td className="px-2 py-1">{v.color || "-"}</td>
+                          <td className="px-2 py-1">{v.size || "-"}</td>
+                          <td className="px-2 py-1 font-mono">{v.purchase || 0}</td>
+                          <td className="px-2 py-1 font-mono">{v.sale || 0}</td>
+                          <td className="px-2 py-1 font-mono">{v.mrp || 0}</td>
+                          <td className="px-2 py-1 font-mono">{v.qty || 0}</td>
+                          <td className="px-2 py-1 font-mono">{v.reorder || 0}</td>
+                          <td className="px-2 py-1 text-right">
+                            <button type="button" aria-label="Remove row" onClick={() => setVariants((p) => p.filter((_, j) => j !== i))} className="text-slate-400 hover:text-rose-600">
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </SectionCard>
+          )}
 
           {/* Dialog Action Buttons */}
           <div className="border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between">

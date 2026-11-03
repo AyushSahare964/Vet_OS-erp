@@ -21,7 +21,7 @@ import { todayIST } from "@/lib/utils/dateUtils";
 
 export interface InventoryItemRow {
   itemCode: string;
-  productType: "MEDICINE" | "INJECTION" | "FOOD" | "ACCESSORY";
+  productType: "MEDICINE" | "INJECTION" | "FOOD" | "ACCESSORY" | "CONSUMABLE";
   name: string;
   genericName: string;
   brand: string;
@@ -56,6 +56,12 @@ export interface InventoryItemRow {
     petSize?: string;
     material?: string;
     color?: string;
+  };
+  consumableDetails?: {
+    size?: string;
+    material?: string;
+    sterile?: string;
+    singleUse?: string;
   };
   injectionDetails?: {
     composition?: string;
@@ -181,6 +187,13 @@ const AccessoryDetailsZ = z.object({
   color: z.string().default(""),
 }).partial();
 
+const ConsumableDetailsZ = z.object({
+  size: z.string().default(""),
+  material: z.string().default(""),
+  sterile: z.string().default(""),
+  singleUse: z.string().default(""),
+}).partial();
+
 const InjectionDetailsZ = z.object({
   composition: z.string().default(""),
   strength: z.string().default(""),
@@ -199,7 +212,7 @@ const InjectionDetailsZ = z.object({
 
 const InventoryItemInputZ = z.object({
   // Identity
-  productType: z.enum(["MEDICINE", "INJECTION", "FOOD", "ACCESSORY"]).default("MEDICINE"),
+  productType: z.enum(["MEDICINE", "INJECTION", "FOOD", "ACCESSORY", "CONSUMABLE"]).default("MEDICINE"),
   name:        z.string().min(1, "Item name is required"),
   genericName: z.string().default(""),
   brand:       z.string().default(""),
@@ -213,6 +226,7 @@ const InventoryItemInputZ = z.object({
   medicineDetails: MedicineDetailsZ.optional(),
   foodDetails: FoodDetailsZ.optional(),
   accessoryDetails: AccessoryDetailsZ.optional(),
+  consumableDetails: ConsumableDetailsZ.optional(),
   injectionDetails: InjectionDetailsZ.optional(),
 
   // Stock
@@ -332,6 +346,7 @@ function productTypePrefix(pType: string | undefined): string {
   switch (pType) {
     case "FOOD": return "F";
     case "ACCESSORY": return "A";
+    case "CONSUMABLE": return "C";
     case "INJECTION": return "I";
     default: return "M";
   }
@@ -342,7 +357,7 @@ function productTypePrefix(pType: string | undefined): string {
 export const getItemsFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) =>
     z.object({
-      type: z.enum(["MEDICINE", "INJECTION", "FOOD", "ACCESSORY"]).optional(),
+      type: z.enum(["MEDICINE", "INJECTION", "FOOD", "ACCESSORY", "CONSUMABLE"]).optional(),
       status: z.enum(["Active", "Inactive", "all"]).optional(),
       dosageForms: z.array(z.string()).optional(),
       injectableOnly: z.boolean().optional(),
@@ -391,7 +406,7 @@ export const getItemsFn = createServerFn({ method: "GET" })
 export const peekItemCodeFn = createServerFn({ method: "GET" })
   .validator((raw: unknown) =>
     z.object({
-      type: z.enum(["MEDICINE", "INJECTION", "FOOD", "ACCESSORY"]).optional(),
+      type: z.enum(["MEDICINE", "INJECTION", "FOOD", "ACCESSORY", "CONSUMABLE"]).optional(),
     }).optional().parse(raw)
   )
   .handler(tenantScoped(async ({ data }): Promise<string> => {
