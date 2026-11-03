@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { addItemFn, peekItemCodeFn, type InventoryItemRow } from "@/lib/mongodb/serverFns/inventory";
+import { PackagingVisualizerModal } from "@/components/erp/inventory/PackagingVisualizerModal";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -41,6 +42,34 @@ const UNIT_SUGGESTIONS = [
   "Pack", "Packet", "Bag", "Sack", "Jar", "Can", "Tin", "Tray", "Roll", "Set", "Kit", "Dozen", "Pair", "Piece", "Unit",
   "Syringe", "Dose", "Pellet", "Drop", "ml", "Ltr", "Gm", "Kg", "Mg",
 ];
+// Real-world packaging: what a given container can physically hold (next level down).
+const TABLET_LIKE = ["Tablet", "Capsule", "Piece"];
+const CONTAINS: Record<string, string[]> = {
+  box: ["Strip", "Blister", "Bottle", "Vial", "Ampoule", "Tube", "Sachet", "Pouch", "Jar", "Can", "Tin", "Bag", "Syringe", "Tablet", "Capsule", "Dose", "Piece", "Unit"],
+  strip: TABLET_LIKE, blister: TABLET_LIKE,
+  bottle: ["ml", "Ltr", "Tablet", "Capsule", "Drop", "Dose", "Gm", "Piece"],
+  jar: ["Gm", "Kg", "ml", "Tablet", "Capsule", "Piece"],
+  vial: ["Dose", "ml", "Piece"], ampoule: ["Dose", "ml", "Piece"],
+  tube: ["Gm", "ml", "Piece"],
+  sachet: ["Gm", "ml", "Dose", "Piece"], pouch: ["Gm", "Kg", "ml", "Dose", "Piece"],
+  bag: ["Gm", "Kg", "Piece"], sack: ["Bag", "Gm", "Kg"],
+  can: ["Gm", "Kg", "ml", "Piece"], tin: ["Gm", "Kg", "ml", "Piece"],
+  tray: ["Can", "Tin", "Pouch", "Bottle", "Strip", "Piece"],
+  roll: ["Piece", "Unit"], set: ["Piece", "Unit"], kit: ["Piece", "Unit"], dozen: ["Piece", "Unit"], pair: ["Piece", "Unit"],
+};
+for (const k of ["carton", "case", "pack", "packet"]) CONTAINS[k] = CONTAINS["box"] ?? [];
+// Units that only make sense as the smallest (base) unit — never a purchase/middle unit.
+const BASE_ONLY = new Set(["tablet", "capsule", "dose", "pellet", "drop", "ml", "ltr", "gm", "kg", "mg", "syringe"]);
+// Containers first, then loose units (you can buy a single Tablet / Kg directly).
+const CONTAINER_OPTIONS = UNIT_SUGGESTIONS.filter((u) => !BASE_ONLY.has(u.toLowerCase()));
+const PURCHASE_OPTIONS = [...CONTAINER_OPTIONS, ...UNIT_SUGGESTIONS.filter((u) => BASE_ONLY.has(u.toLowerCase()))];
+const unitsBelow = (unit: string, containersOnly = false) => {
+  // A loose unit bought directly is its own base unit.
+  if (BASE_ONLY.has(unit.trim().toLowerCase())) return containersOnly ? [] : [unit.trim()];
+  const list = CONTAINS[unit.trim().toLowerCase()];
+  if (!list) return containersOnly ? CONTAINER_OPTIONS : UNIT_SUGGESTIONS; // custom/unknown unit: don't restrict
+  return containersOnly ? list.filter((u) => !BASE_ONLY.has(u.toLowerCase())) : list;
+};
 const SUB_GROUPS = [
   "Antibiotics",
   "Antifungal",
@@ -302,6 +331,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
   const [gst, setGst] = useState("0");
   const [hsn, setHsn] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showVisualizer, setShowVisualizer] = useState(false);
 
   const isRx = type === "MEDICINE" || type === "INJECTION";
   const isAcc = type === "ACCESSORY";
@@ -365,10 +395,21 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
 
   const hierarchyFormula = useMemo(() => {
     if (!pkg.baseUnit.trim() || !pkg.purchaseUnit.trim()) return null;
+    const pUnit = pkg.purchaseUnit.trim();
+    const bUnit = pkg.baseUnit.trim();
+    const formatU = (qty: number, u: string) => {
+      if (qty === 1 || u.toLowerCase().endsWith("s") || ["ml", "gm", "kg", "mg", "ltr"].includes(u.toLowerCase())) {
+        return `${qty} ${u}`;
+      }
+      return `${qty} ${u}s`;
+    };
+
     if (pkg.hasInter && pkg.interUnit.trim()) {
-      return `1 ${pkg.purchaseUnit} = ${Number(pkg.perPurchase) || 1} ${pkg.interUnit} = ${baseUnitsPerPurchase} ${pkg.baseUnit}`;
+      const iUnit = pkg.interUnit.trim();
+      const interCount = Number(pkg.perPurchase) || 1;
+      return `1 ${pUnit} → ${formatU(interCount, iUnit)} → ${formatU(baseUnitsPerPurchase, bUnit)}`;
     }
-    return `1 ${pkg.purchaseUnit} = ${baseUnitsPerPurchase} ${pkg.baseUnit}`;
+    return `1 ${pUnit} → ${formatU(baseUnitsPerPurchase, bUnit)}`;
   }, [pkg, baseUnitsPerPurchase]);
 
   const perBase = useMemo(() => (p: string) => (Number(p) > 0 ? r2(Number(p) / baseUnitsPerPurchase) : 0), [baseUnitsPerPurchase]);
@@ -705,13 +746,13 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
             {!isAcc && <div className="space-y-3.5">
               <SectionCard title="Packaging Hierarchy" icon={Layers}>
                 <div className="grid grid-cols-2 gap-2.5">
-                  <FormField label="Single (Base) Unit" required className="col-span-2">
+                  <FormField label="Purchase Unit" required className="col-span-2">
                     <Combo
-                      value={pkg.baseUnit}
-                      onChange={(v) => setP({ baseUnit: v })}
-                      options={UNIT_SUGGESTIONS}
+                      value={pkg.purchaseUnit}
+                      onChange={(v) => setP({ purchaseUnit: v })}
+                      options={PURCHASE_OPTIONS}
                       className={inputCls}
-                      placeholder="e.g. Tablet, Vial, Piece"
+                      placeholder="e.g. Box, Pack"
                     />
                   </FormField>
 
@@ -728,58 +769,92 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                     </label>
                   </div>
 
-                  {pkg.hasInter && (
+                  {pkg.hasInter ? (
                     <>
                       <FormField label="Middle Unit">
                         <Combo
                           value={pkg.interUnit}
                           onChange={(v) => setP({ interUnit: v })}
-                          options={UNIT_SUGGESTIONS}
+                          options={unitsBelow(pkg.purchaseUnit, true)}
                           className={inputCls}
                           placeholder="e.g. Strip"
                         />
                       </FormField>
-                      <FormField label={pkg.baseUnit.trim() ? `${pkg.baseUnit}s in Strip` : "Units in Strip"}>
+                      <FormField
+                        label={
+                          pkg.interUnit.trim()
+                            ? (pkg.purchaseUnit.trim() ? `${pkg.interUnit}s per ${pkg.purchaseUnit}` : `${pkg.interUnit}s in Pack`)
+                            : (pkg.purchaseUnit.trim() ? `Strips per ${pkg.purchaseUnit}` : "Strips in Pack")
+                        }
+                      >
                         <Input
                           type="number"
                           min="1"
-                          placeholder="0"
+                          placeholder="e.g. 10"
+                          value={pkg.perPurchase}
+                          onChange={(e) => setP({ perPurchase: e.target.value })}
+                          className={cn(inputCls, "font-mono")}
+                        />
+                      </FormField>
+
+                      <FormField label="Single (Base) Unit" required>
+                        <Combo
+                          value={pkg.baseUnit}
+                          onChange={(v) => setP({ baseUnit: v })}
+                          options={unitsBelow(pkg.interUnit || pkg.purchaseUnit)}
+                          className={inputCls}
+                          placeholder="e.g. Tablet, Vial, Piece"
+                        />
+                      </FormField>
+                      <FormField
+                        label={
+                          pkg.baseUnit.trim()
+                            ? (pkg.interUnit.trim() ? `${pkg.baseUnit}s per ${pkg.interUnit}` : `${pkg.baseUnit}s in Strip`)
+                            : (pkg.interUnit.trim() ? `Units per ${pkg.interUnit}` : "Units in Strip")
+                        }
+                      >
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 10"
                           value={pkg.basePerInter}
                           onChange={(e) => setP({ basePerInter: e.target.value })}
                           className={cn(inputCls, "font-mono")}
                         />
                       </FormField>
                     </>
+                  ) : (
+                    <>
+                      <FormField label="Single (Base) Unit" required>
+                        <Combo
+                          value={pkg.baseUnit}
+                          onChange={(v) => setP({ baseUnit: v })}
+                          options={unitsBelow(pkg.purchaseUnit)}
+                          className={inputCls}
+                          placeholder="e.g. Tablet, Vial, Piece"
+                        />
+                      </FormField>
+                      <FormField
+                        label={
+                          pkg.baseUnit.trim()
+                            ? (pkg.purchaseUnit.trim() ? `${pkg.baseUnit}s per ${pkg.purchaseUnit}` : `${pkg.baseUnit}s in Pack`)
+                            : (pkg.purchaseUnit.trim() ? `Units per ${pkg.purchaseUnit}` : "Units in Pack")
+                        }
+                      >
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 100"
+                          value={pkg.perPurchase}
+                          onChange={(e) => setP({ perPurchase: e.target.value })}
+                          className={cn(inputCls, "font-mono")}
+                        />
+                      </FormField>
+                    </>
                   )}
 
-                  <FormField label="Purchase Unit" required>
-                    <Combo
-                      value={pkg.purchaseUnit}
-                      onChange={(v) => setP({ purchaseUnit: v })}
-                      options={UNIT_SUGGESTIONS}
-                      className={inputCls}
-                      placeholder="e.g. Box, Pack"
-                    />
-                  </FormField>
-                  <FormField
-                    label={
-                      pkg.hasInter
-                        ? (pkg.interUnit.trim() ? `${pkg.interUnit}s in Pack` : "Strips in Pack")
-                        : (pkg.baseUnit.trim() ? `${pkg.baseUnit}s in Pack` : "Units in Pack")
-                    }
-                  >
-                    <Input
-                      type="number"
-                      min="1"
-                      placeholder="0"
-                      value={pkg.perPurchase}
-                      onChange={(e) => setP({ perPurchase: e.target.value })}
-                      className={cn(inputCls, "font-mono")}
-                    />
-                  </FormField>
-
                   {hierarchyFormula ? (
-                    <div className="col-span-2 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 px-3 py-1.5 text-[11px] font-mono font-semibold text-amber-900 dark:text-amber-200 text-center shadow-2xs">
+                    <div className="col-span-2 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 text-center shadow-2xs">
                       {hierarchyFormula}
                     </div>
                   ) : (
@@ -787,6 +862,23 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                       Set base &amp; purchase units to preview hierarchy
                     </div>
                   )}
+
+                  <div className="col-span-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowVisualizer(true)}
+                      disabled={!pkg.baseUnit.trim() || !pkg.purchaseUnit.trim()}
+                      className={cn(
+                        "w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md border text-xs font-semibold transition-all shadow-2xs select-none",
+                        pkg.baseUnit.trim() && pkg.purchaseUnit.trim()
+                          ? "bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 dark:from-blue-950/60 dark:via-sky-950/50 dark:to-indigo-950/50 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:border-blue-400 hover:shadow-xs active:scale-[0.99]"
+                          : "bg-slate-100/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed"
+                      )}
+                    >
+                      <Sparkles className="size-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Visualise Packaging</span>
+                    </button>
+                  </div>
                 </div>
               </SectionCard>
 
@@ -1002,6 +1094,44 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
           </div>
         </div>
       </DialogContent>
+
+      {showVisualizer && (
+        <PackagingVisualizerModal
+          open={showVisualizer}
+          onClose={() => setShowVisualizer(false)}
+          itemName={name}
+          productType={type}
+          purchaseUnit={pkg.purchaseUnit}
+          baseUnit={pkg.baseUnit}
+          hasIntermediate={pkg.hasInter}
+          intermediateUnit={pkg.interUnit}
+          intermediateUnitsPerPurchase={pkg.perPurchase}
+          baseUnitsPerIntermediate={pkg.basePerInter}
+          baseUnitsPerPurchase={baseUnitsPerPurchase}
+          purchasePrice={purchasePrice}
+          mrp={mrp}
+          salePrice={salePrice}
+          onApplyArchetype={(config) => {
+            setP({
+              purchaseUnit: config.purchaseUnit,
+              hasInter: config.hasIntermediate,
+              interUnit: config.intermediateUnit || "",
+              perPurchase: config.intermediateUnitsPerPurchase
+                ? String(config.intermediateUnitsPerPurchase)
+                : "",
+              basePerInter: config.baseUnitsPerIntermediate
+                ? String(config.baseUnitsPerIntermediate)
+                : "",
+              baseUnit: config.baseUnit,
+            });
+            toast.success(
+              `Applied ${config.purchaseUnit} → ${
+                config.hasIntermediate ? `${config.intermediateUnit} → ` : ""
+              }${config.baseUnit} packaging template`
+            );
+          }}
+        />
+      )}
     </Dialog>
   );
 }
