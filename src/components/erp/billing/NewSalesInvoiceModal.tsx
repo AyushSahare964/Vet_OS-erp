@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { OwnerPetRegistrationModal } from "@/components/erp/crm/OwnerPetRegistrationModal";
 import { InvoicePrintView } from "@/components/erp/clinical/InvoicePrintView";
 import { vetNameOf } from "@/lib/clinical/attendingVet";
+import { searchSymptoms } from "@/lib/clinical/symptomSearch";
 
 interface InvoiceGridLine {
   id: string;
@@ -90,6 +91,52 @@ const FEE_PRESETS = [
   { code: "EMERGENCY", label: "Emergency / Surgery", amount: 1200 },
   { code: "HOME_VISIT", label: "Home Visit", amount: 0 }, // price typed by the user
 ];
+
+const DIAGNOSIS_OPTIONS = [
+  "Gastroenteritis", "Acute Vomiting", "Diarrhoea", "Dermatitis", "Otitis Externa", "Upper Respiratory Infection",
+  "Kennel Cough", "Urinary Tract Infection", "Tick Fever", "Parvovirus", "Canine Distemper", "Fever of Unknown Origin",
+  "Dehydration", "Wound / Abscess", "Allergy", "Mange / Scabies", "Worm Infestation", "Conjunctivitis", "Anorexia", "Lameness",
+];
+
+/** Dropdown suggestions (native datalist) + chips: pick several, or type your own and press Enter. */
+function TagPicker({ value, onChange, getOptions, placeholder, listId }: {
+  value: string[]; onChange: (v: string[]) => void; getOptions: (q: string) => string[]; placeholder: string; listId: string;
+}) {
+  const [q, setQ] = useState("");
+  const add = (t: string) => {
+    const v = t.trim();
+    if (v && !value.some((x) => x.toLowerCase() === v.toLowerCase())) onChange([...value, v]);
+    setQ("");
+  };
+  const opts = getOptions(q);
+  return (
+    <div className="space-y-1.5">
+      <Input
+        list={listId}
+        value={q}
+        placeholder={placeholder}
+        onChange={(e) => {
+          const t = e.target.value;
+          // choosing a suggestion fills the exact label: add it straight away
+          if (opts.some((o) => o.toLowerCase() === t.toLowerCase()) && t.length > q.length + 1) add(t);
+          else setQ(t);
+        }}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(q); } }}
+      />
+      <datalist id={listId}>{opts.map((o) => <option key={o} value={o} />)}</datalist>
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {value.map((t) => (
+            <span key={t} className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold">
+              {t}
+              <button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((x) => x !== t))}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const COMMON_UOMS = ["PCS", "STRIP", "TAB", "BOTTLE", "VIAL", "ML", "GM", "KG", "BOX", "DOSE", "SESSION"];
 
@@ -192,8 +239,10 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
   // Grid Lines
   const [lines, setLines] = useState<InvoiceGridLine[]>([]);
-  const [symptoms, setSymptoms] = useState("");
-  const [diagnosisText, setDiagnosisText] = useState("");
+  const [symptoms, setSymptoms] = useState<string[]>([]);
+  const [diagnoses, setDiagnoses] = useState<string[]>([]);
+  const [customFeeName, setCustomFeeName] = useState("");
+  const [customFeeAmt, setCustomFeeAmt] = useState(0);
 
   // ── 4. Footer, Shipping & Partial Payment Details ──
   const [addShipping, setAddShipping] = useState(false);
@@ -661,6 +710,18 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       return next.map((l, i) => ({ ...l, sNo: i + 1, tag: `SR-${String(i + 1).padStart(3, "0")}` }));
     });
   };
+  const renumber = (ls: InvoiceGridLine[]) =>
+    ls.map((l, i) => ({ ...l, sNo: i + 1, tag: `SR-${String(i + 1).padStart(3, "0")}` }));
+  const addCustomFee = () => {
+    const name = customFeeName.trim();
+    if (!name || customFeeAmt <= 0) { toast.error("Enter a fee name and an amount."); return; }
+    setLines((prev) => renumber([...prev, {
+      id: `fee_custom_${Date.now()}`, sNo: 0, tag: "", itemName: name, quantity: 1, uom: "SESSION",
+      salePrice: customFeeAmt, discountPct: 0, gstRate: 18, amount: customFeeAmt, isFee: true,
+    }]));
+    setCustomFeeName(""); setCustomFeeAmt(0);
+  };
+  const removeLineById = (id: string) => setLines((prev) => renumber(prev.filter((l) => l.id !== id)));
   const setFeePrice = (code: string, price: number) =>
     setLines((prev) => prev.map((l) => (l.id === `fee_${code}` ? { ...l, salePrice: price, amount: price } : l)));
 
@@ -777,13 +838,13 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         billType: invoiceType === "NON_GST" ? ("Non-GST" as const) : ("GST" as const),
         doctorName: effectiveDoctorName,
         diagnosis: advisedMode
-          ? diagnosisText.trim() || "Doctor-Advised Medicine"
+          ? diagnoses.join(", ") || "Doctor-Advised Medicine"
           : deliveryTerms
           ? `Terms: ${deliveryTerms}`
           : customerType === "OTHER"
           ? `Retail Sale: ${otherClientType}`
           : "Counter Sale & Services",
-        clinicalNotes: [advisedNote, symptoms.trim() && `Symptoms: ${symptoms.trim()}.`, remarksPrivate.trim()].filter(Boolean).join(" ") || undefined,
+        clinicalNotes: [advisedNote, symptoms.length > 0 && `Symptoms: ${symptoms.join(", ")}.`, remarksPrivate.trim()].filter(Boolean).join(" ") || undefined,
         items: lines.map((l, idx) => {
           const discPct = Math.min(100, Math.max(0, l.discountPct || 0));
           const gross = (l.quantity || 1) * (l.salePrice || 0);
@@ -1180,11 +1241,13 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Symptoms</Label>
-                  <Input value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Vomiting, loss of appetite" />
+                  <TagPicker listId="adv-symptoms" value={symptoms} onChange={setSymptoms} placeholder="Select or type a symptom, press Enter"
+                    getOptions={(q) => searchSymptoms(q).map((e) => e.label)} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Diagnosis</Label>
-                  <Input value={diagnosisText} onChange={(e) => setDiagnosisText(e.target.value)} placeholder="e.g. Gastroenteritis" />
+                  <TagPicker listId="adv-diagnosis" value={diagnoses} onChange={setDiagnoses} placeholder="Select or type a diagnosis, press Enter"
+                    getOptions={(q) => DIAGNOSIS_OPTIONS.filter((d) => d.toLowerCase().includes(q.toLowerCase()))} />
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -1214,6 +1277,17 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                       </span>
                     );
                   })}
+                  {lines.filter((l) => l.id.startsWith("fee_custom_")).map((l) => (
+                    <span key={l.id} className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">
+                      {l.itemName} (₹{l.salePrice})
+                      <button type="button" aria-label={`Remove ${l.itemName}`} onClick={() => removeLineById(l.id)}>×</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Input className="h-8 w-56" placeholder="Other fee name (e.g. Dressing)" value={customFeeName} onChange={(e) => setCustomFeeName(e.target.value)} />
+                  <Input type="number" min={0} className="h-8 w-28 font-mono" placeholder="₹ amount" value={customFeeAmt || ""} onChange={(e) => setCustomFeeAmt(Math.max(0, Number(e.target.value) || 0))} />
+                  <Button type="button" size="sm" variant="outline" onClick={addCustomFee}>+ Add</Button>
                 </div>
               </div>
             </fieldset>
