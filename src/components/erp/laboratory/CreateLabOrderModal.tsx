@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import {
   FlaskConical,
   Dog,
@@ -124,9 +124,15 @@ export function CreateLabOrderModal({ open, onClose, onOrderCreated }: Props) {
       t.name?.toLowerCase().includes(q) ||
       t.code?.toLowerCase().includes(q) ||
       t.sample?.toLowerCase().includes(q) ||
-      t.dept?.toLowerCase().includes(q)
+      t.dept?.toLowerCase().includes(q) ||
+      t.panel?.toLowerCase().includes(q)
     );
   });
+
+  // Tests sit inside their panel: panels first (A-Z), tests without a panel last
+  const groupedTests = [...filteredTests].sort(
+    (a, b) => (a.panel ? 0 : 1) - (b.panel ? 0 : 1) || (a.panel || "").localeCompare(b.panel || "")
+  );
 
   const toggleTest = (code: string) => {
     setSelectedTestCodes((prev) =>
@@ -279,11 +285,16 @@ export function CreateLabOrderModal({ open, onClose, onOrderCreated }: Props) {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 bg-muted/20 rounded-xl border border-border">
-              {filteredTests.map((t) => {
+              {groupedTests.map((t, i) => {
                 const isChecked = selectedTestCodes.includes(t.code);
                 return (
+                  <Fragment key={t.code}>
+                  {(i === 0 || (groupedTests[i - 1]?.panel || "") !== (t.panel || "")) && (
+                    <p className="col-span-full border-b border-border pb-0.5 pt-1 text-[10px] font-black uppercase tracking-wider text-primary">
+                      {t.panel || "Tests without a panel"}
+                    </p>
+                  )}
                   <div
-                    key={t.code}
                     onClick={() => toggleTest(t.code)}
                     className={cn(
                       "p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex items-start justify-between shadow-2xs",
@@ -304,6 +315,7 @@ export function CreateLabOrderModal({ open, onClose, onOrderCreated }: Props) {
                       {isChecked && <CheckCircle2 className="size-3.5 text-primary ml-auto mt-1" />}
                     </div>
                   </div>
+                  </Fragment>
                 );
               })}
               {filteredTests.length === 0 && (

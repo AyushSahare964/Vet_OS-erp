@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   TestTube2,
   Search,
@@ -16,6 +16,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { loadTestCatalog, addTestToCatalog, deleteTestFromCatalog, clearTestCatalog, type LabTestProfile } from "@/lib/erp/labTestCatalog";
 
+interface ParamDraft { name: string; unit: string; min: string; max: string }
+const emptyParam = (): ParamDraft => ({ name: "", unit: "", min: "", max: "" });
+/** "min - max" when both are given, otherwise "< max" / "> min" */
+const toRefRange = (p: ParamDraft) =>
+  p.min.trim() && p.max.trim() ? `${p.min.trim()} - ${p.max.trim()}` : p.max.trim() ? `< ${p.max.trim()}` : p.min.trim() ? `> ${p.min.trim()}` : "";
+
 export function TestMasterCatalog() {
   const [catalog, setCatalog] = useState<LabTestProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +38,8 @@ export function TestMasterCatalog() {
   const [newTat, setNewTat] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newUrgent, setNewUrgent] = useState(false);
+  const [newPanel, setNewPanel] = useState("");
+  const [newParams, setNewParams] = useState<ParamDraft[]>([]);
 
   useEffect(() => {
     void refresh();
@@ -57,6 +65,7 @@ export function TestMasterCatalog() {
         !q ||
         t.name?.toLowerCase().includes(q) ||
         t.code?.toLowerCase().includes(q) ||
+        t.panel?.toLowerCase().includes(q) ||
         t.sample?.toLowerCase().includes(q);
 
       const matchD = deptFilter === "all" || t.dept === deptFilter;
@@ -64,6 +73,13 @@ export function TestMasterCatalog() {
     });
   }, [catalog, query, deptFilter]);
 
+  const panels = Array.from(new Set(catalog.map((t) => t.panel).filter(Boolean))) as string[];
+  // Tests sit inside their panel: panels first (A-Z), tests without a panel last
+  const grouped = useMemo(
+    () =>
+      [...filtered].sort((a, b) => (a.panel ? 0 : 1) - (b.panel ? 0 : 1) || (a.panel || "").localeCompare(b.panel || "")),
+    [filtered]
+  );
   const departments = Array.from(new Set(catalog.map((t) => t.dept).filter(Boolean)));
 
   const resetForm = () => {
@@ -74,11 +90,18 @@ export function TestMasterCatalog() {
     setNewTat("");
     setNewPrice("");
     setNewUrgent(false);
+    setNewPanel("");
+    setNewParams([]);
   };
 
   const handleAddTest = async () => {
     if (!newName.trim() || !newSample.trim() || !newPrice.trim()) {
       toast.error("Test name, sample type, and price are required");
+      return;
+    }
+    const filled = newParams.filter((p) => p.name.trim());
+    if (filled.some((p) => !toRefRange(p))) {
+      toast.error("Give every parameter a minimum and/or maximum value (its threshold)");
       return;
     }
     setSavingTest(true);
@@ -94,6 +117,8 @@ export function TestMasterCatalog() {
         tat: newTat.trim() || "—",
         price: Number(newPrice),
         urgentAvailable: newUrgent,
+        ...(newPanel.trim() ? { panel: newPanel.trim() } : {}),
+        parameters: filled.map((p) => ({ name: p.name.trim(), unit: p.unit.trim(), refRange: toRefRange(p) })),
       };
       await addTestToCatalog(test);
       toast.success(`Test profile "${test.name}" added to catalog`);
@@ -194,6 +219,17 @@ export function TestMasterCatalog() {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground">Panel</Label>
+              <Input
+                list="lab-panels"
+                value={newPanel}
+                onChange={(e) => setNewPanel(e.target.value)}
+                placeholder="e.g. Liver Function Panel"
+                className="h-8 text-xs bg-card"
+              />
+              <datalist id="lab-panels">{panels.map((p) => <option key={p} value={p} />)}</datalist>
+            </div>
+            <div className="space-y-1">
               <Label className="text-[11px] font-semibold text-muted-foreground">Test Name *</Label>
               <Input
                 value={newName}
@@ -250,6 +286,34 @@ export function TestMasterCatalog() {
               />
             </div>
           </div>
+          {/* Parameters this test must report, each with its normal range (threshold) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-[11px] font-semibold text-muted-foreground">
+                Parameters &amp; thresholds ({newParams.length})
+              </Label>
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs font-semibold gap-1"
+                onClick={() => setNewParams((p) => [...p, emptyParam()])}>
+                <Plus className="size-3" /> Add Parameter
+              </Button>
+            </div>
+            {newParams.map((p, i) => {
+              const set = (k: keyof ParamDraft, v: string) =>
+                setNewParams((prev) => prev.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+              return (
+                <div key={i} className="grid grid-cols-[1fr_90px_90px_90px_32px] gap-2 items-center">
+                  <Input value={p.name} onChange={(e) => set("name", e.target.value)} placeholder="Parameter (e.g. ALT / SGPT)" className="h-8 text-xs bg-card" />
+                  <Input value={p.unit} onChange={(e) => set("unit", e.target.value)} placeholder="Unit" className="h-8 text-xs bg-card font-mono" />
+                  <Input value={p.min} onChange={(e) => set("min", e.target.value)} placeholder="Min" inputMode="decimal" className="h-8 text-xs bg-card font-mono" />
+                  <Input value={p.max} onChange={(e) => set("max", e.target.value)} placeholder="Max" inputMode="decimal" className="h-8 text-xs bg-card font-mono" />
+                  <Button type="button" size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => setNewParams((prev) => prev.filter((_, j) => j !== i))} title="Remove parameter">
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
           <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer w-fit">
             <input
               type="checkbox"
@@ -267,9 +331,14 @@ export function TestMasterCatalog() {
 
       {/* Grid of Test Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-        {filtered.map((t) => (
+        {grouped.map((t, i) => (
+          <Fragment key={t.code}>
+          {(i === 0 || (grouped[i - 1]?.panel || "") !== (t.panel || "")) && (
+            <h3 className="col-span-full border-b border-border pb-1 pt-2 text-xs font-black uppercase tracking-wider text-primary">
+              {t.panel || "Tests without a panel"}
+            </h3>
+          )}
           <div
-            key={t.code}
             className="rounded-xl border border-border bg-card p-4 hover:border-primary/40 hover:shadow-xs transition-all flex flex-col justify-between space-y-3"
           >
             <div className="space-y-1.5">
@@ -293,6 +362,9 @@ export function TestMasterCatalog() {
                 </div>
               </div>
               <h4 className="text-xs font-bold text-foreground leading-snug">{t.name}</h4>
+              {t.parameters && t.parameters.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">{t.parameters.length} parameter{t.parameters.length > 1 ? "s" : ""}: {t.parameters.map((p) => p.name).join(", ")}</p>
+              )}
               <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
                 <TestTube2 className="size-3 text-primary" /> Specimen: <strong className="text-foreground">{t.sample}</strong>
               </p>
@@ -306,6 +378,7 @@ export function TestMasterCatalog() {
               <span className="font-mono font-bold text-sm text-foreground">₹{Number(t.price).toLocaleString("en-IN")}</span>
             </div>
           </div>
+          </Fragment>
         ))}
 
         {!loading && filtered.length === 0 && (

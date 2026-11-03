@@ -26,6 +26,8 @@ export interface ParameterResult {
   refRange: string;
   flag?: "Normal" | "High" | "Low" | "Critical";
   isCustom?: boolean;
+  /** Test the parameter belongs to (shown when an order has several tests) */
+  group?: string;
 }
 
 // Clean reference templates — all observed values start empty (no default dummy entries)
@@ -190,6 +192,24 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
       // 1. If previously entered results exist, restore them
       if (order.parameters && Array.isArray(order.parameters) && order.parameters.length > 0) {
         setParams(order.parameters);
+      } else if (
+        Array.isArray(order.tests) &&
+        order.tests.some((t: any) => Array.isArray(t?.parameters) && t.parameters.length > 0)
+      ) {
+        // 2. Parameters defined in Test Master for the ordered tests
+        const withParams = order.tests.filter((t: any) => Array.isArray(t?.parameters) && t.parameters.length > 0);
+        setParams(
+          withParams.flatMap((t: any) =>
+            t.parameters.map((p: any) => ({
+              name: p.name,
+              unit: p.unit || "",
+              refRange: p.refRange || "",
+              value: "",
+              flag: undefined,
+              ...(withParams.length > 1 ? { group: t.name } : {}),
+            }))
+          )
+        );
       } else if (
         order.test?.toLowerCase().includes("biochem") ||
         order.test?.toLowerCase().includes("liver") ||
@@ -413,6 +433,7 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
                         ) : (
                           <span>{p.name}</span>
                         )}
+                        {p.group && <span className="block text-[10px] font-normal text-muted-foreground">{p.group}</span>}
                       </td>
                       <td className="px-4 py-2">
                         <Input

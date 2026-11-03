@@ -9,7 +9,18 @@ import { getRowsFn, addRowFn, deleteRowFn, resetRowsFn } from "@/lib/mongodb/ser
 
 export const LAB_TEST_CATALOG_MODULE = "lab_test_catalog";
 
+/** One result field of a test, with its normal range ("threshold"): refRange is "min - max", "< max" or "> min". */
+export interface LabTestParameter {
+  name: string;
+  unit: string;
+  refRange: string;
+}
+
 export interface LabTestProfile {
+  /** Panel the test belongs to, e.g. "Liver Function Panel". Tests are grouped by panel. */
+  panel?: string;
+  /** Parameters this test must report; they appear in the result-entry form when the test is ordered. */
+  parameters?: LabTestParameter[];
   code: string;
   name: string;
   sample: string;
