@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
-import { addItemFn, peekItemCodeFn, type InventoryItemRow } from "@/lib/mongodb/serverFns/inventory";
+import { addItemFn, updateItemFn, peekItemCodeFn, type InventoryItemRow } from "@/lib/mongodb/serverFns/inventory";
 import { PackagingVisualizerModal } from "@/components/erp/inventory/PackagingVisualizerModal";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -27,6 +27,8 @@ interface NewItemModalProps {
   defaultType?: ProductType | undefined;
   supplierId?: string | undefined;
   supplierName?: string | undefined;
+  /** Edit mode: prefill from this item and save changes instead of creating. */
+  editing?: InventoryItemRow | undefined;
 }
 
 const GST_RATES = [
@@ -92,6 +94,11 @@ const CONSUMABLE_GROUPS = [
   "Cotton & Gauze", "Gloves", "Syringes & Needles", "Sutures", "Bandages & Dressings", "Swabs & Ear Buds",
   "IV Sets & Cannulas", "Catheters & Tubes", "Cleaning & Disinfection", "Disposable Sheets & Masks", "Lab Consumables",
 ];
+const INJECTION_GROUPS = ["Antibiotic", "Vaccine", "NSAID / Analgesic", "Steroid", "Antiemetic", "Vitamin / Mineral", "Anaesthetic / Sedative", "Hormone", "Antiparasitic", "Fluid / Electrolyte", "Emergency / Critical Care"];
+const INJ_PURCHASE = ["Box", "Carton", "Pack", "Vial", "Ampoule", "Bottle", "Syringe"];
+const INJ_MIDDLE = ["Pack", "Tray", "Strip", "Carton"];
+const INJ_BASE = ["Vial", "Ampoule", "Syringe", "Bottle", "Dose", "ml"];
+const INJ_ROUTES = ["IM", "IV", "SC", "IP", "ID", "IV Infusion", "Intra-articular"];
 const COLOURS = ["Black", "White", "Red", "Blue", "Green", "Yellow", "Pink", "Brown", "Grey", "Orange", "Purple", "Multi"];
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "Free Size"];
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -283,7 +290,7 @@ function MoneyInput({ value, onChange, placeholder = "0" }: { value: string; onC
   );
 }
 
-export function NewItemModal({ open, onClose, onSuccess, initialName, defaultType = "MEDICINE", supplierId, supplierName }: NewItemModalProps) {
+export function NewItemModal({ open, onClose, onSuccess, initialName, defaultType = "MEDICINE", supplierId, supplierName, editing }: NewItemModalProps) {
   const [type, setType] = useState<ProductType>("MEDICINE");
   const [itemCode, setItemCode] = useState("");
   const [name, setName] = useState("");
@@ -296,6 +303,8 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
   const [strength, setStrength] = useState("");
   const [dosageForm, setDosageForm] = useState("");
   const [route, setRoute] = useState("");
+  const [vialSize, setVialSize] = useState("");
+  const [coldChain, setColdChain] = useState(false);
   const [schedule, setSchedule] = useState("");
   const [species, setSpecies] = useState("");
   const [lifeStage, setLifeStage] = useState("");
@@ -346,12 +355,44 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
     setDosageForm(""); setRoute(""); setSchedule(""); setSpecies(""); setLifeStage("");
     setAccessoryType(""); setPetSize(""); setStorageLocation("");
     setMaterial(""); setCSize(""); setSterile(""); setSingleUse(""); setVariants([]); setVd(emptyVariant());
-    setPkg(emptyPkg());
+    setPkg(emptyPkg()); setVialSize(""); setColdChain(false);
     setPurchasePrice(""); setMrp(""); setSalePrice("");
     setCurrentStock("0"); setReorderLevel("0");
     setBatchNo(""); setExpiryDate(""); setManufacturingDate("");
     setHsn(""); setGst("0");
-  }, [open, initialName, defaultType]);
+
+    if (editing) {
+      const e = editing as any;
+      const md = e.medicineDetails ?? e.injectionDetails ?? {};
+      const ph = e.packagingHierarchy;
+      const s = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+      setType(e.productType);
+      setItemCode(e.itemCode);
+      setName(s(e.name)); setGenericName(s(e.genericName)); setBrand(s(e.brand)); setManufacturer(s(e.manufacturer));
+      setSubGroup(e.productType === "ACCESSORY" ? "" : s(e.subGroup));
+      setVialSize(s(e.injectionDetails?.vialSize)); setColdChain(e.injectionDetails?.coldChainRequired ?? false);
+      setStrength(s(md.strength)); setDosageForm(s(md.dosageForm)); setRoute(s(md.route)); setSchedule(s(md.schedule));
+      setSpecies(s(e.foodDetails?.targetSpecies)); setLifeStage(s(e.foodDetails?.lifeStage));
+      setAccessoryType(s(e.accessoryDetails?.accessoryType ?? e.subGroup)); setMaterial(s(e.accessoryDetails?.material ?? e.consumableDetails?.material));
+      setCSize(s(e.consumableDetails?.size)); setSterile(s(e.consumableDetails?.sterile)); setSingleUse(s(e.consumableDetails?.singleUse));
+      setPkg(ph ? {
+        baseUnit: s(ph.baseUnit), purchaseUnit: s(ph.purchaseUnit), hasInter: !!ph.hasIntermediateUnit,
+        interUnit: s(ph.intermediateUnit), basePerInter: s(ph.baseUnitsPerIntermediate),
+        perPurchase: s(ph.hasIntermediateUnit ? ph.intermediateUnitsPerPurchase : ph.baseUnitsPerPurchase),
+      } : { baseUnit: s(e.unit), purchaseUnit: s(e.purchaseUom || e.unit), perPurchase: "1", interUnit: "", basePerInter: "", hasInter: false });
+      setReorderLevel(s(e.reorderLevel ?? 0)); setBatchTracking(!!e.batchTracking); setStorageLocation(s(e.storageLocation));
+      setCurrentStock(s(e.currentStock ?? 0)); setBatchNo(s(e.batchNo)); setExpiryDate(s(e.expiryDate)); setManufacturingDate(s(e.manufacturingDate));
+      setPurchasePrice(s(e.defaultPurchasePrice || "")); setMrp(s(e.mrp || "")); setSalePrice(s(e.defaultSalePrice || ""));
+      setGst(s(e.gstRate ?? 0)); setHsn(s(e.hsnCode));
+      if (e.productType === "ACCESSORY") {
+        setVariants([{
+          color: s(e.accessoryDetails?.color), size: s(e.accessoryDetails?.petSize),
+          purchase: s(e.defaultPurchasePrice || ""), sale: s(e.defaultSalePrice || ""), mrp: s(e.mrp || ""),
+          reorder: s(e.reorderLevel ?? 0), qty: s(e.currentStock ?? 0),
+        }]);
+      }
+    }
+  }, [open, initialName, defaultType, editing]);
 
   // Accessories are counted in pieces: no packaging questions
   useEffect(() => {
@@ -360,16 +401,17 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
 
   // Peek the auto item ID for the chosen category
   useEffect(() => {
-    if (!open) return;
+    if (!open || editing) return;
     let cancelled = false;
     peekItemCodeFn({ data: { type } }).then((c) => !cancelled && setItemCode(c || "")).catch(() => {});
     return () => { cancelled = true; };
-  }, [open, type]);
+  }, [open, type, editing]);
 
-  // Category switch
+  // Category switch (locked when editing: the category is fixed for ledger consistency)
   const switchType = (t: ProductType) => {
+    if (editing) return;
     setType(t);
-    setPkg(emptyPkg());
+    setPkg(emptyPkg()); setVialSize(""); setColdChain(false);
     setDosageForm("");
     setRoute("");
     setSchedule("");
@@ -424,13 +466,14 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
 
   const handleSave = async () => {
     if (!name.trim()) { toast.error("Item Name is required."); return; }
+    if (editing && type === "ACCESSORY" && variants.length !== 1) { toast.error("An accessory item has exactly one colour / size row."); return; }
     if (type === "ACCESSORY" && variants.length === 0) { toast.error("Add at least one row to the price list (colour / size, price and stock)."); return; }
     if (!pkg.baseUnit.trim() || !pkg.purchaseUnit.trim()) { toast.error("Base unit and purchase unit are required."); return; }
     if (pkg.hasInter && !pkg.interUnit.trim()) { toast.error("Enter the middle unit (e.g. Strip) or untick it."); return; }
 
     const cat = CATEGORIES.find((c) => c.type === type)!;
     const sale = Number(salePrice) || Number(mrp) || 0;
-    const details = { storageCondition: type === "INJECTION" ? "Cold Chain (2-8°C)" : "Room Temperature (15-25°C)" };
+    const details = { storageCondition: type === "INJECTION" && coldChain ? "Cold Chain (2-8°C)" : "Room Temperature (15-25°C)" };
 
     setSaving(true);
     try {
@@ -476,12 +519,31 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
           expiryDate: expiryDate.trim(),
           manufacturingDate: manufacturingDate.trim(),
           medicineDetails: type === "MEDICINE" ? { strength, dosageForm, route, schedule, ...details } : undefined,
-          injectionDetails: type === "INJECTION" ? { strength, route, schedule, coldChainRequired: true, ...details } : undefined,
+          injectionDetails: type === "INJECTION" ? { strength, route, schedule, vialSize: vialSize.trim(), coldChainRequired: coldChain, ...details } : undefined,
           foodDetails: type === "FOOD" ? { targetSpecies: species, lifeStage } : undefined,
           accessoryDetails: type === "ACCESSORY" ? { accessoryType, material } : undefined,
           consumableDetails: type === "CONSUMABLE" ? { size: cSize, material, sterile, singleUse } : undefined,
           ...o,
         } as any);
+
+      // Edit: update this item in place (stock is managed through the ledger, so not touched here)
+      if (editing) {
+        const v = type === "ACCESSORY" ? variants[0]! : null;
+        const vs = v ? Number(v.sale) || Number(v.mrp) || 0 : 0;
+        const payload = mk(v ? {
+          accessoryDetails: { accessoryType, petSize: v.size.trim(), material, color: v.color.trim() },
+          defaultPurchasePrice: Number(v.purchase) || 0, valuationRate: Number(v.purchase) || 0,
+          defaultSalePrice: vs, mrp: Number(v.mrp) || vs,
+          reorderLevel: Number(v.reorder) || 0, minStockLevel: Number(v.reorder) || 0,
+        } : {});
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { productType: _t, currentStock: _s, defaultSupplierId: _i, defaultSupplierName: _n, ...patch } = payload;
+        const updated = await updateItemFn({ data: { itemCode: editing.itemCode, patch } });
+        toast.success(`${updated.name} updated (${updated.itemCode}).`);
+        onSuccess?.(updated);
+        onClose();
+        return;
+      }
 
       // Accessory with a variant grid: one inventory item per size / colour, each with its own price and stock
       if (type === "ACCESSORY" && variants.length > 0) {
@@ -563,7 +625,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
             </div>
             <div>
               <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight">
-                New Item Information
+                {editing ? `Edit Item Information` : "New Item Information"}
               </DialogTitle>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="inline-flex items-center text-[10px] font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200/80 dark:border-blue-900">
@@ -595,7 +657,10 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                 key={t}
                 type="button"
                 onClick={() => switchType(t)}
+                disabled={!!editing && type !== t}
+                title={editing ? "Category is locked for ledger consistency" : undefined}
                 className={cn(
+                  editing && type !== t && "opacity-40 cursor-not-allowed",
                   "flex items-center justify-center gap-2 rounded-lg border py-2 px-3 text-xs font-semibold transition-all",
                   type === t
                     ? activeClass
@@ -627,7 +692,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                   <Input
                     value={genericName}
                     onChange={(e) => setGenericName(e.target.value)}
-                    placeholder={isRx ? "e.g. Amoxicillin Trihydrate" : "e.g. High protein food"}
+                    placeholder={type === "INJECTION" ? "e.g. Ceftriaxone Sodium" : isRx ? "e.g. Amoxicillin Trihydrate" : "e.g. High protein food"}
                     className={inputCls}
                   />
                 </FormField>}
@@ -651,9 +716,9 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                   <Combo
                     value={subGroup}
                     onChange={setSubGroup}
-                    options={type === "CONSUMABLE" ? CONSUMABLE_GROUPS : SUB_GROUPS}
+                    options={type === "CONSUMABLE" ? CONSUMABLE_GROUPS : type === "INJECTION" ? INJECTION_GROUPS : SUB_GROUPS}
                     className={inputCls}
-                    placeholder={isRx ? "e.g. Antibiotics" : type === "CONSUMABLE" ? "e.g. Cotton & Gauze" : "e.g. Dog Food"}
+                    placeholder={type === "INJECTION" ? "e.g. Antibiotic, Vaccine" : isRx ? "e.g. Antibiotics" : type === "CONSUMABLE" ? "e.g. Cotton & Gauze" : "e.g. Dog Food"}
                   />
                 </FormField>}
 
@@ -693,11 +758,18 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                       />
                     </FormField>
                     <FormField label="Route">
-                      {sel(route, setRoute, ["IM", "IV", "SC", "IP"], "Select route...")}
+                      {sel(route, setRoute, INJ_ROUTES, "Select route...")}
                     </FormField>
-                    <FormField label="Schedule" className="col-span-2">
+                    <FormField label="Vial / Ampoule Size">
+                      <Input value={vialSize} onChange={(e) => setVialSize(e.target.value)} placeholder="e.g. 10 ml" className={inputCls} />
+                    </FormField>
+                    <FormField label="Schedule">
                       {sel(schedule, setSchedule, ["Schedule H", "Schedule H1", "Schedule X", "OTC"], "Select schedule...")}
                     </FormField>
+                    <div className="col-span-2 flex items-center gap-2 pt-0.5">
+                      <input type="checkbox" id="coldChain" checked={coldChain} onChange={(e) => setColdChain(e.target.checked)} className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 size-3.5 cursor-pointer" />
+                      <label htmlFor="coldChain" className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">Cold chain item (store at 2-8°C)</label>
+                    </div>
                   </>
                 )}
 
@@ -750,9 +822,9 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                     <Combo
                       value={pkg.purchaseUnit}
                       onChange={(v) => setP({ purchaseUnit: v })}
-                      options={PURCHASE_OPTIONS}
+                      options={type === "INJECTION" ? INJ_PURCHASE : PURCHASE_OPTIONS}
                       className={inputCls}
-                      placeholder="e.g. Box, Pack"
+                      placeholder={type === "INJECTION" ? "e.g. Box of vials" : "e.g. Box, Pack"}
                     />
                   </FormField>
 
@@ -765,7 +837,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                       className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 size-3.5 cursor-pointer"
                     />
                     <label htmlFor="hasInterUnit" className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
-                      Has a middle unit (e.g. Strip)
+                      {type === "INJECTION" ? "Has a middle unit (e.g. Pack of vials)" : "Has a middle unit (e.g. Strip)"}
                     </label>
                   </div>
 
@@ -775,7 +847,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                         <Combo
                           value={pkg.interUnit}
                           onChange={(v) => setP({ interUnit: v })}
-                          options={unitsBelow(pkg.purchaseUnit, true)}
+                          options={type === "INJECTION" ? INJ_MIDDLE : unitsBelow(pkg.purchaseUnit, true)}
                           className={inputCls}
                           placeholder="e.g. Strip"
                         />
@@ -801,7 +873,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                         <Combo
                           value={pkg.baseUnit}
                           onChange={(v) => setP({ baseUnit: v })}
-                          options={unitsBelow(pkg.interUnit || pkg.purchaseUnit)}
+                          options={type === "INJECTION" ? INJ_BASE : unitsBelow(pkg.interUnit || pkg.purchaseUnit)}
                           className={inputCls}
                           placeholder="e.g. Tablet, Vial, Piece"
                         />
@@ -829,7 +901,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                         <Combo
                           value={pkg.baseUnit}
                           onChange={(v) => setP({ baseUnit: v })}
-                          options={unitsBelow(pkg.purchaseUnit)}
+                          options={type === "INJECTION" ? INJ_BASE : unitsBelow(pkg.purchaseUnit)}
                           className={inputCls}
                           placeholder="e.g. Tablet, Vial, Piece"
                         />
@@ -884,10 +956,12 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
 
               <SectionCard title="Stock & Storage" icon={PackageCheck}>
                 <div className="grid grid-cols-2 gap-2.5">
-                  <FormField label="Opening Stock">
+                  <FormField label={(editing ? "Current Stock" : "Opening Stock")}>
                     <Input
                       type="number"
                       min="0"
+                      disabled={!!editing}
+                      title={editing ? "Change stock through purchase bills or stock adjustments" : undefined}
                       value={currentStock}
                       onChange={(e) => setCurrentStock(e.target.value)}
                       placeholder="0"
@@ -908,7 +982,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                     <Input
                       value={storageLocation}
                       onChange={(e) => setStorageLocation(e.target.value)}
-                      placeholder={isRx ? "e.g. Rack A-1, Pharmacy" : "e.g. Retail Floor"}
+                      placeholder={type === "INJECTION" ? "e.g. Cold chain fridge, Shelf 2" : isRx ? "e.g. Rack A-1, Pharmacy" : "e.g. Retail Floor"}
                       className={inputCls}
                     />
                   </FormField>
@@ -945,14 +1019,20 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                     <MoneyInput value={salePrice} onChange={setSalePrice} placeholder="0" />
                   </FormField>
 
-                  {baseUnitsPerPurchase > 1 && (Number(purchasePrice) > 0 || Number(salePrice) > 0 || Number(mrp) > 0) && (
-                    <div className="col-span-2 rounded-md bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 p-2 text-[10px] font-mono text-slate-600 dark:text-slate-300 space-y-0.5 shadow-2xs">
-                      <div>Per {pkg.baseUnit || "unit"}: Buy ₹{perBase(purchasePrice)} • MRP ₹{perBase(mrp)} • Sell ₹{perBase(salePrice || mrp)}</div>
-                      {pkg.hasInter && Number(pkg.basePerInter) > 0 && (
-                        <div>Per {pkg.interUnit || "middle"}: Buy ₹{r2(perBase(purchasePrice) * Number(pkg.basePerInter))} • Sell ₹{r2(perBase(salePrice || mrp) * Number(pkg.basePerInter))}</div>
-                      )}
+                  {baseUnitsPerPurchase > 1 && (Number(purchasePrice) > 0 || Number(salePrice) > 0 || Number(mrp) > 0) && (<>
+                    <div className="col-span-2 flex items-center justify-between gap-2 rounded-md border-l-2 border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 px-2.5 py-1.5 text-xs">
+                      <span className="font-semibold text-slate-600 dark:text-slate-300">Per {pkg.baseUnit || "unit"}</span>
+                      <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                        Buy ₹{perBase(purchasePrice)} · MRP ₹{perBase(mrp)} · Sell ₹{perBase(salePrice || mrp)}
+                      </span>
                     </div>
-                  )}
+                    {pkg.hasInter && Number(pkg.basePerInter) > 0 && (
+                      <div className="col-span-2 flex items-center justify-between gap-2 px-2.5 text-[11px] text-slate-500">
+                        <span className="font-semibold">Per {pkg.interUnit || "middle"}</span>
+                        <span className="font-mono font-semibold">Buy ₹{r2(perBase(purchasePrice) * Number(pkg.basePerInter))} · Sell ₹{r2(perBase(salePrice || mrp) * Number(pkg.basePerInter))}</span>
+                      </div>
+                    )}
+                  </>)}
 
                   <FormField label="HSN / SAC Code">
                     <div className="relative">
@@ -1088,7 +1168,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                 className="h-8 px-6 gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
               >
                 <Save className="size-3.5" />
-                <span>{saving ? "Saving..." : "Save Item"}</span>
+                <span>{saving ? "Saving..." : editing ? "Update Item" : "Save Item"}</span>
               </Button>
             </div>
           </div>
