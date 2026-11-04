@@ -52,7 +52,8 @@ const LABEL_MODULES: [RegExp, string][] = [
 export const kpiModuleFor = (label: string): string | undefined =>
   LABEL_MODULES.find(([re]) => re.test(label))?.[1];
 
-export function KpiCard({ kpi, index = 0, icon }: { kpi: Kpi; index?: number; icon?: LucideIcon }) {
+/** onSelect: when given, clicking the card runs it (e.g. filter the list below) instead of navigating; active highlights it. */
+export function KpiCard({ kpi, index = 0, icon, onSelect, active }: { kpi: Kpi; index?: number; icon?: LucideIcon; onSelect?: () => void; active?: boolean }) {
   const Icon = icon ?? kpiIconFor(kpi.label);
   // Big number: full size by default; steps down only if a long value would be cut off in a narrow card.
   const valueRef = useRef<HTMLParagraphElement>(null);
@@ -84,6 +85,7 @@ export function KpiCard({ kpi, index = 0, icon }: { kpi: Kpi; index?: number; ic
   // (records popup if the page has none).
   const target = kpi.module ?? kpiModuleFor(kpi.label);
   const activate = () => {
+    if (onSelect) return onSelect();
     if (target && pathname !== `/m/${target}`) return void navigate({ to: "/m/$moduleId", params: { moduleId: target } });
     const table = document.querySelector("main table, table");
     if (table) table.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -100,7 +102,8 @@ export function KpiCard({ kpi, index = 0, icon }: { kpi: Kpi; index?: number; ic
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
-      className="erp-kpi erp-kpi-row cursor-pointer"
+      className={cn("erp-kpi erp-kpi-row cursor-pointer", active && "ring-2 ring-primary")}
+      aria-pressed={onSelect ? !!active : undefined}
     >
       <span className="erp-kpi-icon" aria-hidden="true">
         <Icon />

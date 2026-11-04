@@ -111,6 +111,7 @@ export function StockView() {
   const [query, setQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCat, setFilterCat] = useState("all");
+  const [onlyExpiring, setOnlyExpiring] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpand = (id: string) =>
@@ -133,9 +134,12 @@ export function StockView() {
       const status = getStockStatus(m.id);
       const matchStatus = filterStatus === "all" || status === filterStatus;
       const matchCat = filterCat === "all" || m.category === filterCat;
-      return matchQ && matchStatus && matchCat;
+      const matchExp =
+        !onlyExpiring ||
+        getBatches(m.id).some((b) => getExpiryStatus(b.expiryDate) !== "safe");
+      return matchQ && matchStatus && matchCat && matchExp;
     });
-  }, [activeMeds, query, filterStatus, filterCat, getStockStatus]);
+  }, [activeMeds, query, filterStatus, filterCat, onlyExpiring, getStockStatus, getBatches, getExpiryStatus]);
 
   const kpis = useMemo(() => {
     const low = activeMeds.filter((m) => getStockStatus(m.id) === "Low").length;
@@ -149,14 +153,47 @@ export function StockView() {
     }).length;
     const expired = allBatches.filter((b) => getExpiryStatus(b.expiryDate) === "expired").length;
 
-    const totalValue = allBatches.reduce((s, b) => s + Math.max(0, b.qty) * b.purchasePrice, 0);
     return [
-      { label: "Total active medicines", value: String(activeMeds.length), trend: "in catalogue", trendTone: "flat" as const },
-      { label: "Low-stock items", value: String(low), trend: `${oos} out of stock`, trendTone: low > 0 ? "down" as const : "flat" as const },
-      { label: "Expiring batches", value: String(expiring + expired), trend: `${expired} already expired`, trendTone: expiring + expired > 0 ? "down" as const : "flat" as const },
-      { label: "Total stock value", value: totalValue > 0 ? `₹${(totalValue / 1000).toFixed(1)}K` : "₹0", trend: "at cost price", trendTone: totalValue > 0 ? ("up" as const) : ("flat" as const) },
+      { label: "Active items", value: String(activeMeds.length), trend: "in catalogue · show all", trendTone: "flat" as const },
+      { label: "Low stock", value: String(low), trend: "at or below reorder level", trendTone: low > 0 ? "down" as const : "flat" as const },
+      { label: "Out of stock", value: String(oos), trend: "need a purchase order", trendTone: oos > 0 ? "down" as const : "flat" as const },
+      { label: "Expiring batches", value: String(expiring + expired), trend: `within 30 days · ${expired} already expired`, trendTone: expiring + expired > 0 ? "down" as const : "flat" as const },
     ];
   }, [activeMeds, getBatches, getStockStatus, getExpiryStatus]);
+
+  // Stock value at cost: batch price when known, else the item's default purchase price (per purchase unit).
+  const stockValue = useMemo(
+    () =>
+      activeMeds.reduce((sum, m) => {
+        const qty = getTotalQty(m.id);
+        const bs = getBatches(m.id);
+        const batchVal = bs.reduce((x, b) => x + Math.max(0, b.qty) * b.purchasePrice, 0);
+        if (batchVal > 0) return sum + batchVal;
+        const per = m.packagingHierarchy?.baseUnitsPerPurchase || 1;
+        return sum + Math.max(0, qty) * ((m.defaultPurchasePrice || 0) / per);
+      }, 0),
+    [activeMeds, getBatches, getTotalQty],
+  );
+
+  // Stat cards double as quick filters
+  const pick = (status: string, exp = false) => {
+    const same = filterStatus === status && onlyExpiring === exp;
+    setFilterStatus(same ? "all" : status);
+    setOnlyExpiring(same ? false : exp);
+    setQuery(""); setFilterCat("all"); // a stat card shows its whole group, not narrowed by an old search
+  };
+  const cardActive = [
+    filterStatus === "all" && !onlyExpiring,
+    filterStatus === "Low",
+    filterStatus === "Out of Stock",
+    onlyExpiring,
+  ];
+  const cardSelect = [
+    () => { setFilterStatus("all"); setOnlyExpiring(false); setFilterCat("all"); setQuery(""); },
+    () => pick("Low"),
+    () => pick("Out of Stock"),
+    () => pick("all", true),
+  ];
 
   const lastUpdated = useMemo(() => {
     if (ledger.length === 0 || !ledger[0]) return "—";
@@ -167,7 +204,7 @@ export function StockView() {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {kpis.map((k, i) => <KpiCard key={k.label} kpi={k} index={i} />)}
+        {kpis.map((k, i) => <KpiCard key={k.label} kpi={k} index={i} active={!!cardActive[i]} {...(cardSelect[i] ? { onSelect: cardSelect[i]! } : {})} />)}
       </div>
 
       {/* Live indicator */}
@@ -179,7 +216,9 @@ export function StockView() {
         <span>·</span>
         <span>Last movement: {lastUpdated}</span>
         <span>·</span>
-        <span>Click any row to see batch breakdown</span>
+        <span>Stock value <span className="font-semibold text-foreground">{money(Math.round(stockValue))}</span> at cost</span>
+        <span>·</span>
+        <span>Click a row to see its batches</span>
       </div>
 
       {/* Table */}
@@ -191,7 +230,7 @@ export function StockView() {
               id="stock-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search medicines, categories…"
+              placeholder="Search item, generic name or category…"
               className="pl-9"
             />
           </div>
@@ -213,7 +252,7 @@ export function StockView() {
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground font-medium">{visible.length} medicines</p>
+          <p className="text-xs text-muted-foreground font-medium">{visible.length} of {activeMeds.length} items</p>
         </div>
 
         <div className="overflow-x-auto">
@@ -221,12 +260,12 @@ export function StockView() {
             <thead>
               <tr className="bg-muted/60 text-muted-foreground border-b border-border">
                 <th className="w-8 px-4 py-3" />
-                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide">Medicine</th>
-                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide">Batch / Expiry</th>
-                <th className="text-right px-4 py-3 text-xs font-bold uppercase tracking-wide">Total Qty</th>
+                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide">Item</th>
+                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide">Batches / Expiry</th>
+                <th className="text-right px-4 py-3 text-xs font-bold uppercase tracking-wide">In Stock</th>
                 <th className="text-right px-4 py-3 text-xs font-bold uppercase tracking-wide">Purchase Price</th>
                 <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide">Last Movement</th>
-                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide">Status</th>
+                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide">Status / Reorder at</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -246,7 +285,7 @@ export function StockView() {
                 return (
                   <React.Fragment key={med.id}>
                     <tr
-                      className="transition-colors hover:bg-primary-soft/30 cursor-pointer"
+                      className={`transition-colors hover:bg-primary-soft/30 cursor-pointer ${status === "Out of Stock" ? "bg-danger-soft/20" : status === "Low" ? "bg-warning-soft/20" : ""}`}
                       onClick={() => toggleExpand(med.id)}
                     >
                       <td className="px-4 py-3">
@@ -265,6 +304,9 @@ export function StockView() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
+                        {batches.length > 0 && (
+                          <p className="text-[11px] text-muted-foreground mb-0.5">{batches.length} batch{batches.length !== 1 ? "es" : ""}</p>
+                        )}
                         {worstBatch ? (
                           <ExpiryChip
                             date={worstBatch.expiryDate}
@@ -276,18 +318,15 @@ export function StockView() {
                             status={getExpiryStatus(med.expiryDate)}
                           />
                         ) : (
-                          <span className="text-muted-foreground text-xs">{batches.length} batch{batches.length !== 1 ? "es" : ""}</span>
+                          <span className="text-muted-foreground text-xs">No batch recorded</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">
                         <div className="font-bold text-base text-foreground">
-                          {totalQty} <span className="text-xs font-normal text-muted-foreground">{med.packagingHierarchy?.baseUnit || med.unit}s</span>
+                          {med.packagingHierarchy
+                            ? stockDisplayLabel(totalQty, med.packagingHierarchy)
+                            : `${totalQty} ${med.unit}`}
                         </div>
-                        {med.packagingHierarchy && (
-                          <div className="text-[11px] font-normal text-muted-foreground mt-0.5">
-                            {stockDisplayLabel(totalQty, med.packagingHierarchy)}
-                          </div>
-                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-muted-foreground tabular-nums text-xs">
                         {batches.length > 0 && batches[0] ? money(batches[0].purchasePrice) : "—"}
@@ -297,6 +336,7 @@ export function StockView() {
                       </td>
                       <td className="px-4 py-3">
                         <StockBadge status={status} />
+                        <p className="mt-1 text-[11px] text-muted-foreground">Reorder at {med.reorderLevel ?? 0} {med.packagingHierarchy?.baseUnit || med.unit}</p>
                       </td>
                     </tr>
                     {isExpanded && <BatchRows batches={batches} />}
@@ -306,7 +346,14 @@ export function StockView() {
               {visible.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                    No medicines match your search or filter.
+                    No items match your search or filter.
+                    <button
+                      type="button"
+                      className="ml-2 font-semibold text-primary hover:underline"
+                      onClick={() => { setQuery(""); setFilterStatus("all"); setFilterCat("all"); setOnlyExpiring(false); }}
+                    >
+                      Clear filters
+                    </button>
                   </td>
                 </tr>
               )}

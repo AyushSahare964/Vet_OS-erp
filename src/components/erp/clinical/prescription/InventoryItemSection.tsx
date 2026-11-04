@@ -402,7 +402,7 @@ export function InventoryItemSection({
             updated.quantity = qtyVal;
             updated.quantityBase = baseQty;
 
-            if ((field === "dispensingUnit" || field === "unit") && hierarchy) {
+            if ((field === "dispensingUnit" || field === "unit") && hierarchy && catalogueType !== "injection") {
               const basePrice = updated.baseSalePrice ?? (hierarchy.baseUnitsPerPurchase ? updated.unitPrice * hierarchy.baseUnitsPerPurchase : updated.unitPrice);
               if (basePrice > 0) {
                 updated.unitPrice = resolveUnitPrice(basePrice, dUnit, hierarchy);
@@ -970,6 +970,7 @@ export function InventoryItemSection({
                   </>
                 )}
                 {showDiscount && <th className="px-2 py-2 text-center w-16">Disc %</th>}
+                {showPrice && catalogueType === "injection" && <th className="px-2 py-2 text-center w-28">Price (₹)</th>}
                 {showPrice && <th className="px-3 py-2 text-right w-24">Net (₹)</th>}
                 {!isLocked && <th className="px-2 py-2 w-10"></th>}
               </tr>
@@ -1233,6 +1234,22 @@ export function InventoryItemSection({
                             )
                           }
                           className="h-7 w-14 text-center text-xs font-mono mx-auto bg-background"
+                        />
+                      </td>
+                    )}
+
+                    {/* Injections: price is entered on the spot (per selected unit), not fixed from the catalogue */}
+                    {showPrice && catalogueType === "injection" && (
+                      <td className="px-2 py-2 align-top text-center">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="any"
+                          disabled={isLocked}
+                          value={it.unitPrice}
+                          onChange={(e) => handleUpdateLine(it.id, "unitPrice", Math.max(0, Number(e.target.value) || 0))}
+                          placeholder="0"
+                          className="h-7 w-24 text-right text-xs font-mono mx-auto bg-background"
                         />
                       </td>
                     )}

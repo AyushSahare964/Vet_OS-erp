@@ -52,6 +52,8 @@ export function InjectionCatalogue() {
   const [routeFilter, setRouteFilter] = useState("all");
   const [scheduleFilter, setScheduleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  // Stat card clicked to filter the list: 0 active, 1 in stock / cold chain, 2 low, 3 out of stock
+  const [kpiFilter, setKpiFilter] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [addOpen, setAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Medicine | undefined>(undefined);
@@ -109,10 +111,17 @@ export function InjectionCatalogue() {
       const matchStatus =
         statusFilter === "all" ||
         (statusFilter === "Active" ? med.status === "Active" : med.status === "Inactive");
+      const matchKpi =
+        kpiFilter === null ||
+        (kpiFilter === 0 && med.status === "Active") ||
+        (kpiFilter === 1 && med.status === "Active" && !!med.injectionDetails?.coldChainRequired) ||
+        (kpiFilter === 2 && med.status === "Active" && getStockStatus(med.itemCode) === "Low") ||
+        (kpiFilter === 3 && med.status === "Active" && getStockStatus(med.itemCode) === "Out of Stock");
 
-      return matchQ && matchRoute && matchSchedule && matchStatus;
+
+      return matchQ && matchRoute && matchSchedule && matchStatus && matchKpi;
     });
-  }, [injectionList, query, routeFilter, scheduleFilter, statusFilter]);
+  }, [injectionList, query, routeFilter, scheduleFilter, statusFilter, kpiFilter, getStockStatus, getTotalQty]);
 
   // Clinical KPIs
   const kpis = useMemo(() => {
@@ -176,7 +185,16 @@ export function InjectionCatalogue() {
       {/* Injectable KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {kpis.map((k, i) => (
-          <KpiCard key={k.label} kpi={k} index={i} />
+          <KpiCard
+            key={k.label}
+            kpi={k}
+            index={i}
+            active={kpiFilter === i}
+            onSelect={() => {
+              setKpiFilter((cur) => (cur === i ? null : i));
+              setQuery(""); setStatusFilter("all");
+            }}
+          />
         ))}
       </div>
 
@@ -311,8 +329,8 @@ export function InjectionCatalogue() {
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60">
-                <AnimatePresence mode="popLayout">
+              <tbody key={`rows-${kpiFilter}`} className="divide-y divide-border/60">
+                <AnimatePresence key={`pres-${kpiFilter}`} mode="popLayout">
                   {visible.map((med) => {
                     const currentQty = getTotalQty(med.itemCode);
                     const stockStatus = getStockStatus(med.itemCode);
@@ -322,11 +340,12 @@ export function InjectionCatalogue() {
                     return (
                       <motion.tr
                         key={med.itemCode}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25 }}
                         exit={{ opacity: 0 }}
                         className="hover:bg-muted/30 transition-colors group cursor-pointer"
-                        onClick={() => setDetailItem(med)}
+                        onClick={() => { setEditingItem(med); setAddOpen(true); }}
                       >
                         <td className="px-4 py-3">
                           <div className="font-semibold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
@@ -472,7 +491,7 @@ export function InjectionCatalogue() {
                         </td>
 
                         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -526,7 +545,7 @@ export function InjectionCatalogue() {
         {/* Grid View */}
         {viewMode === "grid" && (
           <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence key={`pres-${kpiFilter}`} mode="popLayout">
               {visible.map((med) => {
                 const currentQty = getTotalQty(med.itemCode);
                 const stockStatus = getStockStatus(med.itemCode);
@@ -538,7 +557,7 @@ export function InjectionCatalogue() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
                     className="p-4 rounded-xl border border-border bg-card hover:border-rose-500/40 hover:shadow-md transition-all cursor-pointer space-y-3"
-                    onClick={() => setDetailItem(med)}
+                    onClick={() => { setEditingItem(med); setAddOpen(true); }}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="h-10 w-10 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0">

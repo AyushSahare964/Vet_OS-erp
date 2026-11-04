@@ -21,6 +21,8 @@ import {
   Tag,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -460,6 +462,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   }, [linkTo]);
 
   // When pet is selected in dropdown
+  const [petPickerOpen, setPetPickerOpen] = useState(false);
   const handlePetSelect = (petId: string) => {
     if (!petId || petId === "WALKIN") {
       setSelectedPetId("");
@@ -1191,19 +1194,41 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
                 {customerType === "PATIENT" ? (
                   <div className="flex gap-1.5 items-center">
-                    <Select value={selectedPetId} onValueChange={handlePetSelect}>
-                      <SelectTrigger className="h-8 text-xs bg-background flex-1">
-                        <SelectValue placeholder="Walk-in / Select Pet" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        <SelectItem value="WALKIN">-- Walk-in General Patient --</SelectItem>
-                        {pets.map((p) => (
-                          <SelectItem key={p.petId || p._id} value={p.petId || p._id}>
-                            {p.name} ({p.breed || p.species}) - {p.owner?.name || "Owner"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={petPickerOpen} onOpenChange={setPetPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" className="h-8 flex-1 justify-between text-xs font-normal bg-background min-w-0">
+                          <span className="truncate">
+                            {selectedPetId === "WALKIN" || !selectedPetId
+                              ? "Walk-in / Select Pet"
+                              : (() => { const p = pets.find((x) => (x.petId || x._id) === selectedPetId); return p ? `${p.name} - ${p.owner?.name || "Owner"}` : "Walk-in / Select Pet"; })()}
+                          </span>
+                          <ChevronDown className="size-3 opacity-70 shrink-0" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0 w-[--radix-popover-trigger-width] min-w-64" align="start">
+                        <Command>
+                          <CommandInput placeholder="Type pet or owner name…" className="h-8 text-xs" />
+                          <CommandList className="max-h-60">
+                            <CommandEmpty>No patient found.</CommandEmpty>
+                            <CommandItem value="walk-in general patient" onSelect={() => { handlePetSelect("WALKIN"); setPetPickerOpen(false); }}>
+                              -- Walk-in General Patient --
+                            </CommandItem>
+                            {pets.map((p) => {
+                              const id = p.petId || p._id;
+                              return (
+                                <CommandItem
+                                  key={id}
+                                  value={`${p.name} ${p.breed || p.species || ""} ${p.owner?.name || ""} ${id}`}
+                                  onSelect={() => { handlePetSelect(id); setPetPickerOpen(false); }}
+                                >
+                                  {p.name} ({p.breed || p.species}) - {p.owner?.name || "Owner"}
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     <Button
                       type="button"
                       variant="outline"

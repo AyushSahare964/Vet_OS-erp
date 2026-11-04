@@ -970,17 +970,22 @@ export function PrescriptionWorkflow({
 
     // Consultation Fee Line
     if (consultationFee !== null && consultationFee !== undefined && consultationFee > 0) {
-      linesList.push({
-        id: `rx-fee-${visit?.visitId || Date.now()}`,
+      // Home Visit is stored as "HOME_VISIT:<fee>" inside the preset; bill it as its own line.
+      const homeFee = Number(consultationFeePreset?.split(",").find((c) => c.startsWith("HOME_VISIT"))?.split(":")[1]) || 0;
+      const feeLine = (suffix: string, name: string, unitPrice: number) => ({
+        id: `rx-fee${suffix}-${visit?.visitId || Date.now()}`,
         lineType: "Consultation",
-        name: consultationFeePreset?.includes("HOME_VISIT") ? "Home Visit" : "Veterinary Consultation & Physical Examination",
+        name,
         quantity: 1,
-        unitPrice: Number(consultationFee),
+        unitPrice,
         discountPercent: 0,
         gstRate: visit?.billType === "GST" ? 18 : 0,
         sourceType: "RX_CONSULT",
         rxSection: "FEE",
       });
+      const consultAmt = Number(consultationFee) - homeFee;
+      if (consultAmt > 0) linesList.push(feeLine("", homeFee || !consultationFeePreset?.includes("HOME_VISIT") ? "Veterinary Consultation & Physical Examination" : "Home Visit", consultAmt));
+      if (homeFee > 0) linesList.push(feeLine("-home", "Home Visit", homeFee));
     }
 
     // Immediate medicines

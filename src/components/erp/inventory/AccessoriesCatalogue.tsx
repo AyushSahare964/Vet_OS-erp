@@ -57,6 +57,8 @@ export function AccessoriesCatalogue() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sizeFilter, setSizeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  // Stat card clicked to filter the list: 0 active, 1 in stock / cold chain, 2 low, 3 out of stock
+  const [kpiFilter, setKpiFilter] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [addOpen, setAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Medicine | undefined>(undefined);
@@ -124,10 +126,17 @@ export function AccessoriesCatalogue() {
       const matchStatus =
         statusFilter === "all" ||
         (statusFilter === "Active" ? item.status === "Active" : item.status === "Inactive");
+      const matchKpi =
+        kpiFilter === null ||
+        (kpiFilter === 0 && item.status === "Active") ||
+        (kpiFilter === 1 && getTotalQty(item.itemCode) > 0) ||
+        (kpiFilter === 2 && item.status === "Active" && getStockStatus(item.itemCode) === "Low") ||
+        (kpiFilter === 3 && item.status === "Active" && getStockStatus(item.itemCode) === "Out of Stock");
 
-      return matchQ && matchCat && matchSize && matchStatus;
+
+      return matchQ && matchCat && matchSize && matchStatus && matchKpi;
     });
-  }, [accessoriesList, query, categoryFilter, sizeFilter, statusFilter]);
+  }, [accessoriesList, query, categoryFilter, sizeFilter, statusFilter, kpiFilter, getStockStatus, getTotalQty]);
 
   // Accessories KPIs
   const kpis = useMemo(() => {
@@ -190,7 +199,16 @@ export function AccessoriesCatalogue() {
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {kpis.map((k, i) => (
-          <KpiCard key={k.label} kpi={k} index={i} />
+          <KpiCard
+            key={k.label}
+            kpi={k}
+            index={i}
+            active={kpiFilter === i}
+            onSelect={() => {
+              setKpiFilter((cur) => (cur === i ? null : i));
+              setQuery(""); setStatusFilter("all");
+            }}
+          />
         ))}
       </div>
 
@@ -328,8 +346,8 @@ export function AccessoriesCatalogue() {
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60">
-                <AnimatePresence mode="popLayout">
+              <tbody key={`rows-${kpiFilter}`} className="divide-y divide-border/60">
+                <AnimatePresence key={`pres-${kpiFilter}`} mode="popLayout">
                   {visible.map((item) => {
                     const currentQty = getTotalQty(item.itemCode);
                     const stockStatus = getStockStatus(item.itemCode);
@@ -339,11 +357,12 @@ export function AccessoriesCatalogue() {
                     return (
                       <motion.tr
                         key={item.itemCode}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25 }}
                         exit={{ opacity: 0 }}
                         className="hover:bg-muted/30 transition-colors group cursor-pointer"
-                        onClick={() => setDetailItem(item)}
+                        onClick={() => { setEditingItem(item); setAddOpen(true); }}
                       >
                         <td className="px-4 py-3">
                           <div className="font-semibold text-foreground group-hover:text-primary transition-colors">
@@ -488,7 +507,7 @@ export function AccessoriesCatalogue() {
                         </td>
 
                         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -542,7 +561,7 @@ export function AccessoriesCatalogue() {
         {/* Grid View */}
         {viewMode === "grid" && (
           <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence key={`pres-${kpiFilter}`} mode="popLayout">
               {visible.map((item) => {
                 const currentQty = getTotalQty(item.itemCode);
                 const stockStatus = getStockStatus(item.itemCode);
@@ -554,7 +573,7 @@ export function AccessoriesCatalogue() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
                     className="p-4 rounded-xl border border-border bg-card hover:border-blue-500/40 hover:shadow-md transition-all cursor-pointer space-y-3"
-                    onClick={() => setDetailItem(item)}
+                    onClick={() => { setEditingItem(item); setAddOpen(true); }}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">

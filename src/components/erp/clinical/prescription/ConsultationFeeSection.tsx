@@ -40,22 +40,33 @@ export function ConsultationFeeSection({
 }: ConsultationFeeSectionProps) {
   const amountRef = useRef<HTMLInputElement>(null);
   // Multi-select: `preset` holds comma-joined codes; `amount` is the running total.
-  const selected = preset ? preset.split(",") : [];
-  const isHomeVisit = selected.includes(HOME_VISIT);
+  // Home Visit is an add-on stored as "HOME_VISIT:<fee>"; amount = consultation + home fee.
+  const parts = preset ? preset.split(",") : [];
+  const homePart = parts.find((c) => c.split(":")[0] === HOME_VISIT);
+  const isHomeVisit = !!homePart;
+  const homeFee = Number(homePart?.split(":")[1]) || 0;
+  const selected = parts.filter((c) => c !== homePart);
+  const consult = Math.max(0, (amount ?? 0) - homeFee);
+
+  const emit = (c: number, h: number, sel: string[], home: boolean) => {
+    const codes = home ? [...sel, `${HOME_VISIT}:${h}`] : sel;
+    onChangeAmount(codes.length || c + h > 0 ? c + h : null, codes.join(",") || null);
+  };
 
   const toggle = (code: string, pAmount: number) => {
     if (isLocked) return;
     const on = selected.includes(code);
     const next = on ? selected.filter((c) => c !== code) : [...selected, code];
-    const total = Math.max(0, (amount ?? 0) + (on ? -pAmount : pAmount));
-    onChangeAmount(next.length || amount !== null ? total : null, next.join(",") || null);
-    if (code === HOME_VISIT && !on) amountRef.current?.focus();
+    emit(Math.max(0, consult + (on ? -pAmount : pAmount)), homeFee, next, isHomeVisit);
   };
 
-  const handleCustomInputChange = (valStr: string) => {
+  const toggleHome = () => {
     if (isLocked) return;
-    onChangeAmount(valStr.trim() ? Math.max(0, Number(valStr) || 0) : null, preset);
+    emit(consult, 0, selected, !isHomeVisit);
+    if (!isHomeVisit) setTimeout(() => amountRef.current?.focus(), 0);
   };
+
+  const num = (v: string) => Math.max(0, Number(v) || 0);
 
   return (
     <SectionCard
@@ -101,46 +112,73 @@ export function ConsultationFeeSection({
             <button
               type="button"
               disabled={isLocked}
-              onClick={() => toggle(HOME_VISIT, 0)}
+              onClick={toggleHome}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5",
                 isHomeVisit
                   ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                  : "bg-muted/40 text-foreground border-border hover:bg-muted"
+                  : "bg-muted/40 text-foreground border-dashed border-border hover:bg-muted"
               )}
             >
-              <span>Home Visit</span>
-              <span className="font-mono opacity-90">(₹ ____)</span>
+              <span>{isHomeVisit ? "✓" : "+"} Home Visit</span>
             </button>
           </div>
         </div>
 
         {/* Custom Input */}
-        <div className="max-w-xs space-y-1 pt-1">
-          <Label htmlFor="custom-consultation-fee" className="text-[11px] font-semibold text-muted-foreground">
-            {isHomeVisit ? "Total (₹) — add the Home Visit charge" : "Total Consultation Amount (₹)"}
-          </Label>
-          <div className="relative flex items-center">
-            <span className="absolute left-3 text-xs font-bold text-muted-foreground pointer-events-none">
-              ₹
-            </span>
-            <Input
-              id="custom-consultation-fee"
-              ref={amountRef}
-              type="number"
-              min={0}
-              max={100000}
-              disabled={isLocked}
-              value={amount !== null && amount !== undefined ? amount : ""}
-              onChange={(e) => handleCustomInputChange(e.target.value)}
-              placeholder="0"
-              className="pl-7 font-mono font-bold text-sm h-9 bg-background"
-            />
+        <div className="flex flex-wrap gap-3 pt-1">
+          <div className="w-44 space-y-1">
+            <Label htmlFor="custom-consultation-fee" className="text-[11px] font-semibold text-muted-foreground">
+              Consultation Fee (₹)
+            </Label>
+            <div className="relative flex items-center">
+              <span className="absolute left-3 text-xs font-bold text-muted-foreground pointer-events-none">₹</span>
+              <Input
+                id="custom-consultation-fee"
+                type="number"
+                min={0}
+                max={100000}
+                disabled={isLocked}
+                value={amount === null ? "" : consult}
+                onChange={(e) => emit(num(e.target.value), homeFee, selected, isHomeVisit)}
+                placeholder="0"
+                className="pl-7 font-mono font-bold text-sm h-9 bg-background"
+              />
+            </div>
           </div>
-          <p className="text-[10px] text-muted-foreground">
-            {amount === 0 ? "₹0 fee recorded (Fee waived / Follow-up check)" : `Amount will be synced to Billing as ${isHomeVisit ? "Home Visit" : "Doctor Consultation"} line`}
-          </p>
+          {isHomeVisit && (
+            <>
+              <span className="self-end pb-2 text-sm font-bold text-muted-foreground">+</span>
+              <div className="w-44 space-y-1">
+                <Label htmlFor="home-visit-fee" className="text-[11px] font-semibold text-muted-foreground">
+                  Home Visit Fee (₹)
+                </Label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-xs font-bold text-muted-foreground pointer-events-none">₹</span>
+                  <Input
+                    id="home-visit-fee"
+                    ref={amountRef}
+                    type="number"
+                    min={0}
+                    max={100000}
+                    disabled={isLocked}
+                    value={homeFee || ""}
+                    onChange={(e) => emit(consult, num(e.target.value), selected, true)}
+                    placeholder="0"
+                    className="pl-7 font-mono font-bold text-sm h-9 bg-background"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+          <div className="space-y-1 self-end pb-1.5">
+            <div className="text-[11px] font-semibold text-muted-foreground">Total</div>
+            <div className="font-mono font-bold text-sm">₹{(amount ?? 0).toFixed(0)}</div>
+          </div>
         </div>
+        <p className="text-[10px] text-muted-foreground">
+          {amount === 0 ? "₹0 fee recorded (Fee waived / Follow-up check)" : "Synced to Billing: Doctor Consultation" + (isHomeVisit ? " and Home Visit as separate lines" : " line")}
+        </p>
       </div>
     </SectionCard>
   );
