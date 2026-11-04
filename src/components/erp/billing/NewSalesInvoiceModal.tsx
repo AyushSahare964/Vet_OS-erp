@@ -1206,7 +1206,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="p-0 w-[--radix-popover-trigger-width] min-w-64" align="start">
-                        <Command>
+                        <Command filter={(v, q) => (v.toLowerCase().includes(q.trim().toLowerCase()) ? 1 : 0)}>
                           <CommandInput placeholder="Type pet or owner name…" className="h-8 text-xs" />
                           <CommandList className="max-h-60">
                             <CommandEmpty>No patient found.</CommandEmpty>
@@ -1218,7 +1218,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                               return (
                                 <CommandItem
                                   key={id}
-                                  value={`${p.name} ${p.breed || p.species || ""} ${p.owner?.name || ""} ${id}`}
+                                  value={`${p.name} ${p.breed || p.species || ""} ${p.owner?.name || ""}`}
                                   onSelect={() => { handlePetSelect(id); setPetPickerOpen(false); }}
                                 >
                                   {p.name} ({p.breed || p.species}) - {p.owner?.name || "Owner"}
