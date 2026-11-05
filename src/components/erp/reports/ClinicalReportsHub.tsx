@@ -27,6 +27,7 @@ import {
   DollarSign,
   CreditCard,
   Package,
+  Truck,
   Stethoscope,
 } from "lucide-react";
 import { Shell } from "@/components/erp/Shell";
@@ -60,6 +61,7 @@ import { BillingRevenueTab } from "./analytics/BillingRevenueTab";
 import { PaymentAnalysisTab } from "./analytics/PaymentAnalysisTab";
 import { LaboratoryAnalyticsTab } from "./analytics/LaboratoryAnalyticsTab";
 import { InventoryAnalyticsTab } from "./analytics/InventoryAnalyticsTab";
+import { SupplierStockTab } from "./analytics/SupplierStockTab";
 import { ClinicalAnalyticsTab } from "./analytics/ClinicalAnalyticsTab";
 import { QuotationsRegisterView } from "./QuotationsRegisterView";
 import { QuotationModal } from "@/components/erp/billing/QuotationModal";
@@ -76,6 +78,7 @@ const ANALYTICS_TABS: { id: AnalyticsTabId; label: string; icon: any }[] = [
   { id: "payments", label: "Payment Analysis", icon: CreditCard },
   { id: "laboratory", label: "Laboratory", icon: FlaskConical },
   { id: "inventory", label: "Inventory & Stock", icon: Package },
+  { id: "suppliers", label: "Supplier Stock", icon: Truck },
   { id: "clinical", label: "Clinical Records", icon: Stethoscope },
 ];
 
@@ -292,7 +295,7 @@ export function ClinicalReportsHub({ initialMode = "analytics", initialTab = "al
         {hubMode === "analytics" && (
           <div className="space-y-5">
             {/* Global Date Range & Contextual Filter Bar */}
-            <AnalyticsFilterBar
+            {analyticsTab !== "suppliers" && <AnalyticsFilterBar
               activeTab={analyticsTab}
               dateRange={dateRange}
               onDateRangeChange={setDateRange}
@@ -306,10 +309,10 @@ export function ClinicalReportsHub({ initialMode = "analytics", initialTab = "al
               onReset={loadAnalytics}
               dateRangeLabel={analyticsData?.dateRangeLabel ?? "All Time"}
               onExportCsv={handleExportCsv}
-            />
+            />}
 
             {/* Dynamic Rule Evaluation Insights Banner */}
-            {analyticsData?.insights && analyticsData.insights.length > 0 && (
+            {analyticsTab !== "suppliers" && analyticsData?.insights && analyticsData.insights.length > 0 && (
               <InsightsBanner insights={analyticsData.insights} />
             )}
 
@@ -337,7 +340,9 @@ export function ClinicalReportsHub({ initialMode = "analytics", initialTab = "al
             </div>
 
             {/* Active Analytics Sub-Tab Content */}
-            {analyticsLoading ? (
+            {analyticsTab === "suppliers" ? (
+              <SupplierStockTab />
+            ) : analyticsLoading ? (
               <SectionSkeleton rows={6} withChart />
             ) : !analyticsData ? (
               <div className="erp-card p-12 text-center space-y-3">

@@ -9,6 +9,7 @@ export type AnalyticsTabId =
   | "payments"
   | "laboratory"
   | "inventory"
+  | "suppliers"
   | "clinical";
 
 export interface DrilldownTarget {

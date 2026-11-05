@@ -59,6 +59,10 @@ export interface PurchaseBillRow {
   grandTotal: number;
   amountPaid: number;
   status: "UNPAID" | "PARTIAL" | "PAID" | "VOID";
+  docType?: "PURCHASE" | "DEBIT_NOTE";
+  poNumber?: string;
+  supplierBillDate?: string;
+  shippingAmount?: number;
   remarks?: string;
   attachmentUrl?: string;
   voidReason?: string;
@@ -87,6 +91,10 @@ function toBillRow(d: any): PurchaseBillRow {
     grandTotal: d.grandTotal ?? 0,
     amountPaid: d.amountPaid ?? 0,
     status: d.status ?? "UNPAID",
+    docType: d.docType ?? "PURCHASE",
+    poNumber: d.poNumber,
+    supplierBillDate: d.supplierBillDate,
+    shippingAmount: d.shippingAmount ?? 0,
     remarks: d.remarks,
     attachmentUrl: d.attachmentUrl,
     voidReason: d.voidReason,
