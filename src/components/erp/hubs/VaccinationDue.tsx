@@ -18,12 +18,6 @@ type AnyKind = keyof typeof KIND_LABEL;
 type Kind = keyof typeof SERVICE;
 type Booking = { petId?: string; service: (typeof SERVICES)[number]; date?: string };
 
-const to12h = (hhmm: string) => {
-  const [h = "10", m = "00"] = hhmm.split(":");
-  const hr = Number(h);
-  return `${String(hr % 12 || 12).padStart(2, "0")}:${m} ${hr < 12 ? "AM" : "PM"}`;
-};
-
 const HISTORY_RANGES = [
   { v: "7", label: "Last week" },
   { v: "30", label: "Last month" },
@@ -106,7 +100,10 @@ function BookDialog({ init, pets, onClose, onBooked }: { init: Booking; pets: an
   const [petId, setPetId] = useState(init.petId ?? "");
   const [service, setService] = useState(init.service);
   const [date, setDate] = useState(init.date && init.date >= todayIso() ? init.date : todayIso());
-  const [time, setTime] = useState("10:00");
+  const [hour, setHour] = useState("10");
+  const [minute, setMinute] = useState("00");
+  const [period, setPeriod] = useState<"AM" | "PM">("AM");
+  const time = `${hour}:${minute} ${period}`;
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const pet = pets.find((p) => p.petId === petId);
@@ -121,7 +118,7 @@ function BookDialog({ init, pets, onClose, onBooked }: { init: Booking; pets: an
       const token = `A-${Math.floor(100 + Math.random() * 900)}`;
       await createAppointmentFn({
         data: {
-          token, date, appointment_date: date, time: to12h(time), slot: to12h(time),
+          token, date, appointment_date: date, time, slot: time,
           pet: pet.name, petId: pet.petId, species: pet.species, breed: pet.breed,
           owner: pet.owner?.name, ownerPhone: pet.owner?.phone, ownerId: pet.ownerId,
           doctor: "", type: service, priority: "Normal", status: "Waiting",
@@ -164,10 +161,21 @@ function BookDialog({ init, pets, onClose, onBooked }: { init: Booking; pets: an
             Date
             <input type="date" className={field} min={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
-          <label className="block text-xs font-semibold">
+          <div className="block text-xs font-semibold">
             Time
-            <input type="time" className={field} value={time} onChange={(e) => setTime(e.target.value)} />
-          </label>
+            <div className="flex gap-1">
+              <select className={field} value={hour} onChange={(e) => setHour(e.target.value)} aria-label="Hour">
+                {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((h) => <option key={h}>{h}</option>)}
+              </select>
+              <select className={field} value={minute} onChange={(e) => setMinute(e.target.value)} aria-label="Minute">
+                {Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0")).map((m) => <option key={m}>{m}</option>)}
+              </select>
+              <select className={field} value={period} onChange={(e) => setPeriod(e.target.value as "AM" | "PM")} aria-label="AM or PM">
+                <option>AM</option>
+                <option>PM</option>
+              </select>
+            </div>
+          </div>
         </div>
         <label className="block text-xs font-semibold">
           Notes (optional)
@@ -175,7 +183,7 @@ function BookDialog({ init, pets, onClose, onBooked }: { init: Booking; pets: an
         </label>
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className="rounded-md px-3 py-1.5 text-sm font-semibold" onClick={onClose}>Cancel</button>
-          <button type="button" disabled={saving || !date || !time} onClick={submit} className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+          <button type="button" disabled={saving || !date} onClick={submit} className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
             {saving ? "Booking…" : "Book appointment"}
           </button>
         </div>
