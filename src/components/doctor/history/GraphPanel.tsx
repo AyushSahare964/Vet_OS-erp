@@ -88,12 +88,19 @@ export function GraphPanel({
         )}
       </div>
       <div className="g-charts">
-        <ChartCard
-          metric={m}
-          selection={selection}
-          onSelection={onSelection}
-          onBigView={onBigView}
-        />
+        {m.points.length ? (
+          <ChartCard
+            metric={m}
+            selection={selection}
+            onSelection={onSelection}
+            onBigView={onBigView}
+          />
+        ) : (
+          <p className="g-empty">
+            No lab results to analyse yet. Once this patient&apos;s lab tests have results entered,
+            their Normal / Warning / Danger analysis will appear here.
+          </p>
+        )}
       </div>
     </aside>
   );

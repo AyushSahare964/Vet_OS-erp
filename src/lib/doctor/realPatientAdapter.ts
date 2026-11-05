@@ -1,6 +1,6 @@
 import type { Pet, Section, DoseStatus } from "@/data/doctor/types";
 import type { HistoryPageData, HistoryRecord } from "./records";
-import type { GraphData, Metric, Point } from "./graphs";
+import type { GraphData, Metric, Point, Zone } from "./graphs";
 import { formatDate } from "./dates";
 import { rupee, fmtDate } from "./format";
 import { resolveTemp } from "@/lib/clinical/temperature";
@@ -160,7 +160,6 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
   const visits = Array.isArray(p360?.visits) ? p360.visits : [];
   const vacs = Array.isArray(p360?.vaccinations) ? p360.vaccinations : [];
   const dews = Array.isArray(p360?.dewormings) ? p360.dewormings : [];
-  const labs = Array.isArray(p360?.bloodTests) ? p360.bloodTests : [];
 
   if (section === "medical") {
     const records: HistoryRecord[] = visits.map((v: any) => {
@@ -577,22 +576,28 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
     };
   }
 
-  // Lab
-  const records: HistoryRecord[] = labs.map((l: any) => {
-    const lDate = l.orderedDate ? new Date(l.orderedDate) : new Date(l.createdAt || Date.now());
-    return {
-      date: lDate,
-      title: `Blood Investigation · ${l.testType}`,
-      tag: l.status || "Completed",
-      tone: "ok",
+  // Lab: one compact card per lab-billed visit. "View bill" opens the same invoice as the Billing section.
+  const labVisitIds = new Set(
+    (Array.isArray(p360?.labOrders) ? p360.labOrders : []).map((o: any) => o.visitId).filter(Boolean)
+  );
+  const records: HistoryRecord[] = visits
+    .filter(
+      (v: any) =>
+        labVisitIds.has(v.visitId) ||
+        (v.items || []).some((it: any) => it.lineType === "Diagnostic" || /^\[blood test\]/i.test(it.name || ""))
+    )
+    .map((v: any) => ({
+      date: v.date ? new Date(v.date) : new Date(v.createdAt || Date.now()),
+      title: `Lab bill ${v.invoiceNo || v.visitId}`,
+      bill: v.invoiceNo || v.visitId,
+      tag: v.paymentStatus === "Paid" || v.amountPaid >= (v.totalAmount || 0) - 0.01 ? "Paid" : "Pending",
+      tone: "ok" as const,
       fields: [
-        ["Test Name", l.testType, false],
-        ["Status", l.status || "Final", false],
-        ["Ordered Date", l.orderedDate, false],
-        ["Result Date", l.resultDate || l.orderedDate, false],
+        ["Attending Doctor", v.doctorName || "Not recorded", false],
+        ["Diagnosis", v.diagnosis || "Not recorded", false],
+        ["Prescription No", v.prescriptionNo || `RX-${v.visitId}`, false],
       ],
-    };
-  });
+    }));
 
   return {
     title: "Laboratory",
@@ -609,8 +614,73 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
 }
 
 /** Generates real live timeline graphs from patient clinical visits */
+/** Flag of one result parameter: the lab's own flag, else computed from its reference range. */
+function paramFlag(p: any): "Normal" | "Warning" | "Danger" | null {
+  if (p.flag === "Critical") return "Danger";
+  if (p.flag === "High" || p.flag === "Low") return "Warning";
+  if (p.flag === "Normal") return "Normal";
+  const v = parseFloat(p.value);
+  const r = String(p.refRange || "").match(/([0-9.]+)\s*(?:-|–|—|to)\s*([0-9.]+)/i);
+  if (!Number.isFinite(v) || !r) return null;
+  return v < parseFloat(r[1]!) || v > parseFloat(r[2]!) ? "Warning" : "Normal";
+}
+
+/**
+ * Analysis of the lab tests the patient has taken: an overall Normal / Warning / Danger chart plus one per
+ * test type (CBC, Biochemistry…). Each lab order with entered results is one point, coloured by its worst parameter.
+ */
+function buildLabMetrics(orders: any[]): Metric[] {
+  const pts = new Map<string, Point[]>(); // test name → points
+  const all: Point[] = [];
+  const chrono = [...orders].sort(
+    (a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime()
+  );
+  for (const o of chrono) {
+    const params = (Array.isArray(o.parameters) ? o.parameters : (o.tests || []).flatMap((t: any) => t?.parameters || []))
+      .map((p: any) => ({ p, f: paramFlag(p) }))
+      .filter((x: any) => x.f);
+    if (!params.length) continue; // results not entered yet: nothing to analyse
+    const bad = params.filter((x: any) => x.f !== "Normal");
+    const z: Zone = bad.some((x: any) => x.f === "Danger") ? "r" : bad.length ? "y" : "g";
+    const name = o.testName || "Lab test";
+    const pt: Point = {
+      date: new Date(o.date || Date.now()),
+      v: z === "g" ? 0 : z === "y" ? 1 : 2,
+      z,
+      sub: `${name} · ${o.date || ""}`,
+      text: `${params.length - bad.length} normal · ${bad.length} abnormal`,
+      why:
+        z === "g"
+          ? `${name}: all ${params.length} parameters are normal.`
+          : `${name}: ${bad.map((x: any) => `${x.p.name} ${x.p.value} ${x.p.unit || ""} (${x.p.flag || "out of range"})`).join(", ")}.`,
+    };
+    all.push(pt);
+    pts.set(name, [...(pts.get(name) || []), pt]);
+  }
+  const status = (key: string, name: string, hint: string, points: Point[]): Metric => ({
+    key, name, hint, unit: "", special: "status", points,
+  });
+  if (!all.length) return [];
+  return [
+    status("overall", "Overall lab status", "All tests taken so far", all),
+    ...[...pts].map(([n, p]) => status(n, n, `${p.length} test${p.length > 1 ? "s" : ""} taken`, p)),
+  ];
+}
+
 export function buildRealGraphData(pet: Pet, section: Section, p360: any): GraphData {
   const visits = Array.isArray(p360?.visits) ? p360.visits : [];
+
+  // Lab page: analyse the patient's real lab tests; fall through to vitals only if none are entered yet.
+  if (section === "lab") {
+    const metrics = buildLabMetrics(Array.isArray(p360?.labOrders) ? p360.labOrders : []);
+    return {
+      title: "Lab Test Analysis",
+      def: "overall",
+      metrics: metrics.length
+        ? metrics
+        : [{ key: "overall", name: "Overall lab status", hint: "No lab tests analysed yet", unit: "", special: "status", points: [] }],
+    };
+  }
 
   // Sort visits chronologically for graph timeline
   const chrono = [...visits].sort((a, b) => {

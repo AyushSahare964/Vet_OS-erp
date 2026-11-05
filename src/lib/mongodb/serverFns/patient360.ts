@@ -215,6 +215,13 @@ export const getPatient360Fn = createServerFn({ method: "GET" })
         }).sort({ dateGiven: -1 }).limit(200).lean(),
       bloodTests: () =>
         BloodTest.find({ patientId: pet.petId }).sort({ orderedDate: -1 }).limit(100).lean(),
+      // Lab orders (with result parameters) live in the Laboratory module, keyed by petId
+      labOrders: () =>
+        ErpRow.find({ moduleId: "lab_orders", "data.petId": pet.petId })
+          .sort({ createdAt: -1 })
+          .limit(200)
+          .lean()
+          .then((rows: any[]) => rows.map((r) => r.data)),
       files: () =>
         ErpRow.find({ moduleId: FILES_MODULE, "data.petId": pet.petId })
           .select({ "data.dataUrl": 0 })
