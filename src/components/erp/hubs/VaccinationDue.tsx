@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import { createAppointmentFn, deleteAppointmentFn, updateAppointmentStatusFn } from "@/lib/mongodb/serverFns/appointments";
 import { useErp } from "@/lib/erp/store";
-import { dismissFollowUpFn, getVaccinationBoardFn } from "@/lib/mongodb/serverFns/vaccination";
+import { dismissFollowUpFn, getVaccinationBoardFn, hideHistoryRowFn } from "@/lib/mongodb/serverFns/vaccination";
 import { cn } from "@/lib/utils";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
 
@@ -38,6 +39,17 @@ const DUE_RANGES = [
 
 const Select = (p: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <select {...p} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs font-semibold" />
+);
+const BinBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={label}
+    aria-label={label}
+    className="inline-flex size-7 items-center justify-center rounded-md text-red-600 hover:bg-red-50"
+  >
+    <Trash2 className="size-4" aria-hidden="true" />
+  </button>
 );
 const Chip = ({ tone, children }: { tone: "late" | "soon" | "ok" | "info"; children: React.ReactNode }) => (
   <span
@@ -224,6 +236,17 @@ export function VaccinationDue() {
       toast.error(e?.message || "Could not delete the follow-up");
     }
   };
+  const removeHistory = async (h: any) => {
+    if (h.token != null) return remove({ token: h.token, type: KIND_LABEL[h.kind as AnyKind], pet: h.petName });
+    if (!window.confirm(`Delete this ${KIND_LABEL[h.kind as AnyKind].toLowerCase()} entry for ${h.petName || h.petId} from this list? The medical record is not affected.`)) return;
+    try {
+      await hideHistoryRowFn({ data: { petId: h.petId, kind: h.kind, date: h.date, name: String(h.name) } });
+      toast.success("Entry deleted");
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not delete the entry");
+    }
+  };
   const remove = async (a: any) => {
     if (!window.confirm(`Delete ${a.type || "this"} appointment for ${a.pet}? This cannot be undone.`)) return;
     try {
@@ -333,9 +356,7 @@ export function VaccinationDue() {
                     Open patient
                   </Link>
                   {isAdmin && (
-                    <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => removeFollowUp(f)}>
-                      Delete
-                    </button>
+                    <BinBtn label="Delete follow-up" onClick={() => removeFollowUp(f)} />
                   )}
                 </td>
               </tr>
@@ -359,9 +380,7 @@ export function VaccinationDue() {
                   Mark as done
                 </button>
                 {isAdmin && (
-                  <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => remove(a)}>
-                    Delete
-                  </button>
+                  <BinBtn label="Delete appointment" onClick={() => remove(a)} />
                 )}
               </td>
             </tr>
@@ -382,10 +401,8 @@ export function VaccinationDue() {
                 <td className="px-4 py-2.5 text-xs text-muted-foreground">{h.by || h.source}</td>
                 <td className="px-4 py-2.5 text-xs text-muted-foreground">{ago <= 0 ? "Today" : ago === 1 ? "Yesterday" : `${ago} days ago`}</td>
                 <td className="px-4 py-2.5 text-right">
-                  {isAdmin && h.token != null && (
-                    <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => remove({ token: h.token, type: h.kind, pet: h.petName })}>
-                      Delete
-                    </button>
+                  {isAdmin && (
+                    <BinBtn label="Delete entry" onClick={() => removeHistory(h)} />
                   )}
                 </td>
               </tr>

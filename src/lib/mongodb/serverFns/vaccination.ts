@@ -14,6 +14,8 @@ const VAC_RX = /vaccin|rabies|nobivac|dhpp|dapp|parvo|kennel\s*cough|tri-?cat|al
 const DEW_RX = /deworm|drontal|fenbendazole|praziquantel|albendazole|pyrantel|milbemycin/i;
 const SERVICES = ["Vaccination", "Deworming", "Grooming"];
 const DISMISS_MODULE = "vaccination_dismissed";
+const HIDDEN_HISTORY_MODULE = "vaccination_history_hidden";
+const historyKey = (h: any) => `${h.petId}|${h.kind}|${h.date}|${String(h.name).toLowerCase()}`;
 const iso = (d: unknown) => String(d ?? "").slice(0, 10);
 
 /**
@@ -26,14 +28,16 @@ const iso = (d: unknown) => String(d ?? "").slice(0, 10);
 export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
   tenantScoped(async () => {
     await connectDB();
-    const [visits, vacs, dews, pets, appts, dismissals] = await Promise.all([
+    const [visits, vacs, dews, pets, appts, dismissals, hiddenRows] = await Promise.all([
       ClinicalVisit.find({}).sort({ date: -1, createdAt: -1 }).limit(2000).lean() as Promise<any[]>,
       Vaccination.find({}).sort({ dateGiven: -1 }).limit(2000).lean() as Promise<any[]>,
       DewormingRecord.find({}).sort({ dateGiven: -1 }).limit(2000).lean() as Promise<any[]>,
       Pet.find({ $or: [{ nextVaccineDate: { $exists: true, $ne: "" } }, { nextDewormingDate: { $exists: true, $ne: "" } }] }).lean() as Promise<any[]>,
       ErpRow.find({ moduleId: "appointments", "data.type": { $in: SERVICES } }).sort({ createdAt: -1 }).limit(500).lean() as Promise<any[]>,
       ErpRow.find({ moduleId: DISMISS_MODULE }).lean() as Promise<any[]>,
+      ErpRow.find({ moduleId: HIDDEN_HISTORY_MODULE }).lean() as Promise<any[]>,
     ]);
+    const hidden = new Set(hiddenRows.map((r) => historyKey(r.data || {})));
     const dismissed = new Set(dismissals.map((r) => `${r.data?.petId}|${r.data?.kind}|${r.data?.due}`));
 
     const history: any[] = [];
@@ -88,7 +92,7 @@ export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
     // dedupe history, then close follow-ups already given after they were registered
     const seen = new Set<string>();
     const uniq = history.filter((h) => {
-      const k = `${h.petId}|${h.kind}|${h.date}|${String(h.name).toLowerCase()}`;
+      const k = historyKey(h);
       return !seen.has(k) && seen.add(k);
     });
     const appointments = appts
@@ -104,7 +108,7 @@ export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
       (d) => !dismissed.has(`${d.petId}|${d.kind}|${d.due}`) && !uniq.some((h) => h.petId === d.petId && h.kind === d.kind && h.date > (d.setOn || "")),
     );
 
-    return JSON.parse(JSON.stringify({ followUps, history: uniq, appointments })) as {
+    return JSON.parse(JSON.stringify({ followUps, history: uniq.filter((h) => !hidden.has(historyKey(h))), appointments })) as {
       followUps: any[];
       history: any[];
       appointments: any[];
@@ -125,6 +129,23 @@ export const dismissFollowUpFn = createServerFn({ method: "POST" })
       if (getTenantContext()?.roleId !== "admin") throw new Error("Only an administrator can delete follow-ups");
       await connectDB();
       await ErpRow.create({ moduleId: DISMISS_MODULE, data });
+      return true;
+    }),
+  );
+
+/**
+ * Admin-only: hide a history row (given from a consultation or vaccination record) from this page.
+ * The medical record itself is left untouched.
+ */
+export const hideHistoryRowFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) =>
+    z.object({ petId: z.string().min(1), kind: z.string().min(1), date: z.string().min(1), name: z.string() }).parse(raw),
+  )
+  .handler(
+    tenantScoped(async ({ data }) => {
+      if (getTenantContext()?.roleId !== "admin") throw new Error("Only an administrator can delete history rows");
+      await connectDB();
+      await ErpRow.create({ moduleId: HIDDEN_HISTORY_MODULE, data });
       return true;
     }),
   );
