@@ -395,10 +395,10 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
         tone: "ok",
         fields: [
           ["Vaccine", vac.vaccineType, false],
-          ["Batch number", vac.batchNo || "V-STD", false],
+          ["Batch number", vac.batchNo || "Not recorded", false],
           ["Date given", vac.dateGiven || fmtDate(vDate), false],
-          ["Next dose due", vac.nextDueDate || "Annual", false],
-          ["Administered by", vac.createdBy || "Clinic Staff", false],
+          ["Next dose due", vac.nextDueDate || "Not scheduled", false],
+          ["Administered by", vac.createdBy || "Not recorded", false],
         ],
       });
     }
@@ -426,8 +426,8 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
             ["Vaccine", inj.name, false],
             ["Route & Dose", `${inj.dose || 1} ${inj.doseUnit || "Vial"} · ${inj.route || "SC"}`, false],
             ["Date Administered", vDateStr, false],
-            ["Next Dose Due", v.nextVaccineDate || v.prescriptionData?.followUpEntries?.VACCINE?.dueDate || "Annual", false],
-            ["Administered by", v.doctorName || "Attending Veterinarian", false],
+            ["Next Dose Due", v.nextVaccineDate || v.prescriptionData?.followUpEntries?.VACCINE?.dueDate || "Not scheduled", false],
+            ["Administered by", v.doctorName || "Not recorded", false],
             ["Instructions", inj.instructions || "Administered in clinic", false],
             ["Prescription No", v.prescriptionNo || `RX-${v.visitId}`, false],
           ],
@@ -444,8 +444,8 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
             ["Vaccine", item.name, false],
             ["Dosage / Qty", `${item.quantity || 1} ${item.unit || "Dose"}`, false],
             ["Date Administered", vDateStr, false],
-            ["Next Dose Due", v.nextVaccineDate || v.prescriptionData?.followUpEntries?.VACCINE?.dueDate || "Annual", false],
-            ["Attending Vet", v.doctorName || "Attending Veterinarian", false],
+            ["Next Dose Due", v.nextVaccineDate || v.prescriptionData?.followUpEntries?.VACCINE?.dueDate || "Not scheduled", false],
+            ["Attending Vet", v.doctorName || "Not recorded", false],
             ["Prescription No", v.prescriptionNo || `RX-${v.visitId}`, false],
           ],
         });
@@ -461,7 +461,7 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
           tag: "Scheduled",
           tone: "soon",
           fields: [
-            ["Vaccine Protocol", "Booster Dose", false],
+            ["Follow-up", "Vaccine due (set in consultation)", false],
             ["Scheduled Date", fe.VACCINE.dueDate, false],
             ["Appointment Token", fe.VACCINE.appointmentToken || fe.VACCINE.appointmentTokens?.[0] || "Pending", false],
             ["Prescribed at", `Visit ${v.visitId} · ${v.doctorName || "Clinic"}`, false],
@@ -493,14 +493,10 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
       records: records.length > 0 ? records : [
         {
           date: new Date(),
-          title: pet.vaccine.name,
-          tag: pet.vaccine.due ? "Scheduled" : "Routine",
+          title: "No vaccinations recorded yet",
+          tag: "None",
           tone: "ok",
-          fields: [
-            ["Vaccine", pet.vaccine.name, false],
-            ["Last recorded", pet.vaccine.last || "None on file", false],
-            ["Next dose due", pet.vaccine.due || "Annual routine", false],
-          ],
+          fields: [["Notice", "Vaccines given, booked or scheduled for this patient will appear here.", true]],
         },
       ],
     };
@@ -518,10 +514,10 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
         tag: "Administered",
         tone: "ok",
         fields: [
-          ["Medicine", dew.medicineName || "Drontal Plus", false],
-          ["Dosage", dew.dosage || "1 tablet per 10kg", false],
+          ["Medicine", dew.medicineName || "Not recorded", false],
+          ["Dosage", dew.dosage || "Not recorded", false],
           ["Date given", dew.dateGiven || fmtDate(dDate), false],
-          ["Next dose due", dew.nextDueDate || "3 months", false],
+          ["Next dose due", dew.nextDueDate || "Not scheduled", false],
         ],
       });
     }
@@ -545,7 +541,7 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
             ["Medicine", it.name, false],
             ["Instructions", it.dosageInstructions || "Administered in clinic", false],
             ["Date Administered", vDateStr, false],
-            ["Next Dose Due", v.nextDewormingDate || "3 months", false],
+            ["Next Dose Due", v.nextDewormingDate || "Not scheduled", false],
             ["Attending Vet", v.doctorName || "Clinic", false],
           ],
         });
@@ -562,7 +558,7 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
               ["Medicine", med.medicineName || med.name, false],
               ["Dosage & Instructions", med.dosage || med.instructions || "-", false],
               ["Prescribed Date", vDateStr, false],
-              ["Next Due", v.nextDewormingDate || "3 months", false],
+              ["Next Due", v.nextDewormingDate || "Not scheduled", false],
               ["Attending Vet", v.doctorName || "Clinic", false],
             ],
           });
@@ -579,7 +575,7 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
           tag: "Scheduled",
           tone: "soon",
           fields: [
-            ["Protocol", "Routine Broad-Spectrum Deworming", false],
+            ["Follow-up", "Deworming due (set in consultation)", false],
             ["Scheduled Due Date", fe.DEWORMING.dueDate, false],
             ["Appointment Token", fe.DEWORMING.appointmentToken || fe.DEWORMING.appointmentTokens?.[0] || "Pending", false],
             ["Prescribed at", `Visit ${v.visitId} · ${v.doctorName || "Clinic"}`, false],
@@ -596,14 +592,10 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
       records: records.length > 0 ? records : [
         {
           date: new Date(),
-          title: pet.deworm.name,
-          tag: pet.deworm.due ? "Scheduled" : "Routine",
+          title: "No dewormings recorded yet",
+          tag: "None",
           tone: "ok",
-          fields: [
-            ["Medicine", pet.deworm.name, false],
-            ["Last recorded", pet.deworm.last || "None on file", false],
-            ["Next dose due", pet.deworm.due || "Every 3 months", false],
-          ],
+          fields: [["Notice", "Dewormings given, booked or scheduled for this patient will appear here.", true]],
         },
       ],
     };
