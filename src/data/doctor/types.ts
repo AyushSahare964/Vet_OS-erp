@@ -4,9 +4,9 @@
 
 export type IsoDate = string;
 
-export type Section = "medical" | "lab" | "purchase" | "vaccine" | "deworm";
+export type Section = "medical" | "lab" | "purchase" | "vaccine" | "deworm" | "grooming";
 
-export const SECTIONS: readonly Section[] = ["medical", "lab", "purchase", "vaccine", "deworm"];
+export const SECTIONS: readonly Section[] = ["medical", "lab", "purchase", "vaccine", "deworm", "grooming"];
 
 export interface DoseStatus {
   /** Vaccine or deworming medicine given last time. */

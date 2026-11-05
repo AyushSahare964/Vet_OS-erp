@@ -14,7 +14,7 @@ const BUTTONS: [Section, string, string][] = [
   ["lab", "Laboratory", "Blood reports and graphs"],
   ["purchase", "Purchase", "Products and invoices"],
   ["vaccine", "Vaccine history", "Every vaccine given"],
-  ["deworm", "Deworming history", "Every deworming given"],
+  ["grooming", "Grooming", "Grooming bookings and visits"],
 ];
 
 interface PatientPageProps {
@@ -270,7 +270,9 @@ export function PatientPage({ pet, p360 }: PatientPageProps) {
         {!isWalkIn && (
           <div className="p-status">
             <StatusCard icon={Syringe} title="Vaccine" dose={pet.vaccine} />
-            <StatusCard icon={ShieldCheck} title="Deworming" dose={pet.deworm} />
+            <Link to="/patient/$id/$section" params={{ id: pet.id, section: "deworm" }} style={{ display: "block", color: "inherit", textDecoration: "none" }} aria-label="Open deworming history">
+              <StatusCard icon={ShieldCheck} title="Deworming" dose={pet.deworm} />
+            </Link>
           </div>
         )}
 

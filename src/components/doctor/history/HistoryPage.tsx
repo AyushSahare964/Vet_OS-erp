@@ -19,10 +19,14 @@ export function HistoryPage({ pet, section, p360 }: { pet: Pet; section: Section
     () => buildRealHistoryRecords(pet, section, p360 || {}),
     [pet, section, p360]
   );
-  const graphs = useMemo(
-    () => buildRealGraphData(pet, section, p360 || {}),
-    [pet, section, p360]
-  );
+  const [range, setRange] = useState("all");
+  // Graph for this section, limited to the chosen period (last week / month / year / all time)
+  const graphs = useMemo(() => {
+    const g = buildRealGraphData(pet, section, p360 || {});
+    if (range === "all") return g;
+    const from = Date.now() - Number(range) * 86_400_000;
+    return { ...g, metrics: g.metrics.map((m) => ({ ...m, points: m.points.filter((p) => p.date.getTime() >= from) })) };
+  }, [pet, section, p360, range]);
   const [metricKey, setMetricKey] = useState(graphs.def);
   const [selections, setSelections] = useState<Record<string, ChartSelection>>({});
   const [bigKey, setBigKey] = useState<string | null>(null);
@@ -171,6 +175,8 @@ export function HistoryPage({ pet, section, p360 }: { pet: Pet; section: Section
           ))}
         </div>
         <GraphPanel
+          range={range}
+          onRange={setRange}
           data={graphs}
           metricKey={metricKey}
           onMetric={setMetricKey}

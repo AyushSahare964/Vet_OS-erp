@@ -1550,3 +1550,20 @@ body:has(.vd-main.in-detail)::-webkit-scrollbar {
 .vd .g-chart:not(.big) svg {
   max-height: 300px;
 }
+
+/* Compact graph panel: records get the room, the graph stays a small side report */
+@media (min-width: 901px) {
+  .vd .d-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr);
+  }
+}
+.vd .g-chart:not(.big) svg {
+  max-height: 200px;
+  width: 100%;
+}
+.vd .g-panel {
+  padding: 12px 14px 6px;
+}
+.vd .g-chart:not(.big) .gc-big {
+  font-size: 28px;
+}

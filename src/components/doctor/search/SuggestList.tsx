@@ -4,6 +4,7 @@ import {
   Clock,
   FlaskConical,
   PawPrint,
+  Scissors,
   Receipt,
   ShieldCheck,
   Stethoscope,
@@ -21,6 +22,7 @@ const ICONS: Record<ResultIcon, LucideIcon> = {
   vaccine: Syringe,
   medical: Stethoscope,
   deworm: ShieldCheck,
+  grooming: Scissors,
   pharmacy: Boxes,
 };
 

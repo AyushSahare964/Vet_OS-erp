@@ -40,6 +40,7 @@ export const SECTION_TITLES: Record<Section, string> = {
   purchase: "Purchase",
   vaccine: "Vaccine history",
   deworm: "Deworming history",
+  grooming: "Grooming",
 };
 
 /** Pet-specific sample data shared by records, graphs and the bill receipt. */

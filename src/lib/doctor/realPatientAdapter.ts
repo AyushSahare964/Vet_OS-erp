@@ -155,6 +155,33 @@ export function adaptMongoPatientToDoctorPet(p360: any): Pet {
   };
 }
 
+/**
+ * Appointments booked from the Vaccination & Deworming page (type Vaccination / Deworming / Grooming):
+ * open ones show as Booked, ones marked done as Completed.
+ */
+function serviceAppointmentRecords(p360: any, type: string, label: string): HistoryRecord[] {
+  return (Array.isArray(p360?.appointments) ? p360.appointments : [])
+    .filter((a: any) => a?.type === type && !/cancel|no-show/i.test(String(a.status || "")))
+    .map((a: any): HistoryRecord => {
+      const done = /completed/i.test(String(a.status || ""));
+      const day = String(a.appointment_date || a.date || "").slice(0, 10);
+      return {
+        date: day ? new Date(day) : new Date(),
+        title: `${label} ${done ? "completed" : "appointment"}`,
+        tag: done ? "Completed" : "Booked",
+        tone: done ? "ok" : "soon",
+        fields: [
+          ["Service", type, false],
+          ["Date", day || "Not set", false],
+          ["Time", a.time || a.slot || "Not set", false],
+          ["Appointment Token", String(a.token ?? "-"), false],
+          ["Status", a.status || "Waiting", false],
+          ["Notes", String(a.complaint || "").replace(/^(Vaccination|Deworming|Grooming)\s*·?\s*/, "") || "-", false],
+        ],
+      };
+    });
+}
+
 /** Formats real database data into Doctor History Page cards */
 export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): HistoryPageData {
   const visits = Array.isArray(p360?.visits) ? p360.visits : [];
@@ -458,6 +485,9 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
       }
     }
 
+    records.push(...serviceAppointmentRecords(p360, "Vaccination", "Vaccination"));
+    records.sort((a, b) => b.date.getTime() - a.date.getTime());
+
     return {
       title: "Vaccine history",
       records: records.length > 0 ? records : [
@@ -558,6 +588,9 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
       }
     }
 
+    records.push(...serviceAppointmentRecords(p360, "Deworming", "Deworming"));
+    records.sort((a, b) => b.date.getTime() - a.date.getTime());
+
     return {
       title: "Deworming history",
       records: records.length > 0 ? records : [
@@ -573,6 +606,24 @@ export function buildRealHistoryRecords(pet: Pet, section: Section, p360: any): 
           ],
         },
       ],
+    };
+  }
+
+  if (section === "grooming") {
+    const records = serviceAppointmentRecords(p360, "Grooming", "Grooming").sort((a, b) => b.date.getTime() - a.date.getTime());
+    return {
+      title: "Grooming",
+      records: records.length
+        ? records
+        : [
+            {
+              date: new Date(),
+              title: "No grooming appointments yet",
+              tag: "Routine",
+              tone: "ok",
+              fields: [["Notice", "Grooming booked from the Vaccination & Deworming page will appear here.", true]],
+            },
+          ],
     };
   }
 
@@ -682,6 +733,100 @@ export function buildRealGraphData(pet: Pet, section: Section, p360: any): Graph
     };
   }
 
+  // Purchase: money and item count per invoice
+  if (section === "purchase") {
+    const bills = visits
+      .filter((v: any) => v.invoiceNo || v.totalAmount)
+      .map((v: any) => ({ v, d: new Date(v.date || v.createdAt || Date.now()) }))
+      .sort((x: any, y: any) => x.d.getTime() - y.d.getTime());
+    const pts = (val: (v: any) => number): Point[] =>
+      bills.map(({ v, d }: any) => ({ date: d, v: val(v), sub: `Invoice ${v.invoiceNo || v.visitId}` }));
+    return {
+      title: "Spending Analysis",
+      def: "spent",
+      metrics: [
+        { key: "spent", name: "Money spent", unit: "₹", fmt: rupee, hint: "Total per invoice", points: pts((v) => Number(v.totalAmount) || 0) },
+        {
+          key: "items",
+          name: "Items bought",
+          unit: "items",
+          hint: "Lines per invoice",
+          points: pts((v) => (Array.isArray(v.items) ? v.items.length : 0)),
+        },
+      ],
+    };
+  }
+
+  // Grooming: how many times the patient came, per day / week / month / year (completed visits only)
+  if (section === "grooming") {
+    const done = serviceAppointmentRecords(p360, "Grooming", "Grooming").filter((r) => r.tag === "Completed");
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const bucketStart: Record<string, (d: Date) => Date> = {
+      day: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+      week: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)), // Monday
+      month: (d) => new Date(d.getFullYear(), d.getMonth(), 1),
+      year: (d) => new Date(d.getFullYear(), 0, 1),
+    };
+    const counts = (unit: string, name: string, hint: string, label: string): Metric => {
+      const by = new Map<string, Point>();
+      for (const r of done) {
+        const b = bucketStart[unit]!(r.date);
+        const k = ymd(b);
+        const p = by.get(k) ?? { date: b, v: 0, sub: "" };
+        p.v += 1;
+        p.sub = `${p.v} grooming visit${p.v > 1 ? "s" : ""} · ${label} of ${fmtDate(b)}`;
+        by.set(k, p);
+      }
+      return { key: unit, name, unit: "visits", hint, points: [...by.values()] };
+    };
+    return {
+      title: "Grooming Analysis",
+      def: "month",
+      metrics: [
+        counts("day", "Visits per day", "Day wise", "day"),
+        counts("week", "Visits per week", "Week wise", "week"),
+        counts("month", "Visits per month", "Month wise", "month"),
+        counts("year", "Visits per year", "Year wise", "year"),
+      ],
+    };
+  }
+
+  // Vaccine / Deworming: what was done, what is upcoming or overdue, and the gap between doses
+  if (section === "vaccine" || section === "deworm") {
+    const cfg = {
+      vaccine: { title: "Vaccination Analysis", what: "Vaccination", gap: "Days between doses", lo: 330, hi: 400, range: "About once a year" },
+      deworm: { title: "Deworming Analysis", what: "Deworming", gap: "Days between doses", lo: 75, hi: 100, range: "About every 3 months" },
+    }[section];
+    const DONE = /administered|completed|prescribed/i;
+    const PENDING = /scheduled|booked/i;
+    const recs = buildRealHistoryRecords(pet, section, p360).records
+      .filter((r) => DONE.test(r.tag) || PENDING.test(r.tag))
+      .sort((x, y) => x.date.getTime() - y.date.getTime());
+    const todayMs = new Date(new Date().toDateString()).getTime();
+
+    const statusPts: Point[] = recs.map((r) => {
+      const done = DONE.test(r.tag);
+      const late = !done && r.date.getTime() < todayMs;
+      const z: Zone = done ? "g" : late ? "r" : "y";
+      const text = done ? "Done" : late ? "Overdue" : "Upcoming";
+      return { date: r.date, v: z === "g" ? 0 : z === "y" ? 1 : 2, z, text, sub: r.title, why: `${r.title}: ${text.toLowerCase()} (${fmtDate(r.date)}).` };
+    });
+    const doneDates = recs.filter((r) => DONE.test(r.tag)).map((r) => r.date);
+    const gapPts: Point[] = doneDates.slice(1).map((d, i) => {
+      const days = Math.round((d.getTime() - doneDates[i]!.getTime()) / 86_400_000);
+      return { date: d, v: days, sub: `${days} days after the previous one` };
+    });
+    return {
+      title: cfg.title,
+      def: "status",
+      metrics: [
+        { key: "status", name: `${cfg.what} status`, hint: "Done, upcoming and overdue", unit: "", special: "status", points: statusPts },
+        { key: "gap", name: cfg.gap, unit: "days", lo: cfg.lo, hi: cfg.hi, rangeText: cfg.range, hint: cfg.range, points: gapPts },
+      ],
+    };
+  }
+
   // Sort visits chronologically for graph timeline
   const chrono = [...visits].sort((a, b) => {
     const da = new Date(a.date || a.createdAt || 0).getTime();
@@ -717,22 +862,13 @@ export function buildRealGraphData(pet: Pet, section: Section, p360: any): Graph
     }
   }
 
-  // Fallback point if patient is freshly admitted
-  if (weightPoints.length === 0) {
+  // Admission weight from the patient file when no visit recorded one (nothing invented otherwise)
+  if (weightPoints.length === 0 && Number(p360?.pet?.weightKg) > 0) {
     weightPoints.push({
       date: new Date(),
-      v: p360?.pet?.weightKg ? Number(p360.pet.weightKg) : 25,
-      sub: `${p360?.pet?.weightKg || 25} kg · Recorded on admission`,
+      v: Number(p360.pet.weightKg),
+      sub: `${p360.pet.weightKg} kg · Recorded on admission`,
       why: "Initial Weight",
-    });
-  }
-
-  if (tempPoints.length === 0) {
-    tempPoints.push({
-      date: new Date(),
-      v: 38.6,
-      sub: "38.6 °C · Normal vitals",
-      why: "Initial Vitals",
     });
   }
 
@@ -760,7 +896,7 @@ export function buildRealGraphData(pet: Pet, section: Section, p360: any): Graph
   };
 
   return {
-    title: "Patient Vitals & Health Trends",
+    title: "Health Trends",
     def: "weight",
     metrics: [weightMetric, tempMetric],
   };

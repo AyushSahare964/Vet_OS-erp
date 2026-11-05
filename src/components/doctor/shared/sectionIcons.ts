@@ -1,5 +1,6 @@
 import {
   FlaskConical,
+  Scissors,
   ShieldCheck,
   ShoppingBag,
   Stethoscope,
@@ -15,4 +16,5 @@ export const SECTION_ICON: Record<Section, LucideIcon> = {
   purchase: ShoppingBag,
   vaccine: Syringe,
   deworm: ShieldCheck,
+  grooming: Scissors,
 };

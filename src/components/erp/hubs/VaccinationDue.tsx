@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
-import { createAppointmentFn } from "@/lib/mongodb/serverFns/appointments";
-import { getVaccinationBoardFn } from "@/lib/mongodb/serverFns/vaccination";
+import { createAppointmentFn, deleteAppointmentFn, updateAppointmentStatusFn } from "@/lib/mongodb/serverFns/appointments";
+import { useErp } from "@/lib/erp/store";
+import { dismissFollowUpFn, getVaccinationBoardFn } from "@/lib/mongodb/serverFns/vaccination";
 import { cn } from "@/lib/utils";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
 
@@ -11,7 +12,8 @@ const todayIso = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().sl
 const days = (iso: string) => Math.round((new Date(iso).getTime() - new Date(todayIso()).getTime()) / 86400000);
 const SERVICE = { VACCINE: "Vaccination", DEWORMING: "Deworming" } as const;
 const SERVICES = ["Vaccination", "Deworming", "Grooming"] as const;
-const KIND_LABEL = { VACCINE: "Vaccine", DEWORMING: "Deworming" } as const;
+const KIND_LABEL = { VACCINE: "Vaccine", DEWORMING: "Deworming", GROOMING: "Grooming" } as const;
+type AnyKind = keyof typeof KIND_LABEL;
 type Kind = keyof typeof SERVICE;
 type Booking = { petId?: string; service: (typeof SERVICES)[number]; date?: string };
 
@@ -77,7 +79,13 @@ function Table({ cols, children, empty }: { cols: string[]; children: React.Reac
 
 const PetCell = ({ id, name, owner }: { id?: string; name?: string; owner?: string }) => (
   <td className="px-4 py-2.5">
-    <span className="font-semibold">{name || id}</span>
+    {id ? (
+      <Link to="/patient/$id" params={{ id }} className="font-semibold text-primary hover:underline">
+        {name || id}
+      </Link>
+    ) : (
+      <span className="font-semibold">{name || id}</span>
+    )}
     {owner && <span className="block text-xs text-muted-foreground">{owner}</span>}
   </td>
 );
@@ -174,7 +182,9 @@ export function VaccinationDue() {
   const [tab, setTab] = useState<"due" | "booked" | "history">("due");
   const [dueRange, setDueRange] = useState("30");
   const [histRange, setHistRange] = useState("30");
-  const [kind, setKind] = useState<"all" | Kind>("all");
+  const [kind, setKind] = useState<"all" | AnyKind>("all");
+  const [q, setQ] = useState("");
+  const isAdmin = useErp().roleId === "admin";
   const [book, setBook] = useState<Booking | null>(null);
 
   const load = useCallback(() => {
@@ -186,23 +196,59 @@ export function VaccinationDue() {
   }, [load]);
 
   const today = todayIso();
-  const upcoming = useMemo(() => (board?.appointments ?? []).filter((a) => a.date >= today).sort((a, b) => a.date.localeCompare(b.date)), [board, today]);
-  const bookingFor = (petId: string, k: Kind) => upcoming.find((a) => a.petId === petId && a.type === SERVICE[k]);
+  const needle = q.trim().toLowerCase();
+  const matches = (...f: unknown[]) => !needle || f.some((x) => String(x ?? "").toLowerCase().includes(needle));
+  const open = useMemo(
+    () => (board?.appointments ?? []).filter((a) => !/completed/i.test(String(a.status))).sort((a, b) => a.date.localeCompare(b.date)),
+    [board],
+  );
+  const bookingFor = (petId: string, k: Kind) => open.find((a) => a.petId === petId && a.type === SERVICE[k] && a.date >= today);
+  const bookedRows = open.filter((a) => matches(a.pet, a.owner, a.petId, a.ownerPhone, a.token, a.type, a.notes));
+
+  const markDone = async (a: any) => {
+    try {
+      await updateAppointmentStatusFn({ data: { token: a.token, status: "Completed" } });
+      toast.success(`${a.type} marked done for ${a.pet} — moved to History`);
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not update the appointment");
+    }
+  };
+  const removeFollowUp = async (f: any) => {
+    if (!window.confirm(`Delete the ${KIND_LABEL[f.kind as AnyKind].toLowerCase()} follow-up for ${f.petName || f.petId}? The medical record is not affected.`)) return;
+    try {
+      await dismissFollowUpFn({ data: { petId: f.petId, kind: f.kind, due: f.due } });
+      toast.success("Follow-up deleted");
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not delete the follow-up");
+    }
+  };
+  const remove = async (a: any) => {
+    if (!window.confirm(`Delete ${a.type || "this"} appointment for ${a.pet}? This cannot be undone.`)) return;
+    try {
+      await deleteAppointmentFn({ data: { token: a.token } });
+      toast.success("Appointment deleted");
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not delete the appointment");
+    }
+  };
 
   const dueRows = useMemo(() => {
     const max = dueRange === "all" ? Infinity : Number(dueRange);
     return (board?.followUps ?? [])
       .map((f) => ({ ...f, d: days(f.due) }))
-      .filter((f) => f.d <= max && (kind === "all" || f.kind === kind))
+      .filter((f) => f.d <= max && (kind === "all" || f.kind === kind) && matches(f.petName, f.ownerName, f.petId, f.ownerPhone, f.source, f.by))
       .sort((a, b) => a.d - b.d);
-  }, [board, dueRange, kind]);
+  }, [board, dueRange, kind, needle]);
 
   const histRows = useMemo(() => {
     const max = histRange === "all" ? Infinity : Number(histRange);
     return (board?.history ?? [])
-      .filter((h) => h.date && -days(h.date) <= max && (kind === "all" || h.kind === kind))
+      .filter((h) => h.date && -days(h.date) <= max && (kind === "all" || h.kind === kind) && matches(h.petName, h.ownerName, h.petId, h.ownerPhone, h.name, h.by, h.token))
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [board, histRange, kind]);
+  }, [board, histRange, kind, needle]);
 
   if (!board) return <p className="py-10 text-center text-sm text-muted-foreground">Loading vaccination records…</p>;
 
@@ -223,13 +269,22 @@ export function VaccinationDue() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         {tabBtn("due", "Due & overdue", board.followUps.length)}
-        {tabBtn("booked", "Booked", upcoming.length)}
+        {tabBtn("booked", "Booked", open.length)}
         {tabBtn("history", "History", board.history.length)}
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search patient, owner, phone, token…"
+            aria-label="Search"
+            className="w-64 rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+          />
           <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)} aria-label="Type">
-            <option value="all">Vaccines + Deworming</option>
+            <option value="all">All services</option>
             <option value="VACCINE">Vaccines</option>
             <option value="DEWORMING">Deworming</option>
+            <option value="GROOMING">Grooming</option>
           </Select>
           {tab === "due" && (
             <Select value={dueRange} onChange={(e) => setDueRange(e.target.value)} aria-label="Due window">
@@ -277,6 +332,11 @@ export function VaccinationDue() {
                   <Link to="/patient/$id" params={{ id: f.petId }} className="text-xs font-semibold text-primary hover:underline">
                     Open patient
                   </Link>
+                  {isAdmin && (
+                    <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => removeFollowUp(f)}>
+                      Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             );
@@ -285,32 +345,49 @@ export function VaccinationDue() {
       )}
 
       {tab === "booked" && (
-        <Table cols={["Patient", "Service", "Date", "Time", "Status", "Token"]} empty="No upcoming vaccination, deworming or grooming bookings.">
-          {upcoming.map((a, i) => (
+        <Table cols={["Patient", "Service", "Date", "Time", "Status", "Token", ""]} empty="No open vaccination, deworming or grooming bookings.">
+          {bookedRows.map((a, i) => (
             <tr key={`${a.token}-${i}`}>
               <PetCell id={a.petId} name={a.pet} owner={a.owner} />
               <td className="px-4 py-2.5">{a.type}</td>
               <td className="whitespace-nowrap px-4 py-2.5">{formatDisplayDate(a.date) || a.date}</td>
               <td className="px-4 py-2.5">{a.time || "—"}</td>
-              <td className="px-4 py-2.5"><Chip tone="info">{a.status || "Waiting"}</Chip></td>
+              <td className="px-4 py-2.5"><Chip tone={a.date < today ? "late" : "info"}>{a.date < today ? "Past date" : a.status || "Waiting"}</Chip></td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground">{a.token}</td>
+              <td className="space-x-3 whitespace-nowrap px-4 py-2.5 text-right">
+                <button type="button" className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white" onClick={() => markDone(a)}>
+                  Mark as done
+                </button>
+                {isAdmin && (
+                  <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => remove(a)}>
+                    Delete
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </Table>
       )}
 
       {tab === "history" && (
-        <Table cols={["Date given", "Patient", "Type", "Product", "Given by", "When"]} empty="No vaccines or dewormings recorded in this period.">
+        <Table cols={["Date done", "Patient", "Type", "Product", "Given by", "When", ""]} empty="No vaccines or dewormings recorded in this period.">
           {histRows.map((h, i) => {
             const ago = -days(h.date);
             return (
               <tr key={`${h.petId}-${h.date}-${i}`}>
                 <td className="whitespace-nowrap px-4 py-2.5">{formatDisplayDate(h.date) || h.date}</td>
                 <PetCell id={h.petId} name={h.petName} owner={h.ownerName} />
-                <td className="px-4 py-2.5">{KIND_LABEL[h.kind as Kind]}</td>
+                <td className="px-4 py-2.5">{KIND_LABEL[h.kind as AnyKind]}</td>
                 <td className="px-4 py-2.5">{h.name}</td>
                 <td className="px-4 py-2.5 text-xs text-muted-foreground">{h.by || h.source}</td>
                 <td className="px-4 py-2.5 text-xs text-muted-foreground">{ago <= 0 ? "Today" : ago === 1 ? "Yesterday" : `${ago} days ago`}</td>
+                <td className="px-4 py-2.5 text-right">
+                  {isAdmin && h.token != null && (
+                    <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => remove({ token: h.token, type: h.kind, pet: h.petName })}>
+                      Delete
+                    </button>
+                  )}
+                </td>
               </tr>
             );
           })}

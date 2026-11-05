@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { getTenantContext } from "@/lib/mongodb/tenantContext";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
 import { ClinicalVisit } from "@/lib/mongodb/models/ClinicalVisit";
 import { Vaccination } from "@/lib/mongodb/models/Vaccination";
@@ -7,9 +9,11 @@ import { Pet } from "@/lib/mongodb/models/Pet";
 import { ErpRow } from "@/lib/mongodb/models/ErpRow";
 
 export type Kind = "VACCINE" | "DEWORMING";
+const SERVICE_KIND: Record<string, string> = { Vaccination: "VACCINE", Deworming: "DEWORMING", Grooming: "GROOMING" };
 const VAC_RX = /vaccin|rabies|nobivac|dhpp|dapp|parvo|kennel\s*cough|tri-?cat|all-in-1|in\s*1\b/i;
 const DEW_RX = /deworm|drontal|fenbendazole|praziquantel|albendazole|pyrantel|milbemycin/i;
 const SERVICES = ["Vaccination", "Deworming", "Grooming"];
+const DISMISS_MODULE = "vaccination_dismissed";
 const iso = (d: unknown) => String(d ?? "").slice(0, 10);
 
 /**
@@ -22,13 +26,15 @@ const iso = (d: unknown) => String(d ?? "").slice(0, 10);
 export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
   tenantScoped(async () => {
     await connectDB();
-    const [visits, vacs, dews, pets, appts] = await Promise.all([
+    const [visits, vacs, dews, pets, appts, dismissals] = await Promise.all([
       ClinicalVisit.find({}).sort({ date: -1, createdAt: -1 }).limit(2000).lean() as Promise<any[]>,
       Vaccination.find({}).sort({ dateGiven: -1 }).limit(2000).lean() as Promise<any[]>,
       DewormingRecord.find({}).sort({ dateGiven: -1 }).limit(2000).lean() as Promise<any[]>,
       Pet.find({ $or: [{ nextVaccineDate: { $exists: true, $ne: "" } }, { nextDewormingDate: { $exists: true, $ne: "" } }] }).lean() as Promise<any[]>,
       ErpRow.find({ moduleId: "appointments", "data.type": { $in: SERVICES } }).sort({ createdAt: -1 }).limit(500).lean() as Promise<any[]>,
+      ErpRow.find({ moduleId: DISMISS_MODULE }).lean() as Promise<any[]>,
     ]);
+    const dismissed = new Set(dismissals.map((r) => `${r.data?.petId}|${r.data?.kind}|${r.data?.due}`));
 
     const history: any[] = [];
     const due = new Map<string, any>();
@@ -85,14 +91,18 @@ export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
       const k = `${h.petId}|${h.kind}|${h.date}|${String(h.name).toLowerCase()}`;
       return !seen.has(k) && seen.add(k);
     });
-    const followUps = [...due.values()].filter(
-      (d) => !uniq.some((h) => h.petId === d.petId && h.kind === d.kind && h.date > (d.setOn || "")),
-    );
-
     const appointments = appts
       .map((a) => a.data || {})
-      .filter((a) => !/cancel|completed|no-show/i.test(String(a.status || "")))
-      .map((a) => ({ token: a.token, petId: a.petId, pet: a.pet, owner: a.owner, type: a.type, date: iso(a.appointment_date || a.date), time: a.time, status: a.status }));
+      .filter((a) => !/cancel|no-show/i.test(String(a.status || "")))
+      .map((a) => ({ token: a.token, petId: a.petId, pet: a.pet, owner: a.owner, ownerPhone: a.ownerPhone, type: a.type, date: iso(a.appointment_date || a.date), time: a.time, status: a.status, notes: a.complaint }));
+
+    // a booking marked Completed is a dose / service that was done: it belongs in history
+    for (const a of appointments.filter((x) => /completed/i.test(String(x.status)))) {
+      uniq.push({ petId: a.petId, petName: a.pet, ownerName: a.owner, ownerPhone: a.ownerPhone, kind: SERVICE_KIND[a.type], name: a.notes || a.type, date: a.date, source: "Appointment", token: a.token });
+    }
+    const followUps = [...due.values()].filter(
+      (d) => !dismissed.has(`${d.petId}|${d.kind}|${d.due}`) && !uniq.some((h) => h.petId === d.petId && h.kind === d.kind && h.date > (d.setOn || "")),
+    );
 
     return JSON.parse(JSON.stringify({ followUps, history: uniq, appointments })) as {
       followUps: any[];
@@ -101,3 +111,20 @@ export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
     };
   }),
 );
+
+/**
+ * Admin-only: remove a follow-up from the Due & overdue list. The medical record is left untouched; the
+ * follow-up only reappears if a doctor registers a different due date.
+ */
+export const dismissFollowUpFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) =>
+    z.object({ petId: z.string().min(1), kind: z.enum(["VACCINE", "DEWORMING"]), due: z.string().min(1) }).parse(raw),
+  )
+  .handler(
+    tenantScoped(async ({ data }) => {
+      if (getTenantContext()?.roleId !== "admin") throw new Error("Only an administrator can delete follow-ups");
+      await connectDB();
+      await ErpRow.create({ moduleId: DISMISS_MODULE, data });
+      return true;
+    }),
+  );
