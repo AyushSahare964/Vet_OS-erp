@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { deleteInvoiceFn } from "@/lib/mongodb/serverFns/billing";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye,
@@ -194,6 +195,16 @@ export function BillingDeskDashboard({
   const [registerTab, setRegisterTab] = useState<RegisterTab>(initialRegisterTab);
 
   const isAdmin = useErp().roleId === "admin";
+  const deleteInvoice = async (invoiceNo: string) => {
+    if (!window.confirm(`Delete invoice ${invoiceNo}? This permanently removes it and returns its stock to inventory.`)) return;
+    try {
+      const res: any = await deleteInvoiceFn({ data: { invoiceNo } });
+      toast.success(`Invoice ${invoiceNo} deleted` + (res?.stockRestored ? `. Stock returned for ${res.stockRestored} item(s).` : ""));
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to delete invoice");
+    }
+  };
   const clinic = useClinicBranding();
   // Purchase Orders — issued ones live in localStorage (PurchaseOrderModal);
   // drafts (po.draftCreatedAt set) come from the server and are merged in below.
@@ -3500,6 +3511,19 @@ export function BillingDeskDashboard({
                                 >
                                   <CreditCard className="size-3" />
                                   <span>Pay</span>
+                                </Button>
+                              )}
+
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Delete invoice (stock is returned to inventory)"
+                                  aria-label={`Delete invoice ${inv.invoiceNo}`}
+                                  onClick={() => deleteInvoice(inv.invoiceNo)}
+                                  className="h-7 px-2 text-rose-600 hover:bg-rose-500/10 hover:text-rose-700"
+                                >
+                                  <Trash2 className="size-3.5" />
                                 </Button>
                               )}
                             </div>
