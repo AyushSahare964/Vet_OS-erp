@@ -113,6 +113,7 @@ export interface Medicine {
   medicineDetails?: MedicineDetails | any;
   foodDetails?: FoodDetails | any;
   accessoryDetails?: AccessoryDetails | any;
+  consumableDetails?: { size?: string } | any;
   injectionDetails?: InjectionDetails | any;
 
   // Tax & Compliance
@@ -280,6 +281,7 @@ function mapToMedicine(raw: InventoryItemRow): Medicine {
     medicineDetails: raw.medicineDetails,
     foodDetails: raw.foodDetails,
     accessoryDetails: raw.accessoryDetails,
+    consumableDetails: raw.consumableDetails,
     injectionDetails: raw.injectionDetails,
     gstRate: raw.gstRate,
     hsnCode: raw.hsnCode,
@@ -371,6 +373,7 @@ interface InventoryContextValue {
   injectionList: Medicine[];
   foodList: Medicine[];
   accessoriesList: Medicine[];
+  consumablesList: Medicine[];
   batches: Batch[];
   ledger: LedgerEntry[];
   loadingItems: boolean;
@@ -561,6 +564,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   );
   const foodList = useMemo(
     () => medicines.filter((m) => m.productType === "FOOD" || m.category === "Food" || m.category === "Animal Food"),
+    [medicines]
+  );
+  const consumablesList = useMemo(
+    () => medicines.filter((m) => m.productType === "CONSUMABLE" || m.category === "Consumable"),
     [medicines]
   );
   const accessoriesList = useMemo(
@@ -935,6 +942,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       injectionList,
       foodList,
       accessoriesList,
+      consumablesList,
       batches,
       ledger,
       loadingItems,
@@ -977,6 +985,7 @@ export function useInventory(): InventoryContextValue {
       injectionList: [],
       foodList: [],
       accessoriesList: [],
+      consumablesList: [],
       batches: [],
       ledger: [],
       loadingItems: false,

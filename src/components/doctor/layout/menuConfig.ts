@@ -197,6 +197,7 @@ export const MODULE_ALIASES: Record<string, { moduleId: string; tab?: string; su
   injections: { moduleId: "inventory", tab: "inventory", sub: "injection" },
   "food-inventory": { moduleId: "inventory", tab: "inventory", sub: "food" },
   accessories: { moduleId: "inventory", tab: "inventory", sub: "accessories" },
+  consumables: { moduleId: "inventory", tab: "inventory", sub: "consumables" },
   stock: { moduleId: "inventory", tab: "inventory", sub: "stock" },
   purchases: { moduleId: "inventory", tab: "purchases" },
   suppliers: { moduleId: "inventory", tab: "suppliers" },

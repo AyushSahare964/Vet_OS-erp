@@ -344,6 +344,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
 
   const isRx = type === "MEDICINE" || type === "INJECTION";
   const isAcc = type === "ACCESSORY";
+  const isCons = type === "CONSUMABLE";
   const setP = (patch: Partial<Pkg>) => setPkg((p) => ({ ...p, ...patch }));
 
   // Reset to empty / 0 on open
@@ -397,7 +398,9 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
   // Accessories are counted in pieces: no packaging questions
   useEffect(() => {
     if (open && type === "ACCESSORY") setPkg({ baseUnit: "Piece", interUnit: "", basePerInter: "", purchaseUnit: "Piece", perPurchase: "1", hasInter: false });
-  }, [open, type]);
+    // Consumables are counted in one simple unit (Piece, Pack, Box...): no packaging chain
+    if (open && type === "CONSUMABLE" && !editing) setPkg({ baseUnit: "Piece", interUnit: "", basePerInter: "", purchaseUnit: "Piece", perPurchase: "1", hasInter: false });
+  }, [open, type, editing]);
 
   // Peek the auto item ID for the chosen category
   useEffect(() => {
@@ -508,7 +511,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
           mrp: Number(mrp) || sale,
           valuationRate: Number(purchasePrice) || 0,
           gstRate: Number(gst) || 0,
-          hsnCode: hsn.trim(),
+          hsnCode: hsn.trim() || (type === "CONSUMABLE" ? suggestHsn(type, `${name} ${subGroup}`).hsn : ""),
           taxCategory: "Standard",
           defaultSupplierId: supplierId || "",
           defaultSupplierName: supplierName || "",
@@ -522,7 +525,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
           injectionDetails: type === "INJECTION" ? { strength, route, schedule, vialSize: vialSize.trim(), coldChainRequired: coldChain, ...details } : undefined,
           foodDetails: type === "FOOD" ? { targetSpecies: species, lifeStage } : undefined,
           accessoryDetails: type === "ACCESSORY" ? { accessoryType, material } : undefined,
-          consumableDetails: type === "CONSUMABLE" ? { size: cSize, material, sterile, singleUse } : undefined,
+          consumableDetails: type === "CONSUMABLE" ? { size: cSize } : undefined,
           ...o,
         } as any);
 
@@ -673,7 +676,59 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
             ))}
           </div>
 
+          {isCons && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-start">
+              <SectionCard title="Item" icon={Package}>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <FormField label="Item Name" required className="col-span-2">
+                    <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Examination Glove (Large), Gauze Swab 5x5, Syringe 2ml, Vicryl 1-0" className={cn(inputCls, "font-medium")} />
+                  </FormField>
+                  <FormField label="Category" className="col-span-2">
+                    <Combo value={subGroup} onChange={setSubGroup} options={CONSUMABLE_GROUPS} className={inputCls} placeholder="e.g. Gloves, Syringes & Needles, Sutures" />
+                  </FormField>
+                  <FormField label="Brand / Make">
+                    <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Surg, Soft, Ethicon" className={inputCls} />
+                  </FormField>
+                  <FormField label="Size (optional)">
+                    <Input value={cSize} onChange={(e) => setCSize(e.target.value)} placeholder="e.g. Large, 5x5, 2 ml, 1-0" className={inputCls} />
+                  </FormField>
+                  <FormField label="Unit" required className="col-span-2">
+                    <Combo
+                      value={pkg.baseUnit}
+                      onChange={(v) => setP({ baseUnit: v, purchaseUnit: v, perPurchase: "1", hasInter: false, interUnit: "", basePerInter: "" })}
+                      options={["Piece", "Pair", "Pack", "Box", "Roll", "Packet", "Bottle", "Strip", "Set"]}
+                      className={inputCls}
+                      placeholder="Piece"
+                    />
+                  </FormField>
+                </div>
+              </SectionCard>
+              <SectionCard title="Price, Stock & Expiry" icon={IndianRupee}>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <FormField label="Buying Price (per unit)"><MoneyInput value={purchasePrice} onChange={setPurchasePrice} placeholder="0" /></FormField>
+                  <FormField label="Selling Price (per unit)"><MoneyInput value={salePrice} onChange={setSalePrice} placeholder="0" /></FormField>
+                  <FormField label={editing ? "Current Stock" : "Quantity Received"}>
+                    <Input type="number" min="0" disabled={!!editing} title={editing ? "Change stock through purchase bills or stock adjustments" : undefined} value={currentStock} onChange={(e) => setCurrentStock(e.target.value)} placeholder="0" className={cn(inputCls, "font-mono font-semibold")} />
+                  </FormField>
+                  <FormField label="Alert when below">
+                    <Input type="number" min="0" value={reorderLevel} onChange={(e) => setReorderLevel(e.target.value)} placeholder="0" className={cn(inputCls, "font-mono")} />
+                  </FormField>
+                  <FormField label="Batch No.">
+                    <Input value={batchNo} onChange={(e) => setBatchNo(e.target.value)} placeholder="e.g. AAB286" className={inputCls} />
+                  </FormField>
+                  <FormField label="Expiry Date">
+                    <DatePicker value={expiryDate} onChange={setExpiryDate} placeholder="Select expiry date" className={inputCls} showPresets={true} />
+                  </FormField>
+                  <FormField label="GST Rate" className="col-span-2">
+                    {sel(gst, setGst, GST_RATES)}
+                  </FormField>
+                </div>
+              </SectionCard>
+            </div>
+          )}
+
           {/* 3-Column Ergonomic Form Grid */}
+          {!isCons && (
           <div className={cn("grid grid-cols-1 gap-3.5 items-start", isAcc ? "md:grid-cols-2" : "md:grid-cols-3")}>
 
             {/* ─── COLUMN 1: Item Details ─── */}
@@ -716,9 +771,9 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                   <Combo
                     value={subGroup}
                     onChange={setSubGroup}
-                    options={type === "CONSUMABLE" ? CONSUMABLE_GROUPS : type === "INJECTION" ? INJECTION_GROUPS : SUB_GROUPS}
+                    options={type === "INJECTION" ? INJECTION_GROUPS : SUB_GROUPS}
                     className={inputCls}
-                    placeholder={type === "INJECTION" ? "e.g. Antibiotic, Vaccine" : isRx ? "e.g. Antibiotics" : type === "CONSUMABLE" ? "e.g. Cotton & Gauze" : "e.g. Dog Food"}
+                    placeholder={type === "INJECTION" ? "e.g. Antibiotic, Vaccine" : isRx ? "e.g. Antibiotics" : "e.g. Dog Food"}
                   />
                 </FormField>}
 
@@ -795,22 +850,6 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
                   </>
                 )}
 
-                {type === "CONSUMABLE" && (
-                  <>
-                    <FormField label="Size / Specification">
-                      <Input value={cSize} onChange={(e) => setCSize(e.target.value)} placeholder="e.g. Large, 5x5 cm, 2 ml, 1-0" className={inputCls} />
-                    </FormField>
-                    <FormField label="Material">
-                      <Input value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="e.g. Latex, Cotton, Vicryl" className={inputCls} />
-                    </FormField>
-                    <FormField label="Sterile">
-                      {sel(sterile, setSterile, ["Yes", "No"], "Select...")}
-                    </FormField>
-                    <FormField label="Single Use">
-                      {sel(singleUse, setSingleUse, ["Yes (disposable)", "No (reusable)"], "Select...")}
-                    </FormField>
-                  </>
-                )}
               </div>
             </SectionCard>
 
@@ -1095,6 +1134,7 @@ export function NewItemModal({ open, onClose, onSuccess, initialName, defaultTyp
               </SectionCard>
             </div>
           </div>
+          )}
 
           {type === "ACCESSORY" && (
             <SectionCard title="Price & stock list - one row per colour / size" icon={Layers}>

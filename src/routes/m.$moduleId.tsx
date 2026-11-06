@@ -138,6 +138,7 @@ function ModulePage() {
     moduleId === "injections" ||
     moduleId === "food-inventory" ||
     moduleId === "accessories" ||
+    moduleId === "consumables" ||
     moduleId === "stock"
   ) {
     const initialTab =
@@ -147,6 +148,8 @@ function ModulePage() {
         ? "food"
         : moduleId === "accessories"
         ? "accessories"
+        : moduleId === "consumables"
+        ? "consumables"
         : moduleId === "stock"
         ? "stock"
         : "catalogue";

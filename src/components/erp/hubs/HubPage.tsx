@@ -29,8 +29,8 @@ import { DocumentationCenter } from "@/components/erp/documentation/Documentatio
 import { SavedDocuments } from "@/components/erp/documentation/SavedDocuments";
 import { HospitalProfile } from "./HospitalProfile";
 
-type InvSub = "catalogue" | "injection" | "food" | "accessories" | "stock" | "movements" | "alerts";
-const INV_SUBS = ["catalogue", "injection", "food", "accessories", "stock", "movements", "alerts"];
+type InvSub = "catalogue" | "injection" | "food" | "accessories" | "consumables" | "stock" | "movements" | "alerts";
+const INV_SUBS = ["catalogue", "injection", "food", "accessories", "consumables", "stock", "movements", "alerts"];
 
 /** Hub for a /m/<id> route id (the "identity" route is the Staff hub, "pharmacy"/"billing" etc. are plain pages). */
 export const hubItemFor = (moduleId: string): MenuItem | undefined =>

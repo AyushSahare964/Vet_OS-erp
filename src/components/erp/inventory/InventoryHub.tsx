@@ -12,6 +12,7 @@ import {
   Syringe,
   Bone,
   Tag,
+  Package,
   BarChart2,
   ArrowLeftRight,
   Bell,
@@ -25,12 +26,13 @@ import { MedicineCatalogue } from "./MedicineCatalogue";
 import { InjectionCatalogue } from "./InjectionCatalogue";
 import { FoodCatalogue } from "./FoodCatalogue";
 import { AccessoriesCatalogue } from "./AccessoriesCatalogue";
+import { ConsumablesCatalogue } from "./ConsumablesCatalogue";
 import { StockView } from "./StockView";
 import { StockMovements } from "./StockMovements";
 import { AlertsPanel } from "./AlertsPanel";
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
-export type TabId = "catalogue" | "injection" | "food" | "accessories" | "stock" | "movements" | "alerts";
+export type TabId = "catalogue" | "injection" | "food" | "accessories" | "consumables" | "stock" | "movements" | "alerts";
 
 interface TabDef {
   id: TabId;
@@ -45,6 +47,7 @@ const TABS: TabDef[] = [
   { id: "injection",   label: "Injection Catalogue",     Icon: Syringe,        badge: "12.5" },
   { id: "food",        label: "Food Catalogue",          Icon: Bone,           badge: "12.6" },
   { id: "accessories", label: "Accessories Catalogue",   Icon: Tag,            badge: "12.7" },
+  { id: "consumables", label: "Consumables Catalogue",   Icon: Package,        badge: "12.7b" },
   { id: "stock",       label: "Real-Time Stock",         Icon: BarChart2,      badge: "12.8" },
   { id: "movements",   label: "Stock Movements",         Icon: ArrowLeftRight, badge: "12.9" },
   { id: "alerts",      label: "Alerts",                  Icon: Bell,           badge: "12.10" },
@@ -60,7 +63,7 @@ function InventoryHubInner({ initialTab = "catalogue" }: InventoryHubProps) {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tabParam = sp.get("tab") as TabId;
-      if (tabParam && ["catalogue", "injection", "food", "accessories", "stock", "movements", "alerts"].includes(tabParam)) {
+      if (tabParam && ["catalogue", "injection", "food", "accessories", "consumables", "stock", "movements", "alerts"].includes(tabParam)) {
         return tabParam;
       }
     }
@@ -94,7 +97,7 @@ function InventoryHubInner({ initialTab = "catalogue" }: InventoryHubProps) {
             <div>
               <h1 className="page-title">Inventory &amp; Procurement</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Medicines · Pet Food · Accessories · Authoritative Stock &amp; Movements Ledger
+                Medicines · Pet Food · Accessories · Consumables · Authoritative Stock &amp; Movements Ledger
               </p>
             </div>
           </div>
@@ -156,6 +159,7 @@ function InventoryHubInner({ initialTab = "catalogue" }: InventoryHubProps) {
             {activeTab === "injection"   && <InjectionCatalogue />}
             {activeTab === "food"        && <FoodCatalogue />}
             {activeTab === "accessories" && <AccessoriesCatalogue />}
+            {activeTab === "consumables" && <ConsumablesCatalogue />}
             {activeTab === "stock"       && <StockView />}
             {activeTab === "movements"   && <StockMovements />}
             {activeTab === "alerts"      && <AlertsPanel />}
