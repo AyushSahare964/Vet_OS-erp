@@ -113,10 +113,14 @@ function TagPicker({ value, onChange, options, placeholder }: {
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [typingOther, setTypingOther] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const add = (t: string) => {
     const v = t.trim();
     if (v && v.toLowerCase() !== "other" && !value.some((x) => x.toLowerCase() === v.toLowerCase())) onChange([...value, v]);
     setQ("");
+    setTypingOther(false);
+    setOpen(false); // list closes after every pick
   };
   const shown = options.filter((o) => !q || o.label.toLowerCase().includes(q.toLowerCase()));
   const custom = q.trim() && !options.some((o) => o.label.toLowerCase() === q.trim().toLowerCase());
@@ -124,12 +128,17 @@ function TagPicker({ value, onChange, options, placeholder }: {
     <div className="space-y-1.5">
       <div className="relative">
         <Input
+          ref={inputRef}
           value={q}
-          placeholder={placeholder}
-          onFocus={() => setOpen(true)}
+          placeholder={typingOther ? "Type here, then press Enter" : placeholder}
+          onFocus={() => !typingOther && setOpen(true)}
+          onClick={() => !typingOther && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(q); } }}
+          onChange={(e) => { setQ(e.target.value); setOpen(!typingOther); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); add(q); }
+            if (e.key === "Escape") setOpen(false);
+          }}
         />
         {open && (shown.length > 0 || custom) && (
           <ul className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-white py-1 text-sm text-slate-900 shadow-lg">
@@ -140,7 +149,11 @@ function TagPicker({ value, onChange, options, placeholder }: {
             {shown.map((o) => (
               <li key={o.label}>
                 <button type="button" className="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-slate-100"
-                  onMouseDown={(e) => { e.preventDefault(); if (o.label === "Other") { setQ(""); (e.currentTarget.closest("div")?.querySelector("input") as HTMLInputElement | null)?.focus(); } else add(o.label); }}>
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    if (o.label === "Other") { setQ(""); setTypingOther(true); setOpen(false); inputRef.current?.focus(); }
+                    else add(o.label);
+                  }}>
                   <span>{o.label}</span>
                   {o.tag && <span className="text-[10px] text-slate-500">{o.tag}</span>}
                 </button>
@@ -236,6 +249,16 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [pets, setPets] = useState<any[]>([]);
   const [selectedPetId, setSelectedPetId] = useState<string>("");
   const [showRegisterPetModal, setShowRegisterPetModal] = useState(false);
+  const [clientListOpen, setClientListOpen] = useState(false);
+  // Existing patients matching what is typed in Client Name (owner, pet or mobile)
+  const clientMatches = useMemo(() => {
+    const q = clientName.trim().toLowerCase();
+    if (!q) return pets.slice(0, 8);
+    if (selectedPetId) return [];
+    return pets.filter((p) =>
+      [p.owner?.name, p.ownerName, p.name, p.owner?.phone, p.ownerPhone].some((v) => String(v || "").toLowerCase().includes(q))
+    ).slice(0, 12);
+  }, [clientName, pets, selectedPetId]);
 
   // ── 2. Inventory Items & Category Selection ──
   const [inventoryItems, setInventoryItems] = useState<InventoryItemRow[]>([]);
@@ -730,7 +753,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
             ...prev,
             {
               id, sNo: 0, tag: "", itemName: p.code === "HOME_VISIT" ? "Home Visit" : `Consultation - ${p.label}`,
-              quantity: 1, uom: "SESSION", salePrice: p.amount, discountPct: 0, gstRate: 18, amount: p.amount, isFee: true,
+              quantity: 1, uom: "SESSION", salePrice: p.amount, discountPct: 0, gstRate: 0, amount: p.amount, isFee: true,
             } as InvoiceGridLine,
           ];
       return next.map((l, i) => ({ ...l, sNo: i + 1, tag: `SR-${String(i + 1).padStart(3, "0")}` }));
@@ -743,7 +766,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
     if (!name || customFeeAmt <= 0) { toast.error("Enter a fee name and an amount."); return; }
     setLines((prev) => renumber([...prev, {
       id: `fee_custom_${Date.now()}`, sNo: 0, tag: "", itemName: name, quantity: 1, uom: "SESSION",
-      salePrice: customFeeAmt, discountPct: 0, gstRate: 18, amount: customFeeAmt, isFee: true,
+      salePrice: customFeeAmt, discountPct: 0, gstRate: 0, amount: customFeeAmt, isFee: true,
     }]));
     setCustomFeeName(""); setCustomFeeAmt(0);
   };
@@ -1125,12 +1148,49 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 <Label className="text-xs font-medium text-foreground">
                   Client Name
                 </Label>
-                <Input
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Customer name"
-                  className="h-8 text-xs font-semibold bg-background"
-                />
+                <div className="relative">
+                  <Input
+                    value={clientName}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setClientName(v);
+                      setClientListOpen(true);
+                      // editing the name away from the chosen client unlinks the pet
+                      if (selectedPetId) {
+                        const p = pets.find((x) => (x.petId || x._id) === selectedPetId);
+                        if (p && (p.owner?.name || p.ownerName) !== v) setSelectedPetId("");
+                      }
+                    }}
+                    onFocus={() => setClientListOpen(true)}
+                    onBlur={() => setTimeout(() => setClientListOpen(false), 150)}
+                    placeholder="Search client / pet, or type a name"
+                    className="h-8 text-xs font-semibold bg-background"
+                  />
+                  {clientListOpen && (clientMatches.length > 0 || clientName.trim().length > 1) && (
+                    <ul className="absolute z-50 mt-1 max-h-60 w-full min-w-72 overflow-auto rounded-md border border-border bg-white py-1 text-xs text-slate-900 shadow-lg">
+                      {clientMatches.map((p) => {
+                        const id = p.petId || p._id;
+                        return (
+                          <li key={id}>
+                            <button type="button" className="flex w-full flex-col px-3 py-1.5 text-left hover:bg-slate-100"
+                              onMouseDown={(e) => { e.preventDefault(); handlePetSelect(id); setClientListOpen(false); }}>
+                              <span className="font-semibold">{p.owner?.name || p.ownerName || "Owner"} <span className="font-normal text-slate-500">· {p.name} ({p.breed || p.species})</span></span>
+                              {(p.owner?.phone || p.ownerPhone) && <span className="font-mono text-[10px] text-slate-500">{p.owner?.phone || p.ownerPhone}</span>}
+                            </button>
+                          </li>
+                        );
+                      })}
+                      {clientName.trim().length > 1 && (
+                        <li>
+                          <button type="button" className="w-full border-t px-3 py-1.5 text-left font-semibold text-blue-700 hover:bg-slate-100"
+                            onMouseDown={(e) => { e.preventDefault(); setClientListOpen(false); setShowRegisterPetModal(true); }}>
+                            + Register &ldquo;{clientName.trim()}&rdquo; as new client &amp; patient
+                          </button>
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -2187,6 +2247,8 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         {showRegisterPetModal && (
           <OwnerPetRegistrationModal
             open={showRegisterPetModal}
+            prefillOwnerName={clientName.trim() || undefined}
+            registrationSource="Reception"
             onClose={() => setShowRegisterPetModal(false)}
             onRegistered={async ({ owner, pets: newPets }) => {
               setShowRegisterPetModal(false);
