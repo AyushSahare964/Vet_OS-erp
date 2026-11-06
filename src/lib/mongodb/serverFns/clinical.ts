@@ -124,6 +124,8 @@ const SavePrescriptionInputZ = z.object({
 });
 
 const FinalizeVisitInputZ = z.object({
+  /** Invoice date (YYYY-MM-DD); defaults to today. Lets back-dated bills keep their chosen date. */
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   visitId: z.string().min(1),
   petId: z.string().optional(),
   petName: z.string().optional(),
@@ -1151,7 +1153,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
         visitId: data.visitId,
         invoiceNo: invSeq,
         prescriptionNo: rxSeq,
-        date: new Date().toISOString().slice(0, 10),
+        date: data.date || new Date().toISOString().slice(0, 10),
         branch: data.branch || "Main Clinic",
         billType: data.billType || "GST",
         petId: data.petId || "PET-0001",
@@ -1301,7 +1303,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
         type: "journal",
         data: {
           journalNo: jvNo,
-          date: new Date().toISOString().slice(0, 10),
+          date: data.date || new Date().toISOString().slice(0, 10),
           voucherType: "Sales Invoice",
           lines: [
             { account: debitAccount, debit: data.totalAmount, credit: 0 },
@@ -1321,7 +1323,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
           data: {
             paymentNo: peNo,
             paymentType: "Receive",
-            paymentDate: new Date().toISOString().slice(0, 10),
+            paymentDate: data.date || new Date().toISOString().slice(0, 10),
             partyType: "Customer",
             partyName: visit.ownerName,
             modeOfPayment: data.paymentMode,

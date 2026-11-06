@@ -62,7 +62,6 @@ import { cn } from "@/lib/utils";
 import { OwnerPetRegistrationModal } from "@/components/erp/crm/OwnerPetRegistrationModal";
 import { InvoicePrintView } from "@/components/erp/clinical/InvoicePrintView";
 import { vetNameOf } from "@/lib/clinical/attendingVet";
-import { searchSymptoms } from "@/lib/clinical/symptomSearch";
 
 interface InvoiceGridLine {
   id: string;
@@ -95,37 +94,61 @@ const FEE_PRESETS = [
 ];
 
 const DIAGNOSIS_OPTIONS = [
-  "Gastroenteritis", "Acute Vomiting", "Diarrhoea", "Dermatitis", "Otitis Externa", "Upper Respiratory Infection",
-  "Kennel Cough", "Urinary Tract Infection", "Tick Fever", "Parvovirus", "Canine Distemper", "Fever of Unknown Origin",
-  "Dehydration", "Wound / Abscess", "Allergy", "Mange / Scabies", "Worm Infestation", "Conjunctivitis", "Anorexia", "Lameness",
+  "Hairfall", "Rashes on Skin", "Blood in Urine", "Lump on Body / Growth", "Itching", "Limping", "Constipation",
+  "Urine Incontinence", "Vomiting", "Listlessness", "Dehydration", "Fever / Pyrexia", "Anorexia / Loss of Appetite",
+  "Otitis / Ear Discharge", "Coughing / Sneezing", "Other",
 ];
 
-/** Dropdown suggestions (native datalist) + chips: pick several, or type your own and press Enter. */
-function TagPicker({ value, onChange, getOptions, placeholder, listId }: {
-  value: string[]; onChange: (v: string[]) => void; getOptions: (q: string) => string[]; placeholder: string; listId: string;
+const SYMPTOM_OPTIONS = ([
+  ["Loss of appetite", "General"], ["Vomiting", "GI"], ["Diarrhoea", "GI"], ["Lethargy", "General"],
+  ["Itching", "Skin/Coat"], ["Hairfall", "Skin/Coat"], ["Coughing", "Respiratory"], ["Sneezing", "Oral/Nose"],
+  ["Limping", "Musculoskeletal"], ["Fever reported", "Fluid/Temperature"], ["Weight loss", "General"],
+  ["Ear discharge", "Ear"], ["Eye discharge", "Eye"], ["Blood in urine", "Urinary"], ["Blood in stool", "GI"],
+  ["Constipation", "GI"], ["Increased thirst", "Fluid/Temperature"], ["Skin rash", "Skin/Coat"], ["Other", ""],
+] as [string, string][]).map(([label, tag]) => ({ label, tag }));
+
+/** White dropdown + chips: pick several from the list, or choose "Other" / type your own and press Enter. */
+function TagPicker({ value, onChange, options, placeholder }: {
+  value: string[]; onChange: (v: string[]) => void; options: { label: string; tag?: string }[]; placeholder: string;
 }) {
   const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
   const add = (t: string) => {
     const v = t.trim();
-    if (v && !value.some((x) => x.toLowerCase() === v.toLowerCase())) onChange([...value, v]);
+    if (v && v.toLowerCase() !== "other" && !value.some((x) => x.toLowerCase() === v.toLowerCase())) onChange([...value, v]);
     setQ("");
   };
-  const opts = getOptions(q);
+  const shown = options.filter((o) => !q || o.label.toLowerCase().includes(q.toLowerCase()));
+  const custom = q.trim() && !options.some((o) => o.label.toLowerCase() === q.trim().toLowerCase());
   return (
     <div className="space-y-1.5">
-      <Input
-        list={listId}
-        value={q}
-        placeholder={placeholder}
-        onChange={(e) => {
-          const t = e.target.value;
-          // choosing a suggestion fills the exact label: add it straight away
-          if (opts.some((o) => o.toLowerCase() === t.toLowerCase()) && t.length > q.length + 1) add(t);
-          else setQ(t);
-        }}
-        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(q); } }}
-      />
-      <datalist id={listId}>{opts.map((o) => <option key={o} value={o} />)}</datalist>
+      <div className="relative">
+        <Input
+          value={q}
+          placeholder={placeholder}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(q); } }}
+        />
+        {open && (shown.length > 0 || custom) && (
+          <ul className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-white py-1 text-sm text-slate-900 shadow-lg">
+            {custom && (
+              <li><button type="button" className="w-full px-3 py-1.5 text-left font-semibold hover:bg-slate-100"
+                onMouseDown={(e) => { e.preventDefault(); add(q); }}>Add &ldquo;{q.trim()}&rdquo;</button></li>
+            )}
+            {shown.map((o) => (
+              <li key={o.label}>
+                <button type="button" className="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-slate-100"
+                  onMouseDown={(e) => { e.preventDefault(); if (o.label === "Other") { setQ(""); (e.currentTarget.closest("div")?.querySelector("input") as HTMLInputElement | null)?.focus(); } else add(o.label); }}>
+                  <span>{o.label}</span>
+                  {o.tag && <span className="text-[10px] text-slate-500">{o.tag}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((t) => (
@@ -824,6 +847,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
       const payload = {
         visitId: generatedVisitId,
+        date: docDate || undefined,
         petId: selectedPet?.petId || (customerType === "OTHER" ? "RETAIL-CLIENT" : "OTC-WALKIN"),
         petName:
           selectedPet?.name ||
@@ -1266,13 +1290,11 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Symptoms</Label>
-                  <TagPicker listId="adv-symptoms" value={symptoms} onChange={setSymptoms} placeholder="Select or type a symptom, press Enter"
-                    getOptions={(q) => searchSymptoms(q).map((e) => e.label)} />
+                  <TagPicker value={symptoms} onChange={setSymptoms} placeholder="Select or type a symptom, press Enter" options={SYMPTOM_OPTIONS} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Diagnosis</Label>
-                  <TagPicker listId="adv-diagnosis" value={diagnoses} onChange={setDiagnoses} placeholder="Select or type a diagnosis, press Enter"
-                    getOptions={(q) => DIAGNOSIS_OPTIONS.filter((d) => d.toLowerCase().includes(q.toLowerCase()))} />
+                  <TagPicker value={diagnoses} onChange={setDiagnoses} placeholder="Select or type a diagnosis, press Enter" options={DIAGNOSIS_OPTIONS.map((label) => ({ label }))} />
                 </div>
               </div>
               <div className="space-y-1.5">
