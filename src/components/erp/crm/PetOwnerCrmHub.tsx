@@ -82,6 +82,9 @@ export function PetOwnerCrmHub() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [rowLimit, setRowLimit] = useState(25);
 
+  // Stable KPI totals — always reflect the full DB count, not the current search slice.
+  const [totalCounts, setTotalCounts] = useState({ pets: 0, owners: 0 });
+
   // Modals state
   const [showRegModal, setShowRegModal] = useState(false);
   const [selectedOwnerForNewPet, setSelectedOwnerForNewPet] = useState<any | null>(null);
@@ -110,15 +113,52 @@ export function PetOwnerCrmHub() {
     void navigate({ to: ".", search: (s: any) => ({ ...s, petId: undefined, petName: undefined }), replace: true } as any);
   }, [deepPetId, loading, pets]);
 
+  // ── Debounced server-side search ────────────────────────────────────────────
+  // When a query is typed we re-fetch from the server (no limit, full DB scan)
+  // so every patient is always reachable — not just the initial 500-record page.
+  useEffect(() => {
+    const q = query.trim();
+    // For empty query the initial loadData() result (all records up to 500) is enough.
+    if (!q) {
+      void loadData();
+      return;
+    }
+    let stale = false;
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const [petsData, ownersData] = await Promise.all([
+          listPetsWithOwnersFn({ data: { q } }),
+          listOwnersWithPetsFn({ data: { q } }),
+        ]);
+        if (!stale) {
+          setPets(petsData || []);
+          setOwners(ownersData || []);
+        }
+      } catch (err) {
+        if (!stale) console.error(err);
+      } finally {
+        if (!stale) setLoading(false);
+      }
+    }, 350);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+      setLoading(false);
+    };
+  }, [query]);
+
   const loadData = async () => {
     setLoading(true);
     try {
       const [petsData, ownersData] = await Promise.all([
-        listPetsWithOwnersFn(),
-        listOwnersWithPetsFn(),
+        listPetsWithOwnersFn({ data: { q: "" } }),
+        listOwnersWithPetsFn({ data: { q: "" } }),
       ]);
       setPets(petsData || []);
       setOwners(ownersData || []);
+      // Persist the unfiltered totals so KPI cards always show the real count.
+      setTotalCounts({ pets: (petsData || []).length, owners: (ownersData || []).length });
     } catch (err) {
       console.error(err);
       toast.error("Could not load CRM records");
@@ -132,9 +172,9 @@ export function PetOwnerCrmHub() {
     rows: list.map((p) => [p.petId ?? "-", p.name ?? "-", p.species ?? "-", p.breed ?? "-", p.owner?.name ?? "-"]),
   });
 
-  // KPIs
-  const totalPets = pets.length;
-  const totalOwners = owners.length;
+  // KPIs — always use the unfiltered totals, not the current search slice
+  const totalPets = totalCounts.pets || pets.length;
+  const totalOwners = totalCounts.owners || owners.length;
   const vaccDueCount = pets.filter((p) => p.status === "Vaccination due").length;
   // Build registration chart from actual pet createdAt dates (last 6 months)
   const monthlyChartData = useMemo(() => {
@@ -186,9 +226,14 @@ export function PetOwnerCrmHub() {
   }, [query]);
 
   // Filtered Pets list
+  // Server already filtered by query text; client only applies the status dropdown
+  // and surfaces any additional record-level hits from the clinical notes search.
   const filteredPets = useMemo(() => {
     const q = query.toLowerCase().trim();
     return pets.filter((p) => {
+      // When no query: show everything returned by the server.
+      // When query present: server already narrowed the list, but also include
+      // any pet that matched via its clinical records (recordHits).
       const matchQ =
         !q ||
         recordHits.has(p.petId) ||
@@ -204,21 +249,10 @@ export function PetOwnerCrmHub() {
   }, [pets, query, statusFilter, recordHits]);
 
   // Filtered Owners list
+  // Server already filtered by query; client just applies the row-limit pagination.
   const filteredOwners = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    return owners
-      .filter((o) => {
-        const matchQ =
-          !q ||
-          o.name?.toLowerCase().includes(q) ||
-          o.ownerId?.toLowerCase().includes(q) ||
-          o.phone?.includes(q) ||
-          o.email?.toLowerCase().includes(q) ||
-          o.pets?.some((p: any) => p.name?.toLowerCase().includes(q));
-        return matchQ;
-      })
-      .slice(0, rowLimit);
-  }, [owners, query, rowLimit]);
+    return owners.slice(0, rowLimit);
+  }, [owners, rowLimit]);
 
   const handleOpenNewPetAndOwner = () => {
     setSelectedOwnerForNewPet(null);

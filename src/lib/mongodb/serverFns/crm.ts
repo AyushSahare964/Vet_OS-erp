@@ -172,10 +172,42 @@ export const searchOwnersFn = createServerFn({ method: "GET" })
     return toPlain<any[]>(result);
   }));
 
-export const listOwnersWithPetsFn = createServerFn({ method: "GET" }).handler(tenantScoped(async () => {
+export const listOwnersWithPetsFn = createServerFn({ method: "GET" })
+  .validator((raw: unknown) => {
+    if (typeof raw === "string") return { q: raw };
+    if (raw && typeof raw === "object" && "q" in (raw as any)) return raw as { q: string };
+    return { q: "" };
+  })
+  .handler(tenantScoped(async ({ data }: { data: { q: string } }) => {
   try {
     await ensureCRMSeeded();
-    const owners = await Owner.find({}).sort({ createdAt: -1 }).limit(200).lean();
+    const q = (data?.q ?? "").trim();
+
+    let ownerFilter: any = {};
+    if (q.length >= 1) {
+      const rx = { $regex: q, $options: "i" };
+      // Find owner IDs that match via their pets too
+      const petMatches = await Pet.find({
+        $or: [{ name: rx }, { breed: rx }, { species: rx }, { petId: rx }],
+      }).select("ownerId").lean();
+      const matchedOwnerIdsFromPets = petMatches.map((p: any) => p.ownerId).filter(Boolean);
+
+      ownerFilter = {
+        $or: [
+          { name: rx },
+          { phone: rx },
+          { email: rx },
+          { ownerId: rx },
+          ...(matchedOwnerIdsFromPets.length > 0 ? [{ ownerId: { $in: matchedOwnerIdsFromPets } }] : []),
+        ],
+      };
+    }
+
+    // No limit when searching; cap initial load at 500.
+    const owners = q.length >= 1
+      ? await Owner.find(ownerFilter).sort({ createdAt: -1 }).lean()
+      : await Owner.find({}).sort({ createdAt: -1 }).limit(500).lean();
+
     const ownerIds = owners.map((o: any) => o.ownerId);
     const pets = await Pet.find({ ownerId: { $in: ownerIds } }).lean();
 
@@ -195,10 +227,45 @@ export const listOwnersWithPetsFn = createServerFn({ method: "GET" }).handler(te
   }
 }));
 
-export const listPetsWithOwnersFn = createServerFn({ method: "GET" }).handler(tenantScoped(async () => {
+export const listPetsWithOwnersFn = createServerFn({ method: "GET" })
+  .validator((raw: unknown) => {
+    if (typeof raw === "string") return { q: raw };
+    if (raw && typeof raw === "object" && "q" in (raw as any)) return raw as { q: string };
+    return { q: "" };
+  })
+  .handler(tenantScoped(async ({ data }: { data: { q: string } }) => {
   try {
     await ensureCRMSeeded();
-    const pets = await Pet.find({}).sort({ createdAt: -1 }).limit(200).lean();
+    const q = (data?.q ?? "").trim();
+
+    // Build DB-side filter when a query is present — this makes search dynamic
+    // regardless of how many records exist (no client-side limit problem).
+    let filter: any = {};
+    if (q.length >= 1) {
+      const rx = { $regex: q, $options: "i" };
+      // Also resolve matching owner IDs so we can include their pets
+      const matchedOwners = await Owner.find({
+        $or: [{ name: rx }, { phone: rx }, { email: rx }, { ownerId: rx }],
+      }).select("ownerId").lean();
+      const matchedOwnerIds = matchedOwners.map((o: any) => o.ownerId).filter(Boolean);
+
+      filter = {
+        $or: [
+          { name: rx },
+          { petId: rx },
+          { breed: rx },
+          { species: rx },
+          { microchipNo: rx },
+          ...(matchedOwnerIds.length > 0 ? [{ ownerId: { $in: matchedOwnerIds } }] : []),
+        ],
+      };
+    }
+
+    // No limit when searching (must scan all records); cap initial load at 500.
+    const pets = q.length >= 1
+      ? await Pet.find(filter).sort({ createdAt: -1 }).lean()
+      : await Pet.find({}).sort({ createdAt: -1 }).limit(500).lean();
+
     const ownerIds = [...new Set(pets.map((p: any) => p.ownerId))];
     const owners = await Owner.find({ ownerId: { $in: ownerIds } }).lean();
     const ownerMap = new Map(owners.map((o: any) => [o.ownerId, o]));
