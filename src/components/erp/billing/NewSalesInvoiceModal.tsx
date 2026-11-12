@@ -292,6 +292,9 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [diagnoses, setDiagnoses] = useState<string[]>([]);
   const [customFeeName, setCustomFeeName] = useState("");
   const [customFeeAmt, setCustomFeeAmt] = useState(0);
+  // Overall bill discount (shown only in advisedMode at the totals section)
+  const [overallDiscountType, setOverallDiscountType] = useState<"%" | "₹">("%");
+  const [overallDiscountValue, setOverallDiscountValue] = useState<number>(0);
   // Manual Consultation Fee: receptionist types any free-form amount
   const [manualConsultFeeAmt, setManualConsultFeeAmtRaw] = useState(0);
   const MANUAL_FEE_ID = "fee_MANUAL";
@@ -347,6 +350,9 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
     setPayLines([]);
     // Reset manual consultation fee state on each new modal open
     setManualConsultFeeAmtRaw(0);
+    // Reset overall discount
+    setOverallDiscountValue(0);
+    setOverallDiscountType("%");
   }, [open]);
   // A clinic with no payment accounts configured still gets Cash and Bank lines
   const splitAccounts: PaymentAccount[] = payAccounts.length
@@ -654,6 +660,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         shipping: ship,
         roundOff: 0,
         grandTotal: ship,
+        billDiscountAmt: 0,
       };
     }
 
@@ -661,6 +668,16 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
     // scheme) that must charge zero tax — collapsing it into "GST" here would
     // silently charge tax on a document type the law says is untaxed.
     const taxInvoiceType = invoiceType === "GST" ? "GST" : invoiceType;
+
+    // Compute raw sub-total (sum of all line gross values before bill discount)
+    const rawSubTotal = lines.reduce((acc, l) => acc + (l.quantity || 1) * (l.salePrice || 0), 0);
+    // Bill-level discount in ₹ (convert % to absolute based on raw sub-total)
+    const billDiscountAmt = overallDiscountValue > 0
+      ? overallDiscountType === "%"
+        ? roundMoney((rawSubTotal * Math.min(overallDiscountValue, 100)) / 100)
+        : Math.min(overallDiscountValue, rawSubTotal)
+      : 0;
+
     const docInput: TaxDocInput = {
       lines: lines.map((l) => ({
         quantity: l.quantity,
@@ -673,6 +690,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       branchStateCode: branchStateCode || placeOfSupply,
       placeOfSupply,
       shippingAmount: addShipping ? Math.max(0, shippingCost || 0) : 0,
+      invoiceDiscount: billDiscountAmt > 0 ? billDiscountAmt : undefined,
     };
 
     const res = computeDocument(docInput);
@@ -687,8 +705,9 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       shipping: addShipping ? Math.max(0, shippingCost || 0) : 0,
       roundOff: res.roundOff,
       grandTotal: res.grandTotal,
+      billDiscountAmt,
     };
-  }, [lines, invoiceType, placeOfSupply, branchStateCode, addShipping, shippingCost]);
+  }, [lines, invoiceType, placeOfSupply, branchStateCode, addShipping, shippingCost, overallDiscountType, overallDiscountValue]);
 
   // Sync paidAmount when grandTotal changes based on paymentType
   useEffect(() => {
@@ -965,7 +984,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
           };
         }),
         subtotal: totals.subTotal,
-        billDiscount: 0,
+        billDiscount: totals.billDiscountAmt,
         taxableAmount: totals.taxable,
         gstAmount: totals.taxTotal,
         roundOff: totals.roundOff,
@@ -2239,6 +2258,60 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                   <span>Sub Total:</span>
                   <span className="font-semibold text-foreground">₹{totals.subTotal.toFixed(2)}</span>
                 </div>
+
+                {/* Overall Bill Discount — advisedMode only */}
+                {advisedMode && (
+                  <div className="space-y-1.5 pb-1 border-b border-dashed border-border/60">
+                    <label className="text-[11px] font-semibold text-muted-foreground">
+                      Overall Bill Discount
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <div className="inline-flex rounded-md bg-muted p-0.5 text-[10px] font-bold shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setOverallDiscountType("%")}
+                          className={cn(
+                            "px-2 py-0.5 rounded transition-all",
+                            overallDiscountType === "%" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                          )}
+                        >%</button>
+                        <button
+                          type="button"
+                          onClick={() => setOverallDiscountType("₹")}
+                          className={cn(
+                            "px-2 py-0.5 rounded transition-all",
+                            overallDiscountType === "₹" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                          )}
+                        >₹</button>
+                      </div>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={overallDiscountType === "%" ? 100 : undefined}
+                        value={overallDiscountValue || ""}
+                        onChange={(e) =>
+                          setOverallDiscountValue(Math.max(0, Number(e.target.value) || 0))
+                        }
+                        placeholder="0"
+                        className="h-7 font-mono text-xs bg-background flex-1 min-w-0"
+                      />
+                      {totals.billDiscountAmt > 0 && (
+                        <span className="text-xs text-emerald-600 font-bold whitespace-nowrap shrink-0">
+                          -₹{totals.billDiscountAmt.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {totals.billDiscountAmt > 0 && (
+                  <div className="flex justify-between text-emerald-600 font-semibold text-[11px]">
+                    <span>
+                      Discount ({overallDiscountType === "%" ? `${overallDiscountValue}%` : "Fixed ₹"}):
+                    </span>
+                    <span>-₹{totals.billDiscountAmt.toFixed(2)}</span>
+                  </div>
+                )}
 
                 {totals.taxTotal > 0 && (
                   <div className="flex justify-between text-muted-foreground text-[11px]">

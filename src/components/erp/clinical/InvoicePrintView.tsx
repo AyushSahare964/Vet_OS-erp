@@ -151,6 +151,31 @@ export function InvoicePrintView({ visit, open, onClose }: Props) {
             );
           })()}
 
+          {/* Diagnosis & Symptoms — for Doctor-Advised bills */}
+          {(() => {
+            const notes = String(visit?.clinicalNotes || "");
+            const diagnosis = visit?.diagnosis && visit.diagnosis !== "Counter Sale & Services" ? visit.diagnosis : null;
+            const symsMatch = notes.match(/Symptoms:\s*(.*?)\s*\./i);
+            const symptoms = symsMatch ? symsMatch[1].trim() : null;
+            if (!diagnosis && !symptoms) return null;
+            return (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs space-y-1">
+                {diagnosis && (
+                  <div>
+                    <span className="font-bold text-blue-900 uppercase text-[10px] tracking-wide">Clinical Diagnosis: </span>
+                    <span className="text-blue-800">{diagnosis}</span>
+                  </div>
+                )}
+                {symptoms && (
+                  <div>
+                    <span className="font-bold text-blue-900 uppercase text-[10px] tracking-wide">Symptoms: </span>
+                    <span className="text-blue-800">{symptoms}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Itemized Table with Professional Detailed Calculation */}
           {(() => {
             const invoiceItems = (visit?.items || []).filter((item: any) => {
