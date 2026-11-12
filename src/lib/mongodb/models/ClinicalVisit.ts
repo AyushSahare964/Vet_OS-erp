@@ -239,6 +239,8 @@ export interface IClinicalVisit extends Document {
   balanceDue: number;
   pendingAmount?: number;
   paymentStatus?: "Full" | "Partial" | "Unpaid";
+  paymentDueDate?: string | undefined;
+  dueDate?: string | undefined;
 
   payments: IPaymentRecord[];
 
@@ -393,6 +395,8 @@ const ClinicalVisitSchema = new Schema<IClinicalVisit>(
       enum: ["Full", "Partial", "Unpaid"],
       default: "Full",
     },
+    paymentDueDate: { type: String },
+    dueDate: { type: String },
 
     payments: { type: [PaymentRecordSchema], default: [] },
 

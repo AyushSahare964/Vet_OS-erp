@@ -19,6 +19,7 @@ import {
   Syringe,
   Bone,
   Tag,
+  Calendar,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -43,7 +44,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { STATE_CODES } from "@/lib/finance/stateCodes";
-import { todayIST } from "@/lib/utils/dateUtils";
+import { todayIST, addDaysToISO, formatDisplayDate } from "@/lib/utils/dateUtils";
 import { SplitPaymentInput, type PaymentAccount, type PaymentLine, type PaymentMode } from "@/components/erp/shared/SplitPaymentInput";
 import { listPaymentAccountsFn } from "@/lib/mongodb/serverFns/masters";
 import { roundMoney } from "@/lib/utils/moneyUtils";
@@ -291,6 +292,39 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [diagnoses, setDiagnoses] = useState<string[]>([]);
   const [customFeeName, setCustomFeeName] = useState("");
   const [customFeeAmt, setCustomFeeAmt] = useState(0);
+  // Manual Consultation Fee: receptionist types any free-form amount
+  const [manualConsultFeeAmt, setManualConsultFeeAmtRaw] = useState(0);
+  const MANUAL_FEE_ID = "fee_MANUAL";
+  const isManualFeeActive = !!lines.find((l) => l.id === MANUAL_FEE_ID);
+  const toggleManualFee = () => {
+    setLines((prev) => {
+      const next = prev.some((l) => l.id === MANUAL_FEE_ID)
+        ? prev.filter((l) => l.id !== MANUAL_FEE_ID)
+        : [
+            ...prev,
+            {
+              id: MANUAL_FEE_ID,
+              sNo: 0,
+              tag: "",
+              itemName: "Consultation - Manual",
+              quantity: 1,
+              uom: "SESSION",
+              salePrice: manualConsultFeeAmt,
+              discountPct: 0,
+              gstRate: 0,
+              amount: manualConsultFeeAmt,
+              isFee: true,
+            } as InvoiceGridLine,
+          ];
+      return next.map((l, i) => ({ ...l, sNo: i + 1, tag: `SR-${String(i + 1).padStart(3, "0")}` }));
+    });
+  };
+  const setManualConsultFeeAmt = (val: number) => {
+    setManualConsultFeeAmtRaw(val);
+    setLines((prev) =>
+      prev.map((l) => (l.id === MANUAL_FEE_ID ? { ...l, salePrice: val, amount: val } : l))
+    );
+  };
 
   // ── 4. Footer, Shipping & Partial Payment Details ──
   const [addShipping, setAddShipping] = useState(false);
@@ -301,6 +335,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [paymentMode, setPaymentMode] = useState<"Cash" | "Cheque" | "Card" | "Mobile Wallet" | "Demand Draft" | "Bank Transfer">("Cash");
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "UNPAID">("FULL");
   const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [paymentDueDate, setPaymentDueDate] = useState<string>(() => addDaysToISO(todayIST(), 7));
   // Split payment: one line per mode (e.g. Cash 900 + UPI 20); the lines must add up to "Amount received"
   const [payLines, setPayLines] = useState<PaymentLine[]>([]);
   const [payAccounts, setPayAccounts] = useState<PaymentAccount[]>([]);
@@ -310,6 +345,8 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       .then((a: any[]) => setPayAccounts(a && a.length ? a : []))
       .catch(() => setPayAccounts([]));
     setPayLines([]);
+    // Reset manual consultation fee state on each new modal open
+    setManualConsultFeeAmtRaw(0);
   }, [open]);
   // A clinic with no payment accounts configured still gets Cash and Bank lines
   const splitAccounts: PaymentAccount[] = payAccounts.length
@@ -799,7 +836,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [open, lines, totals, clientName, mobileNo, paymentMode, paidAmount, paymentType]);
+  }, [open, lines, totals, clientName, mobileNo, paymentMode, paidAmount, paymentType, paymentDueDate]);
 
   const handleSave = async (andPrint = false) => {
     if (lines.length === 0) {
@@ -868,9 +905,16 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       const paymentStatus: "Full" | "Partial" | "Unpaid" =
         balanceDue === 0 ? "Full" : effectivePaidAmount > 0 ? "Partial" : "Unpaid";
 
+      const effectiveDueDate =
+        paymentType !== "FULL" && balanceDue > 0
+          ? (paymentDueDate || addDaysToISO(docDate || todayIST(), 7))
+          : undefined;
+
       const payload = {
         visitId: generatedVisitId,
         date: docDate || undefined,
+        dueDate: effectiveDueDate,
+        paymentDueDate: effectiveDueDate,
         petId: selectedPet?.petId || (customerType === "OTHER" ? "RETAIL-CLIENT" : "OTC-WALKIN"),
         petName:
           selectedPet?.name ||
@@ -947,10 +991,12 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
       if (paymentStatus === "Partial") {
         toast.success(
-          `Invoice ${invoiceLabel} saved! Paid: ₹${effectivePaidAmount.toFixed(2)}, Balance Due: ₹${balanceDue.toFixed(2)}`
+          `Invoice ${invoiceLabel} saved! Paid: ₹${effectivePaidAmount.toFixed(2)}, Balance Due: ₹${balanceDue.toFixed(2)}${effectiveDueDate ? ` (Due: ${formatDisplayDate(effectiveDueDate)})` : ""}`
         );
       } else if (paymentStatus === "Unpaid") {
-        toast.info(`Credit Invoice ${invoiceLabel} saved! Balance Due: ₹${balanceDue.toFixed(2)}`);
+        toast.info(
+          `Credit Invoice ${invoiceLabel} saved! Balance Due: ₹${balanceDue.toFixed(2)}${effectiveDueDate ? ` (Due: ${formatDisplayDate(effectiveDueDate)})` : ""}`
+        );
       } else {
         toast.success(`Invoice ${invoiceLabel} saved fully paid!`);
       }
@@ -1384,6 +1430,34 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                       </span>
                     );
                   })}
+                  {/* ── Manual Consultation Fee chip ── */}
+                  <span className="inline-flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={toggleManualFee}
+                      title="Enter a custom consultation fee amount manually"
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold border transition-all",
+                        isManualFeeActive
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-amber-50 text-amber-700 border-amber-300 border-dashed hover:bg-amber-100"
+                      )}
+                    >
+                      {isManualFeeActive ? "✓" : "+"} Manual Fee (₹ ____)
+                    </button>
+                    {isManualFeeActive && (
+                      <Input
+                        type="number"
+                        min={0}
+                        autoFocus
+                        className="h-8 w-28 font-mono border-amber-400 focus:ring-amber-400"
+                        placeholder="₹ amount"
+                        value={manualConsultFeeAmt || ""}
+                        onChange={(e) => setManualConsultFeeAmt(Math.max(0, Number(e.target.value) || 0))}
+                      />
+                    )}
+                  </span>
+
                   {lines.filter((l) => l.id.startsWith("fee_custom_")).map((l) => (
                     <span key={l.id} className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">
                       {l.itemName} (₹{l.salePrice})
@@ -1396,6 +1470,11 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                   <Input type="number" min={0} className="h-8 w-28 font-mono" placeholder="₹ amount" value={customFeeAmt || ""} onChange={(e) => setCustomFeeAmt(Math.max(0, Number(e.target.value) || 0))} />
                   <Button type="button" size="sm" variant="outline" onClick={addCustomFee}>+ Add</Button>
                 </div>
+                {isManualFeeActive && (
+                  <p className="text-[10px] text-amber-600 font-medium">
+                    ₹{manualConsultFeeAmt} manual consultation fee will be saved to this patient&apos;s profile as a Consultation line.
+                  </p>
+                )}
               </div>
             </fieldset>
           )}

@@ -11,6 +11,7 @@ import { FinanceTransaction } from "@/lib/mongodb/models/FinanceTransaction";
 import { ErpRow } from "@/lib/mongodb/models/ErpRow";
 import { resolveTemp } from "@/lib/clinical/temperature";
 import { FoodPurchase } from "@/lib/mongodb/models/FoodPurchase";
+import { BillingReminderModel } from "@/lib/mongodb/models/BillingReminder";
 import { nextSeq } from "./counters";
 import { calcLineItem, calcBillSummary, roundMoney } from "@/lib/utils/moneyUtils";
 
@@ -126,6 +127,8 @@ const SavePrescriptionInputZ = z.object({
 const FinalizeVisitInputZ = z.object({
   /** Invoice date (YYYY-MM-DD); defaults to today. Lets back-dated bills keep their chosen date. */
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dueDate: z.string().optional(),
+  paymentDueDate: z.string().optional(),
   visitId: z.string().min(1),
   petId: z.string().optional(),
   petName: z.string().optional(),
@@ -1293,6 +1296,8 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     }
   }
 
+    const effectiveDueDate = data.dueDate || data.paymentDueDate || undefined;
+
     // 2. Post Double-Entry Journal in Accounting
     try {
       const jvNo = await nextSeq("journal_entry", "JV", 4);
@@ -1335,7 +1340,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
               {
                 invoiceNo: visit.invoiceNo,
                 invoiceDate: visit.date,
-                dueDate: visit.date,
+                dueDate: effectiveDueDate || visit.date,
                 invoiceAmount: data.totalAmount,
                 outstanding: balanceDue,
                 allocatedAmount: data.amountPaid,
@@ -1393,6 +1398,10 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     visit.pendingAmount = pendingAmount;
     visit.paymentStatus = paymentStatus;
     visit.paymentMode = data.paymentMode;
+    if (effectiveDueDate) {
+      visit.dueDate = effectiveDueDate;
+      visit.paymentDueDate = effectiveDueDate;
+    }
     
     const splitTotal = (data.paymentSplits ?? []).reduce((t, x) => t + x.amount, 0);
     const useSplits = !!data.paymentSplits?.length && Math.abs(splitTotal - data.amountPaid) < 0.01 && (visit.payments || []).length === 0;
@@ -1435,6 +1444,29 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     visit.markModified("items");
     if (visit.vitals) visit.markModified("vitals");
     await visit.save();
+
+    // Auto-create Billing Reminder for pending dues
+    if (balanceDue > 0 && effectiveDueDate) {
+      try {
+        const reminderId = await nextSeq("billing_reminder", "REM", 4);
+        await BillingReminderModel.create({
+          reminderId,
+          invoiceNo: visit.invoiceNo || "",
+          petName: visit.petName || "Patient",
+          ownerName: visit.ownerName || "Pet Parent",
+          ownerPhone: visit.ownerPhone || "",
+          dueAmount: balanceDue,
+          reminderType: "Payment Due",
+          scheduledDate: effectiveDueDate,
+          channel: "WhatsApp",
+          priority: "Normal",
+          status: "Pending",
+          notes: `Pending balance on ${visit.invoiceNo} for ${visit.petName || "patient"} (Due: ${effectiveDueDate})`,
+        });
+      } catch (remErr) {
+        console.warn("[finalizeVisitAndBillFn] Could not auto-create billing reminder:", remErr);
+      }
+    }
 
     // Auto-update linked appointment to "Completed"
     try {
