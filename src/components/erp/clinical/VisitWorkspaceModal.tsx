@@ -90,6 +90,9 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
   const CLINIC_CONFIG = useClinicBranding();
 
   const [activeVisit, setActiveVisit] = useState<any>(visit);
+  const [visitDate, setVisitDate] = useState<string>(
+    visit?.date || visit?.prescriptionData?.dateOfVisit || new Date().toISOString().slice(0, 10)
+  );
 
   const isReceptionist =
     roleId === "reception" ||
@@ -100,8 +103,14 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
 
   useEffect(() => {
     setActiveVisit(visit);
+    if (visit?.date) {
+      setVisitDate(visit.date);
+    }
     if (visit?.prescriptionData) {
       setPrescriptionData(visit.prescriptionData);
+      if (visit.prescriptionData.dateOfVisit) {
+        setVisitDate(visit.prescriptionData.dateOfVisit);
+      }
     }
   }, [visit]);
 
@@ -247,8 +256,10 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
       const fresh = await getVisitByIdFn({ data: { visitId } });
       if (fresh) {
         setActiveVisit(fresh);
+        if (fresh.date) setVisitDate(fresh.date);
         if (fresh.prescriptionData) {
           setPrescriptionData(fresh.prescriptionData);
+          if (fresh.prescriptionData.dateOfVisit) setVisitDate(fresh.prescriptionData.dateOfVisit);
         }
         if (fresh.clinicalNotes) setClinicalNotes(fresh.clinicalNotes);
         if (fresh.diagnosis) setDiagnosis(fresh.diagnosis);
@@ -504,7 +515,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
         data: {
           visitId: visit.visitId || `V-${Math.floor(1000 + Math.random() * 9000)}`,
           prescriptionNo: visit.prescriptionNo,
-          date: rxData.dateOfVisit || visit.date || new Date().toISOString().slice(0, 10),
+          date: rxData.dateOfVisit || visitDate || visit.date || new Date().toISOString().slice(0, 10),
           petId: visit.petId,
           petName: visit.petName,
           species: visit.species,
@@ -534,6 +545,9 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
 
       if (updated) {
         setActiveVisit(updated);
+        if (updated.date) setVisitDate(updated.date);
+        window.dispatchEvent(new Event("visits:changed"));
+        window.dispatchEvent(new Event("invoices:changed"));
       }
     } catch (e: any) {
       console.error("Save prescription error:", e);
@@ -1307,8 +1321,10 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
     setIsFinalizing(true);
     try {
       const effectiveRx = prescriptionData || activeVisit?.prescriptionData || visit?.prescriptionData;
+      const effectiveDate = visitDate || effectiveRx?.dateOfVisit || activeVisit?.date || visit?.date || new Date().toISOString().slice(0, 10);
       const payload = {
         visitId: activeVisit?.visitId || visit.visitId || `V-${Math.floor(1000 + Math.random() * 9000)}`,
+        date: effectiveDate,
         petId: activeVisit?.petId || visit.petId || "PET-0001",
         petName: activeVisit?.petName || visit.petName || "Patient",
         species: activeVisit?.species || visit.species || "Canine",
@@ -1388,6 +1404,8 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
       setTab("completed");
       toast.success(`Visit finalized! Stock batches updated and accounting journal posted.`);
       onVisitFinalized?.(updated);
+      window.dispatchEvent(new Event("visits:changed"));
+      window.dispatchEvent(new Event("invoices:changed"));
     } catch (err: any) {
       toast.error(err?.message || "Failed to finalize visit");
     } finally {
@@ -1550,6 +1568,11 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
             <PrescriptionWorkflow
               key={activeVisit?.visitId || visit?.visitId}
               visit={activeVisit || visit}
+              visitDate={visitDate}
+              onVisitDateChange={(d) => {
+                setVisitDate(d);
+                setActiveVisit((prev: any) => (prev ? { ...prev, date: d } : prev));
+              }}
               prescriptionData={prescriptionData || activeVisit?.prescriptionData || visit?.prescriptionData}
               petDetails={petDetails}
               catalogItems={catalogItems}
@@ -1563,6 +1586,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
               advisedMode={advisedMode}
               onVisitUpdated={(updated) => {
                 setActiveVisit(updated);
+                if (updated.date) setVisitDate(updated.date);
                 if (updated.prescriptionData) {
                   setPrescriptionData(updated.prescriptionData);
                 }

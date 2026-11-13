@@ -46,7 +46,7 @@ import { LaboratoryOrderSection, type LaboratoryState } from "./LaboratoryOrderS
 import { LivePrescriptionSummaryPanel } from "./LivePrescriptionSummaryPanel";
 import { ActiveSchemeBanner } from "./ActiveSchemeBanner";
 
-import { savePrescriptionSectionFn } from "@/lib/mongodb/serverFns/clinical";
+import { savePrescriptionSectionFn, updateVisitDateFn } from "@/lib/mongodb/serverFns/clinical";
 import { createAppointmentFn, updateAppointmentFn, deleteAppointmentFn } from "@/lib/mongodb/serverFns/appointments";
 import { formatDisplayDate, calculateQuickDate } from "@/lib/utils/dateUtils";
 import { resolveUnitPrice, convertToBase } from "@/lib/inventory/packagingUtils";
@@ -77,6 +77,8 @@ export interface PrescriptionWorkflowProps {
    *  Billing) and false once every section has settled — lets the parent block Finalize
    *  until the visit document actually has all sections' data, not just what synced first. */
   onBackgroundSyncStateChange?: (syncing: boolean) => void;
+  visitDate?: string;
+  onVisitDateChange?: (date: string) => void;
   /** Receptionist "Doctor-Advised Medicine": no treatment (immediate medication) and no injection sections. */
   advisedMode?: boolean;
 }
@@ -209,6 +211,8 @@ export function PrescriptionWorkflow({
   onVisitUpdated,
   onPrescriptionDataChange,
   onBackgroundSyncStateChange,
+  visitDate,
+  onVisitDateChange,
   advisedMode = false,
 }: PrescriptionWorkflowProps) {
   const initialRx: IPrescriptionData = prescriptionData || visit?.prescriptionData || {};
@@ -216,8 +220,52 @@ export function PrescriptionWorkflow({
   // Patient details (Read-only reception identity data)
   const patientName = visit?.petName || petDetails?.name || "Patient";
   const patientId = visit?.petId || petDetails?.petId || "PET-0001";
-  const rawDate = visit?.date || initialRx.dateOfVisit || new Date().toISOString().slice(0, 10);
-  const formattedVisitDate = formatDisplayDate(rawDate) || rawDate;
+  
+  // Doctor-editable Consultation Date
+  const [currentDate, setCurrentDate] = useState<string>(() => {
+    const d = visitDate || visit?.date || initialRx.dateOfVisit || new Date().toISOString().slice(0, 10);
+    return String(d).slice(0, 10);
+  });
+
+  useEffect(() => {
+    if (visitDate) {
+      setCurrentDate(String(visitDate).slice(0, 10));
+    } else if (visit?.date) {
+      setCurrentDate(String(visit.date).slice(0, 10));
+    }
+  }, [visitDate, visit?.date]);
+
+  const handleDateChange = async (newDate: string) => {
+    if (!newDate) return;
+    const cleanDate = String(newDate).slice(0, 10);
+    setCurrentDate(cleanDate);
+    onVisitDateChange?.(cleanDate);
+
+    // Update prescriptionData in-memory
+    const updatedRx: IPrescriptionData = {
+      ...(prescriptionData || visit?.prescriptionData || {}),
+      dateOfVisit: cleanDate,
+    };
+    onPrescriptionDataChange?.(updatedRx);
+
+    // Persist to server if visitId exists so MongoDB and Patient Profile stay in sync
+    if (visit?.visitId) {
+      try {
+        const updatedVisit = await updateVisitDateFn({ data: { visitId: visit.visitId, date: cleanDate } });
+        if (updatedVisit) {
+          onVisitUpdated?.(updatedVisit);
+        }
+        toast.success(`Consultation date updated to ${formatDisplayDate(cleanDate) || cleanDate}`);
+        window.dispatchEvent(new Event("visits:changed"));
+        window.dispatchEvent(new Event("invoices:changed"));
+      } catch (err: any) {
+        console.error("Failed to update visit date on server:", err);
+      }
+    }
+  };
+
+  const rawDate = currentDate;
+  const formattedVisitDate = formatDisplayDate(currentDate) || currentDate;
 
   // Receptionist Intake vs Manual Vitals Check (no hardcoded fake seed fallbacks)
   const rawIntakeWeight =
@@ -1090,7 +1138,7 @@ export function PrescriptionWorkflow({
     // Build snapshot
     const rxSnapshot: IPrescriptionData = {
       prescriptionId: visit.prescriptionNo,
-      dateOfVisit: rawDate,
+      dateOfVisit: currentDate,
       weight: patientWeight ? Number(patientWeight) : undefined,
       weightUnit: patientWeightUnit,
       bodyTemperature: patientTemp ? Number(patientTemp) : undefined,
@@ -1485,13 +1533,20 @@ export function PrescriptionWorkflow({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge
-            variant="outline"
-            className="text-xs font-mono font-bold bg-muted/60 text-foreground border-border px-3 py-1 flex items-center gap-1.5"
+          {/* Editable Consultation Date */}
+          <div
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card/90 hover:border-primary/60 hover:bg-muted/30 px-2.5 py-1 text-xs font-mono shadow-2xs transition-all focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary group"
+            title="Click to edit consultation date"
           >
-            <Calendar className="size-3.5 text-primary" />
-            <span>Date: {formattedVisitDate}</span>
-          </Badge>
+            <Calendar className="size-3.5 text-primary shrink-0 pointer-events-none group-hover:scale-105 transition-transform" />
+            <span className="text-[11px] font-semibold text-muted-foreground select-none">Date:</span>
+            <input
+              type="date"
+              value={currentDate}
+              onChange={(e) => void handleDateChange(e.target.value)}
+              className="bg-transparent font-bold text-foreground text-xs font-mono focus:outline-none cursor-pointer"
+            />
+          </div>
           <SignatureCapture
             label="Digital Sign"
             hasSignature={!!docSig}

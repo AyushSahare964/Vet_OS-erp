@@ -35,11 +35,18 @@ export function ClinicDashboard({ title = "Clinic Dashboard" }: { title?: string
 
   useEffect(() => {
     void loadVisits();
+    const reload = () => void loadVisits();
+    window.addEventListener("visits:changed", reload);
+    window.addEventListener("invoices:changed", reload);
     // 30-second poll — frequent enough to stay fresh without hammering the DB
     const interval = setInterval(() => {
       void loadVisits();
     }, 30_000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("visits:changed", reload);
+      window.removeEventListener("invoices:changed", reload);
+    };
   }, [roleId]);
 
   const loadVisits = async () => {

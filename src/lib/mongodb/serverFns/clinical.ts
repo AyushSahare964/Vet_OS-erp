@@ -353,6 +353,7 @@ export const savePrescriptionFn = createServerFn({ method: "POST" })
       };
     }
 
+    if (data.date) visit.date = data.date;
     if (data.diagnosis !== undefined) visit.diagnosis = data.diagnosis;
     if (data.clinicalNotes !== undefined) visit.clinicalNotes = data.clinicalNotes;
     if (data.nextVisitDate !== undefined) visit.nextVisitDate = data.nextVisitDate;
@@ -1381,6 +1382,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
         tempUnit: tRes ? tRes.unit : tUnit,
       };
     }
+    if (data.date) visit.date = data.date;
     visit.diagnosis = data.diagnosis || undefined;
     visit.clinicalNotes = data.clinicalNotes || undefined;
     visit.nextVisitDate = data.nextVisitDate || undefined;
@@ -1574,6 +1576,30 @@ export const deleteVisitFn = createServerFn({ method: "POST" })
     await connectDB();
     await ClinicalVisit.deleteOne({ visitId: data.visitId });
     return { success: true };
+  }));
+
+export const updateVisitDateFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) =>
+    z.object({
+      visitId: z.string().min(1),
+      date: z.string().min(1),
+    }).parse(raw)
+  )
+  .handler(tenantScoped(async ({ data }: { data: { visitId: string; date: string } }) => {
+    await connectDB();
+    const visit = await ClinicalVisit.findOne({ visitId: data.visitId });
+    if (!visit) throw new Error(`Visit ${data.visitId} not found`);
+    const cleanDate = String(data.date).slice(0, 10);
+    visit.date = cleanDate;
+    if (visit.prescriptionData) {
+      visit.prescriptionData = {
+        ...visit.prescriptionData,
+        dateOfVisit: cleanDate,
+      };
+      visit.markModified("prescriptionData");
+    }
+    await visit.save();
+    return toPlain<any>(visit.toObject ? visit.toObject() : visit);
   }));
 
 export const getLatestVisitFn = createServerFn({ method: "GET" })

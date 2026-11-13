@@ -456,6 +456,20 @@ export function Patient360Profile({
     }
   }, [open, currentPetId, load]);
 
+  useEffect(() => {
+    const handleChanged = () => {
+      if (open && currentPetId) {
+        void load(currentPetId);
+      }
+    };
+    window.addEventListener("visits:changed", handleChanged);
+    window.addEventListener("invoices:changed", handleChanged);
+    return () => {
+      window.removeEventListener("visits:changed", handleChanged);
+      window.removeEventListener("invoices:changed", handleChanged);
+    };
+  }, [open, currentPetId, load]);
+
   const reload = () => void load(currentPetId);
 
   // While the first load is in flight, show the clicked row so the header never flashes empty.

@@ -109,6 +109,13 @@ export function ReceptionistDashboardView({ role, onOpenConsultation }: Props) {
   useEffect(() => {
     // Fire immediately — no artificial delay that adds to MongoDB cold-start time
     void loadData();
+    const reload = () => void loadData();
+    window.addEventListener("visits:changed", reload);
+    window.addEventListener("invoices:changed", reload);
+    return () => {
+      window.removeEventListener("visits:changed", reload);
+      window.removeEventListener("invoices:changed", reload);
+    };
   }, []);
 
   // Poll for pending payment requests every 30 seconds
