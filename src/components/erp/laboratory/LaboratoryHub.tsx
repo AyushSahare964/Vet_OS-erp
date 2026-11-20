@@ -445,7 +445,27 @@ export function LaboratoryHub() {
                           >
                             <Trash2 className="size-3.5" />
                           </Button>
-                          {row.status !== "Reported" ? (
+                          {row.status === "Reported" ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenPrint(row)}
+                                className="h-7 text-[11px] font-bold text-emerald-600 border-emerald-500/30 hover:bg-emerald-600 hover:text-white gap-1"
+                              >
+                                <Printer className="size-3" /> View Report
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenResults(row)}
+                                className="h-7 text-[11px] font-bold text-primary border-primary/30 hover:bg-primary hover:text-primary-foreground gap-1"
+                                title="Edit parameters, observed results, and test price"
+                              >
+                                <FileCheck className="size-3" /> Edit Results &amp; Params
+                              </Button>
+                            </>
+                          ) : (
                             <Button
                               size="sm"
                               variant="outline"
@@ -453,15 +473,6 @@ export function LaboratoryHub() {
                               className="h-7 text-[11px] font-bold text-primary border-primary/30 hover:bg-primary hover:text-primary-foreground gap-1"
                             >
                               <FileCheck className="size-3" /> Enter Results
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleOpenPrint(row)}
-                              className="h-7 text-[11px] font-bold text-emerald-600 border-emerald-500/30 hover:bg-emerald-600 hover:text-white gap-1"
-                            >
-                              <Printer className="size-3" /> View Report
                             </Button>
                           )}
                         </div>

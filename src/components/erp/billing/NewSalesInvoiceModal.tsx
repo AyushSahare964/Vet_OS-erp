@@ -63,6 +63,7 @@ import { cn } from "@/lib/utils";
 import { OwnerPetRegistrationModal } from "@/components/erp/crm/OwnerPetRegistrationModal";
 import { InvoicePrintView } from "@/components/erp/clinical/InvoicePrintView";
 import { vetNameOf } from "@/lib/clinical/attendingVet";
+import { createAppointmentFn } from "@/lib/mongodb/serverFns/appointments";
 
 interface InvoiceGridLine {
   id: string;
@@ -290,6 +291,19 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
   const [lines, setLines] = useState<InvoiceGridLine[]>([]);
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [diagnoses, setDiagnoses] = useState<string[]>([]);
+  // Follow-up visits (advised mode): N consecutive days after the invoice date, or hand-picked days
+  const [fuOn, setFuOn] = useState(false);
+  const [fuMode, setFuMode] = useState<"consecutive" | "individual">("consecutive");
+  const [fuDays, setFuDays] = useState(3);
+  const [fuPicked, setFuPicked] = useState<string[]>([]);
+  const [fuNote, setFuNote] = useState("");
+  const followUpDates = useMemo(() => {
+    if (!advisedMode || !fuOn) return [] as string[];
+    const base = docDate || todayIST();
+    return fuMode === "consecutive"
+      ? Array.from({ length: Math.min(60, Math.max(0, fuDays)) }, (_, i) => addDaysToISO(base, i + 1))
+      : [...fuPicked].sort();
+  }, [advisedMode, fuOn, fuMode, fuDays, fuPicked, docDate]);
   const [customFeeName, setCustomFeeName] = useState("");
   const [customFeeAmt, setCustomFeeAmt] = useState(0);
   // Overall bill discount (shown only in advisedMode at the totals section)
@@ -353,6 +367,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
     // Reset overall discount
     setOverallDiscountValue(0);
     setOverallDiscountType("%");
+    setFuOn(false); setFuMode("consecutive"); setFuDays(3); setFuPicked([]); setFuNote("");
   }, [open]);
   // A clinic with no payment accounts configured still gets Cash and Bank lines
   const splitAccounts: PaymentAccount[] = payAccounts.length
@@ -409,7 +424,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       defaultPurchasePrice: item.defaultPurchasePrice || 0,
       mrp: item.mrp || 0,
       minSalePrice: item.minSalePrice || 0,
-      isTaxExempt: false,
+      isExempt: false,
       status: "Active",
     };
     setInventoryItems((prev) => [rowItem, ...prev.filter((x) => x.itemCode !== rowItem.itemCode)]);
@@ -1008,6 +1023,39 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
       const res = await finalizeVisitAndBillFn({ data: payload });
       const invoiceLabel = res.invoiceNo || "Generated";
 
+      if (followUpDates.length) {
+        try {
+          await Promise.all(
+            followUpDates.map((d, i) =>
+              createAppointmentFn({
+                data: {
+                  token: `A-${(Date.now() % 1000000) + i}`,
+                  pet: payload.petName,
+                  petId: payload.petId,
+                  species: payload.species,
+                  breed: payload.breed,
+                  owner: payload.ownerName,
+                  phone: payload.ownerPhone || "",
+                  doctor: effectiveDoctorName,
+                  reason: fuNote.trim() || `Follow-up (${i + 1} of ${followUpDates.length})`,
+                  type: "Follow-up",
+                  status: "Waiting",
+                  appointment_date: d,
+                  date: d,
+                  slot: "To be assigned",
+                  priority: "Routine",
+                  sourceVisitId: payload.visitId,
+                },
+              })
+            )
+          );
+          toast.success(`${followUpDates.length} follow-up appointment${followUpDates.length > 1 ? "s" : ""} booked`);
+        } catch (e) {
+          console.warn("Follow-up booking failed:", e);
+          toast.error("Invoice saved, but follow-up appointments could not be booked.");
+        }
+      }
+
       if (paymentStatus === "Partial") {
         toast.success(
           `Invoice ${invoiceLabel} saved! Paid: ₹${effectivePaidAmount.toFixed(2)}, Balance Due: ₹${balanceDue.toFixed(2)}${effectiveDueDate ? ` (Due: ${formatDisplayDate(effectiveDueDate)})` : ""}`
@@ -1054,7 +1102,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-6xl p-0 overflow-hidden border-border bg-card shadow-2xl rounded-2xl">
+      <DialogContent className="max-w-7xl p-0 overflow-hidden border-border bg-card shadow-2xl rounded-2xl">
         {/* Window Title Bar */}
         <div className="flex items-center justify-between border-b border-border bg-muted/40 px-5 py-3">
           <div className="flex items-center gap-2.5">
@@ -1077,7 +1125,10 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
         </div>
 
         {/* Form Content */}
-        <div className="p-5 space-y-4 max-h-[82vh] overflow-y-auto">
+        <div className={cn("space-y-3 overflow-y-auto", advisedMode
+          // compact density: tighter panels, gaps and control heights so more fits in one view
+          ? "p-2 space-y-1.5 max-h-[92vh] [&_fieldset]:p-2 [&_fieldset]:space-y-1.5 [&_fieldset_.space-y-1]:space-y-0.5 [&_fieldset_.space-y-1\\.5]:space-y-1 [&_.gap-3]:gap-2 [&_.gap-2]:gap-1.5 [&_legend]:text-[10px] [&_legend]:leading-none [&_label]:text-[11px] [&_input:not([type=checkbox]):not([type=radio])]:h-7 [&_button[role=combobox]]:h-7 [&_.h-8]:h-7"
+          : "p-5 max-h-[82vh]")}>
           {/* ── 1. GROUPBOX: Invoice Information (Matching Image 4) ── */}
           <fieldset className="rounded-xl border border-border bg-card/60 p-3.5 space-y-3 relative">
             <legend className="px-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -1085,7 +1136,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
             </legend>
 
             {/* Row 1: Invoice Type, Date, Sold By Dropdown */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className={cn("grid grid-cols-1 gap-3", advisedMode ? "md:grid-cols-4" : "md:grid-cols-3")}>
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-foreground">
                   Invoice Type <span className="text-rose-500">*</span>
@@ -1412,7 +1463,7 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
               <legend className="px-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 Symptoms, Diagnosis &amp; Consultation Fee
               </legend>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Symptoms</Label>
                   <TagPicker value={symptoms} onChange={setSymptoms} placeholder="Select or type a symptom, press Enter" options={SYMPTOM_OPTIONS} />
@@ -1420,6 +1471,64 @@ export function NewSalesInvoiceModal({ open, onClose, onInvoiceCreated, initialP
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Diagnosis</Label>
                   <TagPicker value={diagnoses} onChange={setDiagnoses} placeholder="Select or type a diagnosis, press Enter" options={DIAGNOSIS_OPTIONS.map((label) => ({ label }))} />
+                </div>
+                {/* Follow-up: consecutive days or individually picked days */}
+                <div className="space-y-1 md:col-span-2 lg:col-span-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Follow-up visits</Label>
+                    <label className="flex items-center gap-1.5 text-[11px] font-semibold cursor-pointer">
+                      <input type="checkbox" className="size-3.5" checked={fuOn} onChange={(e) => setFuOn(e.target.checked)} />
+                      Required
+                    </label>
+                  </div>
+                  {fuOn ? (
+                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
+                      <div className="inline-flex rounded-md border border-border bg-background p-0.5 text-[11px] font-bold">
+                        {(["consecutive", "individual"] as const).map((m) => (
+                          <button key={m} type="button" onClick={() => setFuMode(m)}
+                            className={cn("px-2.5 py-0.5 rounded", fuMode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+                            {m === "consecutive" ? "Consecutive days" : "Individual days"}
+                          </button>
+                        ))}
+                      </div>
+                      {fuMode === "consecutive" ? (
+                        <div className="flex flex-wrap items-center gap-1">
+                          {[3, 5, 7, 14].map((n) => (
+                            <button key={n} type="button" onClick={() => setFuDays(n)}
+                              className={cn("px-2 py-0.5 rounded border text-[11px] font-bold", fuDays === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/40 border-border")}>
+                              {n}d
+                            </button>
+                          ))}
+                          <Input type="number" min={1} max={60} value={fuDays || ""} onChange={(e) => setFuDays(Math.max(0, Number(e.target.value) || 0))} className="h-7 w-16 font-mono text-xs" aria-label="Number of days" />
+                          <span className="text-[10px] text-muted-foreground">days after invoice date</span>
+                        </div>
+                      ) : (
+                        <Input type="date" min={docDate || todayIST()} value="" onChange={(e) => {
+                          const v = e.target.value;
+                          if (v) setFuPicked((p) => (p.includes(v) ? p : [...p, v]));
+                        }} className="h-7 w-40 font-mono text-xs" aria-label="Add follow-up day" />
+                      )}
+                      {fuMode === "individual" && fuPicked.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {followUpDates.map((d) => (
+                            <span key={d} className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground">
+                              {formatDisplayDate(d)}
+                              <button type="button" aria-label={`Remove ${d}`} onClick={() => setFuPicked((p) => p.filter((x) => x !== d))}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <Input value={fuNote} onChange={(e) => setFuNote(e.target.value)} placeholder="Follow-up note (optional)" className="h-7 text-xs" />
+                      {followUpDates.length > 0 && (
+                        <p className="text-[10px] font-medium text-primary">
+                          {followUpDates.length} appointment{followUpDates.length > 1 ? "s" : ""}: {formatDisplayDate(followUpDates[0]!)}
+                          {followUpDates.length > 1 ? ` – ${formatDisplayDate(followUpDates[followUpDates.length - 1]!)}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border px-2 py-2 text-[11px] text-muted-foreground">No follow-up. Tick Required to book return visits.</p>
+                  )}
                 </div>
               </div>
               <div className="space-y-1.5">

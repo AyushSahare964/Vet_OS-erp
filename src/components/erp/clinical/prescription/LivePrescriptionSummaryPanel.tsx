@@ -13,6 +13,7 @@ import {
   Clock,
   FileText,
   Loader2,
+  FlaskConical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ export interface LiveSummaryPanelProps {
   animalFood: InventoryItemLine[];
   prescribedFood: InventoryItemLine[];
   accessories: InventoryItemLine[];
+  laboratoryTests?: Array<{ id: string; name?: string | undefined; testName?: string | undefined; price?: number | undefined }> | undefined;
   hasUnsavedChanges: boolean;
   isSavingAll?: boolean | undefined;
   isProceeding?: boolean | undefined;
@@ -50,6 +52,7 @@ export function LivePrescriptionSummaryPanel({
   animalFood,
   prescribedFood,
   accessories,
+  laboratoryTests = [],
   hasUnsavedChanges,
   isSavingAll = false,
   isProceeding = false,
@@ -84,6 +87,10 @@ export function LivePrescriptionSummaryPanel({
   const animalFoodTotal = useMemo(() => sumSection(animalFood), [animalFood]);
   const prescribedFoodTotal = useMemo(() => sumSection(prescribedFood), [prescribedFood]);
   const accessoryTotal = useMemo(() => sumSection(accessories), [accessories]);
+  const laboratoryTotal = useMemo(
+    () => (laboratoryTests || []).reduce((acc, t) => acc + (Number(t.price) || 0), 0),
+    [laboratoryTests]
+  );
 
   const totalLinesCount =
     (consultTotal > 0 ? 1 : 0) +
@@ -92,7 +99,8 @@ export function LivePrescriptionSummaryPanel({
     injectables.length +
     animalFood.length +
     prescribedFood.length +
-    accessories.length;
+    accessories.length +
+    (laboratoryTests ? laboratoryTests.length : 0);
 
   const grandTotal =
     consultTotal +
@@ -101,7 +109,8 @@ export function LivePrescriptionSummaryPanel({
     injectableTotal +
     animalFoodTotal +
     prescribedFoodTotal +
-    accessoryTotal;
+    accessoryTotal +
+    laboratoryTotal;
 
   return (
     <div
@@ -320,6 +329,32 @@ export function LivePrescriptionSummaryPanel({
                   <span className="truncate max-w-[160px] text-foreground">{m.name}</span>
                   <span className="font-mono text-muted-foreground">
                     {m.quantity} · ₹{(m.quantity * m.unitPrice * (1 - (m.discountPercent || 0) / 100)).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 8. Laboratory & Diagnostics Orders */}
+        {laboratoryTests && laboratoryTests.length > 0 && (
+          <div className="rounded-lg border border-purple-200 dark:border-purple-900/60 bg-purple-50/40 dark:bg-purple-950/20 p-2 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">
+              <span className="flex items-center gap-1">
+                <FlaskConical className="size-3 text-purple-600" /> Lab Tests ({laboratoryTests.length})
+              </span>
+              <span className="font-mono font-bold text-foreground">
+                ₹{laboratoryTotal.toFixed(2)}
+              </span>
+            </div>
+            <div className="space-y-1">
+              {laboratoryTests.map((t) => (
+                <div key={t.id} className="flex items-center justify-between text-xs pl-2">
+                  <span className="truncate max-w-[160px] text-foreground font-medium">
+                    {t.name || t.testName || "Diagnostic Test"}
+                  </span>
+                  <span className="font-mono text-muted-foreground">
+                    ₹{Number(t.price || 0).toFixed(2)}
                   </span>
                 </div>
               ))}

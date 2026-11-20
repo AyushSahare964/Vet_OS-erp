@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { listPetsWithOwnersFn } from "@/lib/mongodb/serverFns/crm";
 import { createAppointmentFn, deleteAppointmentFn, updateAppointmentStatusFn } from "@/lib/mongodb/serverFns/appointments";
 import { useErp } from "@/lib/erp/store";
-import { dismissFollowUpFn, getVaccinationBoardFn, hideHistoryRowFn } from "@/lib/mongodb/serverFns/vaccination";
+import { dismissFollowUpFn, editVaccinationDateFn, getVaccinationBoardFn, hideHistoryRowFn } from "@/lib/mongodb/serverFns/vaccination";
 import { cn } from "@/lib/utils";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
 
@@ -45,6 +45,18 @@ const BinBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
     <Trash2 className="size-4" aria-hidden="true" />
   </button>
 );
+const EditBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={label}
+    aria-label={label}
+    className="inline-flex size-7 items-center justify-center rounded-md text-primary hover:bg-primary/10"
+  >
+    <Pencil className="size-4" aria-hidden="true" />
+  </button>
+);
+type DateEdit = { scope: "due" | "history"; petId: string; petName?: string; kind: string; name?: string; from: string; value: string; row: any };
 const Chip = ({ tone, children }: { tone: "late" | "soon" | "ok" | "info"; children: React.ReactNode }) => (
   <span
     className={cn(
@@ -206,6 +218,22 @@ export function VaccinationDue() {
   const [q, setQ] = useState("");
   const isAdmin = useErp().roleId === "admin";
   const [book, setBook] = useState<Booking | null>(null);
+  const [dateEdit, setDateEdit] = useState<DateEdit | null>(null);
+  const [savingDate, setSavingDate] = useState(false);
+  const saveDate = async () => {
+    if (!dateEdit?.value) return;
+    setSavingDate(true);
+    try {
+      await editVaccinationDateFn({ data: { scope: dateEdit.scope, petId: dateEdit.petId, kind: dateEdit.kind, name: dateEdit.name, from: dateEdit.from, to: dateEdit.value } });
+      toast.success("Date updated");
+      setDateEdit(null);
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not update the date");
+    } finally {
+      setSavingDate(false);
+    }
+  };
 
   const load = useCallback(() => {
     getVaccinationBoardFn().then(setBoard).catch(() => setBoard({ followUps: [], history: [], appointments: [] }));
@@ -248,7 +276,7 @@ export function VaccinationDue() {
     if (h.token != null) return remove({ token: h.token, type: KIND_LABEL[h.kind as AnyKind], pet: h.petName });
     if (!window.confirm(`Delete this ${KIND_LABEL[h.kind as AnyKind].toLowerCase()} entry for ${h.petName || h.petId} from this list? The medical record is not affected.`)) return;
     try {
-      await hideHistoryRowFn({ data: { petId: h.petId, kind: h.kind, date: h.date, name: String(h.name) } });
+      await hideHistoryRowFn({ data: { petId: h.petId, kind: h.kind, date: h.origDate ?? h.date, name: String(h.name) } });
       toast.success("Entry deleted");
       load();
     } catch (e: any) {
@@ -363,6 +391,7 @@ export function VaccinationDue() {
                   <Link to="/patient/$id" params={{ id: f.petId }} className="text-xs font-semibold text-primary hover:underline">
                     Open patient
                   </Link>
+                  <EditBtn label="Edit due date" onClick={() => setDateEdit({ scope: "due", petId: f.petId, petName: f.petName, kind: f.kind, from: f.origDue ?? f.due, value: f.due, row: f })} />
                   {isAdmin && (
                     <BinBtn label="Delete follow-up" onClick={() => removeFollowUp(f)} />
                   )}
@@ -408,7 +437,10 @@ export function VaccinationDue() {
                 <td className="px-4 py-2.5">{h.name}</td>
                 <td className="px-4 py-2.5 text-xs text-muted-foreground">{h.by || h.source}</td>
                 <td className="px-4 py-2.5 text-xs text-muted-foreground">{ago <= 0 ? "Today" : ago === 1 ? "Yesterday" : `${ago} days ago`}</td>
-                <td className="px-4 py-2.5 text-right">
+                <td className="space-x-1 whitespace-nowrap px-4 py-2.5 text-right">
+                  {h.token == null && (
+                    <EditBtn label="Edit date given" onClick={() => setDateEdit({ scope: "history", petId: h.petId, petName: h.petName, kind: h.kind, name: String(h.name), from: h.origDate ?? h.date, value: h.date, row: h })} />
+                  )}
                   {isAdmin && (
                     <BinBtn label="Delete entry" onClick={() => removeHistory(h)} />
                   )}
@@ -417,6 +449,56 @@ export function VaccinationDue() {
             );
           })}
         </Table>
+      )}
+
+      {dateEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-200" onClick={() => setDateEdit(null)}>
+          <div className="w-full max-w-md space-y-3 rounded-xl border border-border bg-card p-4 shadow-xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold">
+              {dateEdit.scope === "due" ? "Edit due date" : "Edit date given"} · {KIND_LABEL[dateEdit.kind as AnyKind]}
+            </h3>
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs">
+              <p className="text-sm font-bold">{dateEdit.petName || dateEdit.petId}</p>
+              <p className="text-muted-foreground">
+                {[dateEdit.row.species, dateEdit.row.breed].filter(Boolean).join(" · ")}
+              </p>
+              <dl className="mt-2 grid grid-cols-[88px_1fr] gap-x-2 gap-y-1">
+                {([
+                  ["Owner", [dateEdit.row.ownerName, dateEdit.row.ownerPhone].filter(Boolean).join(" · ")],
+                  [dateEdit.scope === "due" ? "Follow-up for" : "Product", dateEdit.scope === "due" ? KIND_LABEL[dateEdit.kind as AnyKind] : dateEdit.name],
+                  [dateEdit.scope === "due" ? "Registered on" : "Recorded", dateEdit.row.setOn ? formatDisplayDate(dateEdit.row.setOn) : dateEdit.scope === "history" ? dateEdit.row.source : ""],
+                  [dateEdit.scope === "due" ? "Registered by" : "Given by", dateEdit.row.by],
+                  ["Source", dateEdit.scope === "due" ? dateEdit.row.source : ""],
+                  ["Diagnosis", dateEdit.row.diagnosis],
+                  ["Doctor's note", dateEdit.row.note],
+                  ["Original date", dateEdit.from !== dateEdit.value || dateEdit.row.origDue || dateEdit.row.origDate ? formatDisplayDate(dateEdit.from) : ""],
+                ] as [string, string | undefined][]).filter(([, v]) => v).map(([k, v]) => (
+                  <div key={k} className="contents">
+                    <dt className="text-muted-foreground">{k}</dt>
+                    <dd className="font-medium">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            <label className="block text-xs font-semibold text-muted-foreground">
+              {dateEdit.scope === "due" ? "New due date" : "Date given"}
+            </label>
+            <input
+              type="date"
+              autoFocus
+              value={dateEdit.value}
+              max={dateEdit.scope === "history" ? todayIso() : undefined}
+              onChange={(e) => setDateEdit({ ...dateEdit, value: e.target.value })}
+              className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono"
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" className="rounded-md bg-muted px-3 py-1.5 text-xs font-bold" onClick={() => setDateEdit(null)}>Cancel</button>
+              <button type="button" disabled={savingDate || !dateEdit.value} className="rounded-md bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground disabled:opacity-50" onClick={saveDate}>
+                {savingDate ? "Saving…" : "Save date"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {book && <BookDialog init={book} pets={pets} onClose={() => setBook(null)} onBooked={load} />}

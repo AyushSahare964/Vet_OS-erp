@@ -2,11 +2,12 @@ import { getSignatureForDoctor } from "@/lib/erp/hospitalSignature";
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, Download, Stethoscope, Pill, Syringe, Utensils, AlertCircle, Sparkles, Calendar, CheckSquare } from "lucide-react";
+import { Maximize2, Minimize2, Printer, Download, Stethoscope, Pill, Syringe, Utensils, AlertCircle, Sparkles, Calendar, CheckSquare } from "lucide-react";
 import { printOrSaveDocumentAsPdf } from "@/lib/utils/pdfExport";
 import { formatDisplayDate } from "@/lib/utils/dateUtils";
 import { listApprovedDoctorsFn } from "@/lib/mongodb/serverFns/auth";
 import { useClinicBranding } from "@/lib/erp/useClinicBranding";
+import { cn } from "@/lib/utils";
 
 interface Props {
   visit: any;
@@ -16,6 +17,7 @@ interface Props {
 
 export function PrescriptionPrintView({ visit, open, onClose }: Props) {
   const CLINIC_CONFIG = useClinicBranding();
+  const [full, setFull] = useState(false);
   // Load approved doctors (role: doctor | admin) from DB to resolve the correct doctor on the Rx
   const [doctorsList, setDoctorsList] = useState<Array<{ id: string; name: string; specialty?: string }>>([]);
   useEffect(() => {
@@ -95,7 +97,7 @@ export function PrescriptionPrintView({ visit, open, onClose }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className={cn("flex flex-col p-0 overflow-hidden transition-all duration-300", full ? "h-screen max-h-screen w-screen max-w-none rounded-none sm:max-w-none bg-slate-100" : "max-w-4xl max-h-[92vh]")}>
         {/* Top Control Header */}
         <div className="border-b border-border bg-muted/40 px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -111,6 +113,9 @@ export function PrescriptionPrintView({ visit, open, onClose }: Props) {
             <Button size="sm" onClick={handlePrint} className="h-8 text-xs gap-1 bg-primary text-primary-foreground">
               <Printer className="size-3.5" /> Print Rx Sheet
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setFull((f) => !f)} className="h-8 text-xs gap-1" title={full ? "Exit full screen" : "Full screen"}>
+              {full ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />} {full ? "Exit full screen" : "Full screen"}
+            </Button>
             <Button variant="ghost" size="sm" onClick={onClose} className="h-8 text-xs">
               Close
             </Button>
@@ -118,7 +123,7 @@ export function PrescriptionPrintView({ visit, open, onClose }: Props) {
         </div>
 
         {/* Printable Area */}
-        <div id="prescription-printable-area" className="flex-1 overflow-y-auto p-8 bg-white text-slate-900 font-sans text-xs" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div id="prescription-printable-area" className={cn("flex-1 overflow-y-auto p-8 bg-white text-slate-900 font-sans text-xs", full && "mx-auto my-4 w-full max-w-5xl shadow-lg")} style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           
           <div className="prescription-content-body space-y-5" style={{ flex: "1 0 auto" }}>
             {/* Clinic Letterhead */}

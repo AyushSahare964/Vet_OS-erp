@@ -34,10 +34,21 @@ export interface FollowUpEntry {
 
 export interface FollowUpBloodTestItem {
   id: string; // stable client UUID
-  labTestId?: string;
+  labTestId?: string | undefined;
   testName: string;
-  category?: string;
-  status?: string; // "Ordered" | "Sample Collected" | "Processing" | "Completed" | "Cancelled"
+  name?: string | undefined;
+  code?: string | undefined;
+  testCode?: string | undefined;
+  category?: string | undefined;
+  price?: number | undefined;
+  sample?: string | undefined;
+  tat?: string | undefined;
+  panel?: string | undefined;
+  parameters?: Array<{ name: string; unit: string; refRange: string; min?: number | undefined; max?: number | undefined }> | undefined;
+  results?: Array<{ name: string; value: string; unit: string; refRange: string; flag?: string | undefined }> | undefined;
+  impression?: string | undefined;
+  status?: string | undefined; // "Ordered" | "Sample Collected" | "Processing" | "Completed" | "Reported" | "Cancelled"
+  notes?: string | undefined;
 }
 
 export interface FollowUpState {

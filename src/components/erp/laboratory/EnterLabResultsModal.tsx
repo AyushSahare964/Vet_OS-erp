@@ -8,6 +8,7 @@ import {
   Plus,
   Trash2,
   RotateCcw,
+  Pencil,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,10 +25,10 @@ export interface ParameterResult {
   value: string;
   unit: string;
   refRange: string;
-  flag?: "Normal" | "High" | "Low" | "Critical";
-  isCustom?: boolean;
+  flag?: "Normal" | "High" | "Low" | "Critical" | undefined;
+  isCustom?: boolean | undefined;
   /** Test the parameter belongs to (shown when an order has several tests) */
-  group?: string;
+  group?: string | undefined;
 }
 
 // Clean reference templates — all observed values start empty (no default dummy entries)
@@ -83,7 +84,7 @@ export function calculateParamFlag(
 
   // Pattern 1: "< 200" or "<= 200"
   const lessMatch = range.match(/^<(=)?\s*([0-9.]+)/);
-  if (lessMatch) {
+  if (lessMatch && lessMatch[2]) {
     const max = parseFloat(lessMatch[2]);
     if (num > max * 1.8) return "Critical";
     if (num > max) return "High";
@@ -92,7 +93,7 @@ export function calculateParamFlag(
 
   // Pattern 2: "> 50" or ">= 50"
   const greaterMatch = range.match(/^>(=)?\s*([0-9.]+)/);
-  if (greaterMatch) {
+  if (greaterMatch && greaterMatch[2]) {
     const min = parseFloat(greaterMatch[2]);
     if (num < min * 0.5) return "Critical";
     if (num < min) return "Low";
@@ -101,7 +102,7 @@ export function calculateParamFlag(
 
   // Pattern 3: "12.0 - 18.0", "12 - 18", "12 to 18", "12.0 – 18.0"
   const rangeMatch = range.match(/([0-9.]+)\s*(?:-|–|—|to)\s*([0-9.]+)/i);
-  if (rangeMatch) {
+  if (rangeMatch && rangeMatch[1] && rangeMatch[2]) {
     const min = parseFloat(rangeMatch[1]);
     const max = parseFloat(rangeMatch[2]);
     if (num < min) {
@@ -130,6 +131,8 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
   const [impression, setImpression] = useState("");
   const [pathologist, setPathologist] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isEditingStructure, setIsEditingStructure] = useState(false);
+  const [orderPrice, setOrderPrice] = useState<string>("");
 
   // References for keyboard navigation across parameter input boxes
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -147,15 +150,14 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
 
   // Auto-focus the first observed result input box when the modal opens
   useEffect(() => {
-    if (open) {
-      const timer = setTimeout(() => {
-        if (inputRefs.current[0]) {
-          inputRefs.current[0]?.focus();
-          inputRefs.current[0]?.select();
-        }
-      }, 150);
-      return () => clearTimeout(timer);
-    }
+    if (!open) return undefined;
+    const timer = setTimeout(() => {
+      if (inputRefs.current[0]) {
+        inputRefs.current[0]?.focus();
+        inputRefs.current[0]?.select();
+      }
+    }, 150);
+    return () => clearTimeout(timer);
   }, [open]);
 
   // Keyboard navigation: Enter or ArrowDown jumps to next parameter box, ArrowUp to previous
@@ -228,6 +230,7 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
 
       // Automatically default pathologist / sign-off to the referring doctor or saved pathologist
       setPathologist(order.pathologist || referringDoctor || "");
+      setOrderPrice(String(order.totalAmount ?? order.price ?? ""));
     }
   }, [order, referringDoctor]);
 
@@ -312,7 +315,7 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
   const handleSave = async () => {
     setSaving(true);
     const reportedAt = new Date().toISOString();
-    const patch = {
+    const patch: any = {
       status: "Reported",
       parameters: params,
       impression,
@@ -320,6 +323,10 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
       doctor: referringDoctor,
       reportedAt,
     };
+    if (orderPrice.trim()) {
+      patch.price = Number(orderPrice);
+      patch.totalAmount = Number(orderPrice);
+    }
 
     try {
       await updateLabResultsFn({ data: { orderId: order.orderId ?? order.order, patch } });
@@ -338,7 +345,7 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl border-border bg-card shadow-2xl p-0 gap-0">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl border-border bg-card shadow-2xl p-0 gap-0">
         <div className="border-b border-border p-5 bg-muted/20">
           <DialogHeader className="p-0">
             <div className="flex items-center justify-between">
@@ -368,9 +375,31 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
                   </DialogDescription>
                 </div>
               </div>
-              <Badge variant="outline" className="font-mono text-xs text-primary bg-primary/10">
-                {order.species || "Canine"} Reference Set
-              </Badge>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded-lg border border-border">
+                  <span className="text-xs font-semibold text-muted-foreground">Test Price:</span>
+                  {isEditingStructure ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-bold font-mono">₹</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={orderPrice}
+                        onChange={(e) => setOrderPrice(e.target.value)}
+                        className="h-6 w-20 text-xs font-mono font-bold bg-background p-1"
+                        placeholder="Price"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-xs font-mono font-bold text-foreground">
+                      ₹{Number(orderPrice || order.totalAmount || order.price || 0).toLocaleString("en-IN")}
+                    </span>
+                  )}
+                </div>
+                <Badge variant="outline" className="font-mono text-xs text-primary bg-primary/10">
+                  {order.species || "Canine"} Reference Set
+                </Badge>
+              </div>
             </div>
           </DialogHeader>
         </div>
@@ -386,6 +415,16 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant={isEditingStructure ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setIsEditingStructure((v) => !v)}
+                  className="h-7 text-xs font-semibold gap-1 text-primary border-primary/30"
+                >
+                  <Pencil className="size-3" />
+                  {isEditingStructure ? "Done Editing Parameters" : "Edit Parameters & Price"}
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -423,7 +462,7 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
                   {params.map((p, idx) => (
                     <tr key={`${p.name}-${idx}`} className="hover:bg-muted/20">
                       <td className="px-4 py-2 font-semibold text-foreground">
-                        {p.isCustom ? (
+                        {isEditingStructure || p.isCustom ? (
                           <Input
                             value={p.name}
                             onChange={(e) => updateParamField(idx, "name", e.target.value)}
@@ -455,7 +494,7 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
                         />
                       </td>
                       <td className="px-4 py-2 font-mono text-muted-foreground">
-                        {p.isCustom ? (
+                        {isEditingStructure || p.isCustom ? (
                           <Input
                             value={p.unit}
                             onChange={(e) => updateParamField(idx, "unit", e.target.value)}
@@ -467,7 +506,7 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
                         )}
                       </td>
                       <td className="px-4 py-2 font-mono text-muted-foreground">
-                        {p.isCustom ? (
+                        {isEditingStructure || p.isCustom ? (
                           <Input
                             value={p.refRange}
                             onChange={(e) => updateParamField(idx, "refRange", e.target.value)}
@@ -503,14 +542,16 @@ export function EnterLabResultsModal({ open, onClose, order, onResultsSaved }: P
                         </select>
                       </td>
                       <td className="px-2 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteParam(idx)}
-                          className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors"
-                          title="Remove parameter"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
+                        {(isEditingStructure || p.isCustom) && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteParam(idx)}
+                            className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors"
+                            title="Remove parameter"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

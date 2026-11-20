@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { PenLine, RotateCcw, RotateCw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SignatureDocPreview } from "./SignatureDocPreview";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const KEY = "vetechiq.doctorSignature";
@@ -72,10 +73,15 @@ interface Props {
   onChange: (dataUrl: string) => void;
   hasSignature?: boolean;
   className?: string;
+  /** When given, the dialog previews the signature in the prescription and bill footers with this doctor's details. */
+  doctor?: { name: string; title?: string };
+  /** The signature already saved, shown in the preview until a new one is drawn. */
+  current?: string;
 }
 
 /** Draw-to-sign button + dialog (mouse, touch or stylus), or upload a photo, rotate it upright and crop it. */
-export function SignatureCapture({ label = "Sign", onChange, hasSignature, className }: Props) {
+export function SignatureCapture({ label = "Sign", onChange, hasSignature, className, doctor, current }: Props) {
+  const [live, setLive] = useState("");
   const [open, setOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [photo, setPhoto] = useState<HTMLImageElement | null>(null);
@@ -112,8 +118,10 @@ export function SignatureCapture({ label = "Sign", onChange, hasSignature, class
     const c = canvas.current;
     c?.getContext("2d")?.clearRect(0, 0, c.width, c.height);
     setDirty(false);
+    setLive("");
   };
   const close = () => {
+    setLive("");
     if (photo) URL.revokeObjectURL(photo.src);
     setPhoto(null);
     setAngle(0);
@@ -139,6 +147,13 @@ export function SignatureCapture({ label = "Sign", onChange, hasSignature, class
   };
   const rotated = useMemo(() => (photo ? renderRotated(photo, angle, 1400, 600) : null), [photo, angle]);
   const preview = useMemo(() => (rotated ? rotated.toDataURL("image/jpeg", 0.8) : ""), [rotated]);
+  const photoSig = useMemo(() => (rotated ? finish(rotated, crop) : ""), [rotated, crop]);
+  const previewBlock = doctor && (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-foreground">Preview: how it will look on documents</p>
+      <SignatureDocPreview signature={photo ? photoSig : live || current || ""} doctorName={doctor.name} title={doctor.title} />
+    </div>
+  );
   const rotateBy = (d: number) => {
     setAngle((a) => ((a + d + 540) % 360) - 180);
     setCrop(null); // a crop box belongs to one orientation
@@ -178,7 +193,7 @@ export function SignatureCapture({ label = "Sign", onChange, hasSignature, class
         </Button>
       )}
       <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : close())}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className={doctor ? "max-h-[92vh] max-w-3xl overflow-y-auto" : "max-w-lg"}>
           <DialogHeader>
             <DialogTitle>Digital signature</DialogTitle>
             <DialogDescription>
@@ -218,6 +233,7 @@ export function SignatureCapture({ label = "Sign", onChange, hasSignature, class
                 />
                 <span className="w-12 text-right font-mono text-xs text-muted-foreground">{angle}°</span>
               </div>
+              {previewBlock}
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setCrop(null)} disabled={!crop}>Reset crop</Button>
                 <Button variant="ghost" onClick={() => { URL.revokeObjectURL(photo.src); setPhoto(null); setAngle(0); setCrop(null); }}>Back</Button>
@@ -232,9 +248,10 @@ export function SignatureCapture({ label = "Sign", onChange, hasSignature, class
                 height={300}
                 onPointerDown={down}
                 onPointerMove={move}
-                onPointerUp={() => (drawing.current = false)}
+                onPointerUp={(e) => { drawing.current = false; setLive(e.currentTarget.toDataURL("image/png")); }}
                 className="h-44 w-full touch-none rounded-lg border border-dashed border-slate-400 bg-white"
               />
+              {previewBlock}
               <DialogFooter>
                 <Button variant="outline" asChild>
                   <label className="cursor-pointer">

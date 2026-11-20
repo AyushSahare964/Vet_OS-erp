@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useErp } from "@/lib/erp/store";
-import { ClinicDashboard } from "@/components/clinic/ClinicDashboard";
-import { DOCTOR_HOME_ROLES, doctorHeadLinks } from "@/components/doctor/doctorHead";
+import { doctorHeadLinks } from "@/components/doctor/doctorHead";
 import { DoctorLayout } from "@/components/doctor/layout/DoctorLayout";
 import { HomeDashboard } from "@/components/doctor/home/HomeDashboard";
 import LandingPage from "@/components/landing/LandingPage";
@@ -28,9 +27,9 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-// Doctor, admin and platform users get the new doctor home (blue design).
-// Other roles keep the previous dashboard, which also lives at /clinic.
-// Signed-out visitors get the marketing landing page; signed-in users get their dashboard.
+// Every signed-in role starts on the home with the clinic name, the pets and the running bar, with the search above it.
+// The operational dashboard is the Home button in the side bar (/clinic).
+// Signed-out visitors get the marketing landing page.
 function Home() {
   const { isAuthenticated, isLoadingAuth } = useErp();
   if (isLoadingAuth) return <SessionLoader />;
@@ -47,8 +46,6 @@ function SessionLoader() {
 }
 
 function HomeForRole() {
-  const { roleId } = useErp();
-  if (!DOCTOR_HOME_ROLES.has(roleId)) return <ClinicDashboard title="Home Dashboard" />;
   return (
     <DoctorLayout showSearch>
       <HomeDashboard />

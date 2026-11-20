@@ -47,7 +47,6 @@ import { LivePrescriptionSummaryPanel } from "./LivePrescriptionSummaryPanel";
 import { ActiveSchemeBanner } from "./ActiveSchemeBanner";
 
 import { savePrescriptionSectionFn, updateVisitDateFn } from "@/lib/mongodb/serverFns/clinical";
-import { createAppointmentFn, updateAppointmentFn, deleteAppointmentFn } from "@/lib/mongodb/serverFns/appointments";
 import { formatDisplayDate, calculateQuickDate } from "@/lib/utils/dateUtils";
 import { resolveUnitPrice, convertToBase } from "@/lib/inventory/packagingUtils";
 import type { IPrescriptionData } from "@/lib/mongodb/models/ClinicalVisit";
@@ -903,73 +902,9 @@ export function PrescriptionWorkflow({
       amount: consultationFee,
       preset: consultationFeePreset,
     });
-  // Books/updates/cancels Appointments-board entries for every enabled follow-up.
-  // Treatment with an N-day quick option books one visit per day for the next N days;
-  // everything else books a single visit on its due date. Tokens are persisted on the entry
-  // so re-saving updates the same appointments instead of duplicating them.
-  const syncFollowUpAppointments = async (entries: FollowUpState["entries"]): Promise<FollowUpState["entries"]> => {
-    const labels: Record<string, string> = {
-      TREATMENT: "Treatment Follow-up",
-      CONSULTATION: "Consultation Follow-up",
-      VACCINE: "Vaccine Booster",
-      DEWORMING: "Deworming Booster",
-    };
-    const out: any = { ...entries };
-    for (const type of Object.keys(labels)) {
-      const e: any = (entries as any)[type];
-      if (!e) continue;
-      const old: string[] = e.appointmentTokens?.length ? e.appointmentTokens : e.appointmentToken ? [e.appointmentToken] : [];
-      const daily = type === "TREATMENT" && /^\d+D$/.test(e.quickOption || "") ? parseInt(e.quickOption, 10) : 0;
-      const dates: string[] =
-        e.enabled && e.dueDate
-          ? daily > 0 ? Array.from({ length: daily }, (_, i) => calculateQuickDate(rawDate, `${i + 1}D`)) : [e.dueDate]
-          : [];
-      const tokens: string[] = [];
-      try {
-        for (let i = 0; i < dates.length; i++) {
-          const payload = {
-            pet: patientName,
-            petId: patientId,
-            species: petDetails?.species || visit?.species || "",
-            breed: petDetails?.breed || visit?.breed || "",
-            owner: petDetails?.ownerName || visit?.ownerName || "",
-            phone: petDetails?.ownerPhone || visit?.ownerPhone || "",
-            doctor: doctorName,
-            reason: e.notes || (daily > 0 ? `${labels[type]} (day ${i + 1} of ${daily})` : labels[type]),
-            type: "Follow-up",
-            status: "Waiting",
-            appointment_date: dates[i],
-            date: dates[i],
-            slot: "To be assigned",
-            priority: "Routine",
-            sourceVisitId: visit?.visitId,
-          };
-          if (old[i]) {
-            await updateAppointmentFn({ data: { ...payload, token: old[i] } });
-            tokens.push(old[i]!);
-          } else {
-            const token = `A-${(Date.now() % 1000000) + i}`;
-            const created = await createAppointmentFn({ data: { ...payload, token } });
-            tokens.push(String(created?.token ?? token));
-          }
-        }
-        // Follow-up shortened or turned off: cancel the surplus bookings
-        for (const t of old.slice(dates.length)) await deleteAppointmentFn({ data: { token: t } });
-        if (dates.length) toast.success(`${labels[type]}: ${dates.length > 1 ? `${dates.length} appointments booked` : "appointment booked"} (${formatDisplayDate(dates[0]!)}${dates.length > 1 ? ` – ${formatDisplayDate(dates[dates.length - 1]!)}` : ""})`);
-        out[type] = { ...e, appointmentTokens: tokens, appointmentToken: tokens[0] };
-      } catch (err) {
-        console.warn(`Could not sync ${type} follow-up appointments:`, err);
-        out[type] = { ...e, appointmentTokens: [...tokens, ...old.slice(tokens.length)], appointmentToken: tokens[0] ?? old[0] };
-      }
-    }
-    return out;
-  };
   const handleSaveFollowUp = async () => {
-    const entries = followUp.required
-      ? await syncFollowUpAppointments(followUp.entries)
-      : followUp.entries;
-    setFollowUp((prev) => ({ ...prev, entries }));
-    await executeSaveSection("FOLLOWUP", { required: followUp.required, entries });
+    // Only the draft is saved here; the appointments are booked when billing is completed.
+    await executeSaveSection("FOLLOWUP", { required: followUp.required, entries: followUp.entries });
   };
   const handleSaveLaboratory = () =>
     executeSaveSection("LABORATORY", {
@@ -1124,6 +1059,24 @@ export function PrescriptionWorkflow({
         sourceType: "RX_ITEM",
         rxSection: "ACCESSORY",
       });
+    }
+
+    // Laboratory & Diagnostics (Section 7)
+    if (laboratory.enabled && Array.isArray(laboratory.bloodTests)) {
+      for (const t of laboratory.bloodTests) {
+        linesList.push({
+          id: t.id || `rx-lab-${Math.random()}`,
+          lineType: "Diagnostic",
+          itemCode: (t as any).code || (t as any).testCode || undefined,
+          name: `[Lab] ${t.name || (t as any).testName || "Diagnostic Test"}`,
+          quantity: 1,
+          unitPrice: Number((t as any).price || 0),
+          discountPercent: 0,
+          gstRate: visit?.billType === "GST" ? 18 : 0,
+          sourceType: "RX_ITEM",
+          rxSection: "LABORATORY",
+        });
+      }
     }
 
     return linesList;
@@ -1405,8 +1358,11 @@ export function PrescriptionWorkflow({
     if (e.key === "Enter") {
       e.preventDefault();
       if (symptomsDropdownOpen && symptomsActiveIndex >= 0 && symptomsActiveIndex < total) {
-        handleToggleSymptom(filteredSymptomOptions[symptomsActiveIndex]);
-        return;
+        const item = filteredSymptomOptions[symptomsActiveIndex];
+        if (item) {
+          handleToggleSymptom(item);
+          return;
+        }
       }
       if (symptomSearchQuery.trim()) {
         const exact = filteredSymptomOptions.find(
@@ -1498,8 +1454,11 @@ export function PrescriptionWorkflow({
     if (e.key === "Enter") {
       e.preventDefault();
       if (findingsDropdownOpen && findingsActiveIndex >= 0 && findingsActiveIndex < total) {
-        handleToggleFinding(filteredFindingOptions[findingsActiveIndex]);
-        return;
+        const item = filteredFindingOptions[findingsActiveIndex];
+        if (item) {
+          handleToggleFinding(item);
+          return;
+        }
       }
       if (findingSearchQuery.trim()) {
         const exact = filteredFindingOptions.find(
@@ -1550,6 +1509,8 @@ export function PrescriptionWorkflow({
           <SignatureCapture
             label="Digital Sign"
             hasSignature={!!docSig}
+            current={docSig}
+            doctor={{ name: doctorName || signer?.fullName || "" }}
             onChange={(u) => {
               saveDoctorSignature(u);
               setDocSig(u);
@@ -2295,6 +2256,7 @@ export function PrescriptionWorkflow({
             lastSavedAt={sectionSavedAt["LABORATORY"]}
             isDirty={isLaboratoryDirty}
             isLocked={isSettled}
+            patientSpecies={petDetails?.species || visit?.species}
           />
 
           {/* 8. Animal Food */}
@@ -2370,6 +2332,7 @@ export function PrescriptionWorkflow({
             animalFood={animalFood}
             prescribedFood={prescribedFood}
             accessories={accessories}
+            laboratoryTests={laboratory.enabled ? laboratory.bloodTests : []}
             hasUnsavedChanges={hasAnyDirtySection}
             isSavingAll={isSavingAll}
             isProceeding={isProceeding}

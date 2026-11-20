@@ -15,6 +15,7 @@ const DEW_RX = /deworm|drontal|fenbendazole|praziquantel|albendazole|pyrantel|mi
 const SERVICES = ["Vaccination", "Deworming", "Grooming"];
 const DISMISS_MODULE = "vaccination_dismissed";
 const HIDDEN_HISTORY_MODULE = "vaccination_history_hidden";
+const DATE_EDIT_MODULE = "vaccination_date_edits";
 const historyKey = (h: any) => `${h.petId}|${h.kind}|${h.date}|${String(h.name).toLowerCase()}`;
 const iso = (d: unknown) => String(d ?? "").slice(0, 10);
 
@@ -28,7 +29,7 @@ const iso = (d: unknown) => String(d ?? "").slice(0, 10);
 export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
   tenantScoped(async () => {
     await connectDB();
-    const [visits, vacs, dews, pets, appts, dismissals, hiddenRows] = await Promise.all([
+    const [visits, vacs, dews, pets, appts, dismissals, hiddenRows, editRows] = await Promise.all([
       ClinicalVisit.find({}).sort({ date: -1, createdAt: -1 }).limit(2000).lean() as Promise<any[]>,
       Vaccination.find({}).sort({ dateGiven: -1 }).limit(2000).lean() as Promise<any[]>,
       DewormingRecord.find({}).sort({ dateGiven: -1 }).limit(2000).lean() as Promise<any[]>,
@@ -36,7 +37,10 @@ export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
       ErpRow.find({ moduleId: "appointments", "data.type": { $in: SERVICES } }).sort({ createdAt: -1 }).limit(500).lean() as Promise<any[]>,
       ErpRow.find({ moduleId: DISMISS_MODULE }).lean() as Promise<any[]>,
       ErpRow.find({ moduleId: HIDDEN_HISTORY_MODULE }).lean() as Promise<any[]>,
+      ErpRow.find({ moduleId: DATE_EDIT_MODULE }).lean() as Promise<any[]>,
     ]);
+    // staff-corrected dates, keyed by the original (derived) date so a newer doctor-set date wins again
+    const edits = new Map(editRows.map((r) => [String(r.data?.key), String(r.data?.to)]));
     const hidden = new Set(hiddenRows.map((r) => historyKey(r.data || {})));
     const dismissed = new Set(dismissals.map((r) => `${r.data?.petId}|${r.data?.kind}|${r.data?.due}`));
 
@@ -54,10 +58,14 @@ export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
       const fe = v.prescriptionData?.followUpEntries || {};
       const set = (kind: Kind, entry: any, legacy?: string) => {
         if (entry && entry.enabled === false) return;
-        addDue({ ...base, kind, due: entry?.dueDate || legacy, setOn: date, source: "Consultation", by: v.doctorName, visitId: v.visitId });
+        addDue({ ...base, kind, due: entry?.dueDate || legacy, setOn: date, source: "Consultation", by: v.doctorName, visitId: v.visitId, note: entry?.notes, diagnosis: v.diagnosis, species: v.species, breed: v.breed });
       };
-      set("VACCINE", fe.VACCINE, v.nextVaccineDate);
-      set("DEWORMING", fe.DEWORMING, v.nextDewormingDate);
+      // follow-ups of a consultation that is still a draft (billing not completed) are not due yet
+      const finalized = v.inventoryDeducted || /^(paid|settled|closed|completed|billed|partial|unpaid|full)/i.test(String(v.status || ""));
+      if (finalized) {
+        set("VACCINE", fe.VACCINE, v.nextVaccineDate);
+        set("DEWORMING", fe.DEWORMING, v.nextDewormingDate);
+      }
 
       const lines = [
         ...(v.items || []).map((i: any) => ({ name: i.name, vaccine: i.lineType === "Vaccine" })),
@@ -104,11 +112,17 @@ export const getVaccinationBoardFn = createServerFn({ method: "GET" }).handler(
     for (const a of appointments.filter((x) => /completed/i.test(String(x.status)))) {
       uniq.push({ petId: a.petId, petName: a.pet, ownerName: a.owner, ownerPhone: a.ownerPhone, kind: SERVICE_KIND[a.type], name: a.notes || a.type, date: a.date, source: "Appointment", token: a.token });
     }
+    for (const d of due.values()) {
+      const to = edits.get(`${d.petId}|${d.kind}|${d.due}`);
+      if (to) Object.assign(d, { origDue: d.due, due: to });
+    }
     const followUps = [...due.values()].filter(
       (d) => !dismissed.has(`${d.petId}|${d.kind}|${d.due}`) && !uniq.some((h) => h.petId === d.petId && h.kind === d.kind && h.date > (d.setOn || "")),
     );
 
-    return JSON.parse(JSON.stringify({ followUps, history: uniq.filter((h) => !hidden.has(historyKey(h))), appointments })) as {
+    return JSON.parse(JSON.stringify({ followUps, history: uniq
+        .filter((h) => !hidden.has(historyKey(h)))
+        .map((h) => { const to = edits.get(historyKey(h)); return to ? { ...h, origDate: h.date, date: to } : h; }), appointments })) as {
       followUps: any[];
       history: any[];
       appointments: any[];
@@ -146,6 +160,34 @@ export const hideHistoryRowFn = createServerFn({ method: "POST" })
       if (getTenantContext()?.roleId !== "admin") throw new Error("Only an administrator can delete history rows");
       await connectDB();
       await ErpRow.create({ moduleId: HIDDEN_HISTORY_MODULE, data });
+      return true;
+    }),
+  );
+
+/**
+ * Correct the date of a follow-up (scope "due") or of a dose already given (scope "history") for one patient.
+ * `from` is the original date (row.origDue / row.origDate when already edited). The source record is untouched;
+ * the correction is stored on top and cleared by passing `to` equal to `from`.
+ */
+export const editVaccinationDateFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) =>
+    z.object({
+      scope: z.enum(["due", "history"]),
+      petId: z.string().min(1),
+      kind: z.string().min(1),
+      name: z.string().optional(),
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }).parse(raw),
+  )
+  .handler(
+    tenantScoped(async ({ data }) => {
+      await connectDB();
+      const key = data.scope === "due"
+        ? `${data.petId}|${data.kind}|${data.from}`
+        : historyKey({ petId: data.petId, kind: data.kind, date: data.from, name: data.name ?? "" });
+      await ErpRow.deleteMany({ moduleId: DATE_EDIT_MODULE, "data.key": key });
+      if (data.to !== data.from) await ErpRow.create({ moduleId: DATE_EDIT_MODULE, data: { key, to: data.to } });
       return true;
     }),
   );

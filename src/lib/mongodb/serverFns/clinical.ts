@@ -13,6 +13,7 @@ import { resolveTemp } from "@/lib/clinical/temperature";
 import { FoodPurchase } from "@/lib/mongodb/models/FoodPurchase";
 import { BillingReminderModel } from "@/lib/mongodb/models/BillingReminder";
 import { nextSeq } from "./counters";
+import { calculateQuickDate } from "@/lib/utils/dateUtils";
 import { calcLineItem, calcBillSummary, roundMoney } from "@/lib/utils/moneyUtils";
 
 function toPlain<T>(v: any): T {
@@ -376,7 +377,7 @@ export const savePrescriptionFn = createServerFn({ method: "POST" })
     await visit.save();
 
     // Auto-sync appointment if next visit scheduled
-    if (data.nextVisitDate) {
+    if (data.nextVisitDate && !(visit.prescriptionData as any)?.followUpEntries) {
       try {
         const nextToken = Math.floor(100 + Math.random() * 900);
         await ErpRow.findOneAndUpdate(
@@ -484,6 +485,259 @@ const SectionSaveInputZ = z.object({
   ownerPhone: z.string().optional(),
   doctorName: z.string().optional(),
 });
+
+async function syncBloodTestsWithLabAndBilling({
+  visit,
+  bloodTests,
+  enabled,
+  dueDate,
+  isSettled,
+  sourceSection,
+  syncOrders = true,
+  syncBilling = true,
+}: {
+  visit: any;
+  bloodTests: any[];
+  enabled: boolean;
+  dueDate?: string;
+  isSettled: boolean;
+  sourceSection: "LABORATORY" | "FOLLOWUP";
+  /** Create/update/cancel the orders in the Laboratory queue. Done only when the visit is finalized, never on a draft save. */
+  syncOrders?: boolean;
+  /** Rebuild the draft bill's lab lines. */
+  syncBilling?: boolean;
+}) {
+  const currentTestIds = new Set(bloodTests.map((t: any) => t.id));
+  const existingLabOrders = await ErpRow.find({
+    moduleId: "lab_orders",
+    "data.sourceType": "RX_FOLLOWUP_TEST",
+    "data.visitId": visit.visitId,
+  });
+
+  // Check for removed tests that cannot be cancelled
+  for (const ord of syncOrders ? existingLabOrders : []) {
+    const ordData = (ord.data || {}) as Record<string, any>;
+    const ordId = ordData["sourceId"];
+    if (!currentTestIds.has(ordId) || !enabled) {
+      if (
+        ordData["status"] === "Sample Collected" ||
+        ordData["status"] === "Processing" ||
+        ordData["status"] === "Completed"
+      ) {
+        throw new Error(
+          `Cannot remove lab test "${ordData["testName"]}": sample is already collected in the Laboratory. Please manage or cancel it from the Laboratory section.`
+        );
+      }
+      if (ordData["status"] === "Ordered") {
+        ordData["status"] = "Cancelled";
+        ordData["cancelReason"] = "Removed from Doctor Prescription";
+        ord.markModified("data");
+        await ord.save();
+      }
+    }
+  }
+
+  // Fetch catalog rows to enrich orders with real profile, parameters, and pricing
+  const catalogRows = await ErpRow.find({ moduleId: "lab_test_catalog" });
+  const catalogList: any[] = catalogRows.map((r: any) => ({
+    id: r.id,
+    ...(((r.data && typeof r.data === "object" ? r.data : {}) as Record<string, any>)),
+  }));
+
+  if (syncOrders && enabled && bloodTests.length > 0) {
+    for (const t of bloodTests) {
+      const testName = String(t.testName || t.name || "").trim();
+      const testCode = String(t.testCode || t.code || "").trim();
+      const matchedCatalog: any = catalogList.find((c: any) =>
+        (testCode && c.code && String(c.code).toLowerCase() === testCode.toLowerCase()) ||
+        (testName && c.name && String(c.name).toLowerCase() === testName.toLowerCase())
+      );
+
+      const profile = t.panel || matchedCatalog?.panel || matchedCatalog?.department || "Biochemistry & Hematology";
+      const sampleType = t.sample || matchedCatalog?.sample || matchedCatalog?.sampleType || "Whole Blood EDTA";
+      const tat = t.tat || matchedCatalog?.tat || "2 hours";
+      const price = Number(t.price ?? matchedCatalog?.price ?? 450);
+
+      const rawParams = (Array.isArray(t.parameters) && t.parameters.length > 0)
+        ? t.parameters
+        : (Array.isArray(matchedCatalog?.parameters) && matchedCatalog.parameters.length > 0)
+        ? matchedCatalog.parameters
+        : [];
+
+      const parameters = rawParams.map((p: any) => {
+        const refRange = p.refRange || (p.min !== undefined && p.max !== undefined && (p.min || p.max) ? `${p.min} - ${p.max} ${p.unit || ""}`.trim() : "");
+        return {
+          name: p.name || "",
+          unit: p.unit || "",
+          refRange,
+          min: p.min,
+          max: p.max,
+          value: p.value || "",
+          flag: p.flag || "Normal",
+          status: p.status || "Pending",
+        };
+      });
+
+      const existing = existingLabOrders.find(
+        (o: any) => o.data?.sourceId === t.id && o.data?.status !== "Cancelled"
+      );
+
+      if (!existing) {
+        const labSeq = await nextSeq("lab_order", "LAB", 4);
+        await ErpRow.create({
+          moduleId: "lab_orders",
+          data: {
+            orderId: labSeq,
+            pet: visit.petName,
+            petId: visit.petId,
+            species: visit.species,
+            breed: visit.breed,
+            owner: visit.ownerName,
+            phone: visit.ownerPhone,
+            testName,
+            testCode: testCode || matchedCatalog?.code || "",
+            profile,
+            department: matchedCatalog?.department || profile,
+            sampleType,
+            barcode: `BC-${Math.floor(1000 + Math.random() * 9000)}`,
+            tat,
+            priority: "Routine",
+            doctor: visit.doctorName || "",
+            date: dueDate || visit.date || new Date().toISOString().slice(0, 10),
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            status: "Ordered",
+            isAbnormal: false,
+            price,
+            totalAmount: price,
+            parameters,
+            sourceType: "RX_FOLLOWUP_TEST",
+            sourceId: t.id,
+            visitId: visit.visitId,
+          },
+        });
+      } else if (((existing.data || {}) as Record<string, any>)["status"] === "Ordered") {
+        const exData = (existing.data || {}) as Record<string, any>;
+        exData["testName"] = testName;
+        exData["date"] = dueDate || exData["date"];
+        exData["price"] = price;
+        exData["totalAmount"] = price;
+        if ((!Array.isArray(exData["parameters"]) || exData["parameters"].length === 0) && parameters.length > 0) {
+          exData["parameters"] = parameters;
+        }
+        existing.markModified("data");
+        await existing.save();
+      }
+    }
+  }
+
+  // Authoritative visit billing line sync (only if invoice is not settled)
+  if (!isSettled && syncBilling) {
+    visit.items = (visit.items || []).filter(
+      (l: any) => !(l.sourceType === "RX_ITEM" && (l.rxSection === "LABORATORY" || l.rxSection === "BLOOD_TEST"))
+    );
+
+    if (enabled && bloodTests.length > 0) {
+      for (const t of bloodTests) {
+        const testName = String(t.testName || t.name || "").trim();
+        const testCode = String(t.testCode || t.code || "").trim();
+        const matchedCatalog: any = catalogList.find((c: any) =>
+          (testCode && c.code && String(c.code).toLowerCase() === testCode.toLowerCase()) ||
+          (testName && c.name && String(c.name).toLowerCase() === testName.toLowerCase())
+        );
+        const price = Number(t.price ?? matchedCatalog?.price ?? 450);
+        const gst = visit.billType === "GST" ? 18 : 0;
+        const lineCalc = calcLineItem({
+          quantity: 1,
+          unitPrice: price,
+          discountType: undefined,
+          discountValue: 0,
+          gstRate: gst,
+          applyGst: visit.billType === "GST",
+        });
+
+        visit.items.push({
+          id: t.id,
+          lineType: "Diagnostic",
+          itemCode: testCode || matchedCatalog?.code || undefined,
+          name: `[Lab] ${testName}`,
+          quantity: 1,
+          unitPrice: price,
+          discountPercent: 0,
+          discountType: undefined,
+          discountValue: 0,
+          discountAmount: 0,
+          taxableAmount: lineCalc.taxableAmount,
+          gstRate: gst,
+          lineTotal: lineCalc.lineTotal,
+          sourceType: "RX_ITEM",
+          sourceId: t.id,
+          rxSection: sourceSection === "FOLLOWUP" ? "FOLLOWUP" : "LABORATORY",
+        });
+      }
+    }
+  }
+}
+
+const FOLLOWUP_LABELS: Record<string, string> = {
+  TREATMENT: "Treatment Follow-up",
+  CONSULTATION: "Consultation Follow-up",
+  VACCINE: "Vaccine Booster",
+  DEWORMING: "Deworming Booster",
+};
+
+/**
+ * Books (or updates / cancels) the Appointments-board entries for every enabled follow-up of a finalized visit.
+ * Treatment with an N-day quick option books one visit per day for the next N days; the rest book one visit on
+ * their due date. Tokens are stored on the entry so re-finalizing updates the same bookings.
+ */
+async function bookFollowUpAppointments(visit: any, entries: Record<string, any>) {
+  const out: Record<string, any> = { ...entries };
+  const rawDate = String(visit.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  for (const type of Object.keys(FOLLOWUP_LABELS)) {
+    const e = entries[type];
+    if (!e) continue;
+    const old: string[] = e.appointmentTokens?.length ? e.appointmentTokens : e.appointmentToken ? [e.appointmentToken] : [];
+    const daily = type === "TREATMENT" && /^\d+D$/.test(e.quickOption || "") ? parseInt(e.quickOption, 10) : 0;
+    const dates: string[] =
+      e.enabled && e.dueDate
+        ? daily > 0 ? Array.from({ length: daily }, (_, i) => calculateQuickDate(rawDate, `${i + 1}D`)) : [e.dueDate]
+        : [];
+    const tokens: string[] = [];
+    for (let i = 0; i < dates.length; i++) {
+      const fields = {
+        pet: visit.petName,
+        petId: visit.petId,
+        species: visit.species || "",
+        breed: visit.breed || "",
+        owner: visit.ownerName || "",
+        phone: visit.ownerPhone || "",
+        doctor: visit.doctorName || "",
+        reason: e.notes || (daily > 0 ? `${FOLLOWUP_LABELS[type]} (day ${i + 1} of ${daily})` : FOLLOWUP_LABELS[type]),
+        type: "Follow-up",
+        status: "Waiting",
+        appointment_date: dates[i],
+        date: dates[i],
+        slot: "To be assigned",
+        priority: "Routine",
+        sourceVisitId: visit.visitId,
+      };
+      if (old[i]) {
+        await ErpRow.updateOne(
+          { moduleId: "appointments", "data.token": old[i] },
+          { $set: Object.fromEntries(Object.entries(fields).map(([k, v]) => [`data.${k}`, v])) },
+        );
+        tokens.push(old[i]!);
+      } else {
+        const token = `A-${(Date.now() % 1000000) + i}`;
+        await ErpRow.create({ moduleId: "appointments", data: { ...fields, token } });
+        tokens.push(token);
+      }
+    }
+    for (const t of old.slice(dates.length)) await ErpRow.deleteOne({ moduleId: "appointments", "data.token": t });
+    out[type] = { ...e, appointmentTokens: tokens, appointmentToken: tokens[0] };
+  }
+  return out;
+}
 
 export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
   .validator((raw: unknown) => SectionSaveInputZ.parse(raw))
@@ -881,88 +1135,17 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
         }
 
         // Laboratory Sync (§5.5, Phase 9)
-        const currentTestIds = new Set(bloodTests.map((t: any) => t.id));
-        const existingLabOrders = await ErpRow.find({
-          moduleId: "lab_orders",
-          "data.sourceType": "RX_FOLLOWUP_TEST",
-          "data.visitId": visit.visitId,
+        const followupLabEnabled = Boolean(required && entries.BLOOD_TEST?.enabled);
+        const followupDueDate = entries.BLOOD_TEST?.dueDate || visit.date || new Date().toISOString().slice(0, 10);
+        await syncBloodTestsWithLabAndBilling({
+          visit,
+          bloodTests,
+          enabled: followupLabEnabled,
+          dueDate: followupDueDate,
+          isSettled,
+          sourceSection: "FOLLOWUP",
+          syncOrders: false, // lab orders are created when billing is completed
         });
-
-        // Check for removed tests that cannot be cancelled
-        for (const ord of existingLabOrders) {
-          const ordData = (ord.data || {}) as Record<string, any>;
-          const ordId = ordData["sourceId"];
-          if (!currentTestIds.has(ordId) || !required) {
-            if (
-              ordData["status"] === "Sample Collected" ||
-              ordData["status"] === "Processing" ||
-              ordData["status"] === "Completed"
-            ) {
-              throw new Error(
-                `Cannot remove lab test "${ordData["testName"]}": sample is already collected in the Laboratory. Please manage or cancel it from the Laboratory section.`
-              );
-            }
-            // If status is Ordered, cancel it
-            if (ordData["status"] === "Ordered") {
-              ordData["status"] = "Cancelled";
-              ordData["cancelReason"] = "Removed from Doctor Prescription";
-              ord.markModified("data");
-              await ord.save();
-            }
-          }
-        }
-
-        // Upsert active blood tests into Lab Orders
-        if (required && bloodTests.length > 0) {
-          for (const t of bloodTests) {
-            const existing = existingLabOrders.find(
-              (o: any) => o.data?.sourceId === t.id && o.data?.status !== "Cancelled"
-            );
-            if (!existing) {
-              const labSeq = await nextSeq("lab_order", "LAB", 4);
-              await ErpRow.create({
-                moduleId: "lab_orders",
-                data: {
-                  orderId: labSeq,
-                  pet: visit.petName,
-                  petId: visit.petId,
-                  species: visit.species,
-                  breed: visit.breed,
-                  owner: visit.ownerName,
-                  phone: visit.ownerPhone,
-                  testName: t.testName || t.name,
-                  profile: "Biochemistry & Hematology",
-                  sampleType: "Whole Blood EDTA",
-                  barcode: `BC-${Math.floor(1000 + Math.random() * 9000)}`,
-                  tat: "2 hours",
-                  priority: "Routine",
-                  doctor: visit.doctorName || "",
-                  date:
-                    entries.BLOOD_TEST?.dueDate ||
-                    visit.date ||
-                    new Date().toISOString().slice(0, 10),
-                  time: new Date().toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }),
-                  status: "Ordered",
-                  isAbnormal: false,
-                  parameters: [],
-                  sourceType: "RX_FOLLOWUP_TEST",
-                  sourceId: t.id,
-                  visitId: visit.visitId,
-                },
-              });
-            } else if (((existing.data || {}) as Record<string, any>)["status"] === "Ordered") {
-              const exData = (existing.data || {}) as Record<string, any>;
-              exData["testName"] = t.testName || t.name;
-              exData["date"] =
-                entries["BLOOD_TEST"]?.dueDate || exData["date"];
-              existing.markModified("data");
-              await existing.save();
-            }
-          }
-        }
         break;
       }
 
@@ -982,88 +1165,16 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
           };
         }
 
-        // Laboratory Sync (§5.5, Phase 9)
-        const currentTestIds = new Set(bloodTests.map((t: any) => t.id));
-        const existingLabOrders = await ErpRow.find({
-          moduleId: "lab_orders",
-          "data.sourceType": "RX_FOLLOWUP_TEST",
-          "data.visitId": visit.visitId,
+        // Laboratory Sync (§5.5, Phase 9) with catalog parameter lookup & billing sync
+        await syncBloodTestsWithLabAndBilling({
+          visit,
+          bloodTests,
+          enabled,
+          dueDate: dueDate || visit.date || new Date().toISOString().slice(0, 10),
+          isSettled,
+          sourceSection: "LABORATORY",
+          syncOrders: false, // lab orders are created when billing is completed
         });
-
-        // Check for removed tests that cannot be cancelled
-        for (const ord of existingLabOrders) {
-          const ordData = (ord.data || {}) as Record<string, any>;
-          const ordId = ordData["sourceId"];
-          if (!currentTestIds.has(ordId) || !enabled) {
-            if (
-              ordData["status"] === "Sample Collected" ||
-              ordData["status"] === "Processing" ||
-              ordData["status"] === "Completed"
-            ) {
-              throw new Error(
-                `Cannot remove lab test "${ordData["testName"]}": sample is already collected in the Laboratory. Please manage or cancel it from the Laboratory section.`
-              );
-            }
-            // If status is Ordered, cancel it
-            if (ordData["status"] === "Ordered") {
-              ordData["status"] = "Cancelled";
-              ordData["cancelReason"] = "Removed from Doctor Prescription";
-              ord.markModified("data");
-              await ord.save();
-            }
-          }
-        }
-
-        // Upsert active blood tests into Lab Orders
-        if (enabled && bloodTests.length > 0) {
-          for (const t of bloodTests) {
-            const existing = existingLabOrders.find(
-              (o: any) => o.data?.sourceId === t.id && o.data?.status !== "Cancelled"
-            );
-            if (!existing) {
-              const labSeq = await nextSeq("lab_order", "LAB", 4);
-              await ErpRow.create({
-                moduleId: "lab_orders",
-                data: {
-                  orderId: labSeq,
-                  pet: visit.petName,
-                  petId: visit.petId,
-                  species: visit.species,
-                  breed: visit.breed,
-                  owner: visit.ownerName,
-                  phone: visit.ownerPhone,
-                  testName: t.testName || t.name,
-                  profile: "Biochemistry & Hematology",
-                  sampleType: "Whole Blood EDTA",
-                  barcode: `BC-${Math.floor(1000 + Math.random() * 9000)}`,
-                  tat: "2 hours",
-                  priority: "Routine",
-                  doctor: visit.doctorName || "",
-                  date:
-                    dueDate ||
-                    visit.date ||
-                    new Date().toISOString().slice(0, 10),
-                  time: new Date().toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }),
-                  status: "Ordered",
-                  isAbnormal: false,
-                  parameters: [],
-                  sourceType: "RX_FOLLOWUP_TEST",
-                  sourceId: t.id,
-                  visitId: visit.visitId,
-                },
-              });
-            } else if (((existing.data || {}) as Record<string, any>)["status"] === "Ordered") {
-              const exData = (existing.data || {}) as Record<string, any>;
-              exData["testName"] = t.testName || t.name;
-              exData["date"] = dueDate || exData["date"];
-              existing.markModified("data");
-              await existing.save();
-            }
-          }
-        }
         break;
       }
     }
@@ -1399,7 +1510,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     visit.balanceDue = balanceDue;
     visit.pendingAmount = pendingAmount;
     visit.paymentStatus = paymentStatus;
-    visit.paymentMode = data.paymentMode;
+    (visit as any).paymentMode = data.paymentMode;
     if (effectiveDueDate) {
       visit.dueDate = effectiveDueDate;
       visit.paymentDueDate = effectiveDueDate;
@@ -1437,7 +1548,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     visit.status = status;
     visit.inventoryDeducted = true;
     if (balanceDue === 0 || visit.paymentRequestStatus === "pending") {
-      visit.paymentRequestStatus = balanceDue === 0 ? "collected" : "partial";
+      (visit as any).paymentRequestStatus = balanceDue === 0 ? "collected" : "partial";
     }
     if (data.appointmentToken && !visit.appointmentToken) {
       visit.appointmentToken = data.appointmentToken;
@@ -1446,6 +1557,29 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     visit.markModified("items");
     if (visit.vitals) visit.markModified("vitals");
     await visit.save();
+
+    // Billing is complete: only now do the doctor's lab orders reach the Laboratory queue and the follow-ups
+    // get booked on the Appointments board (a draft prescription never triggers either).
+    try {
+      const rx: any = visit.prescriptionData || {};
+      const bt = rx.followUpEntries?.BLOOD_TEST;
+      await syncBloodTestsWithLabAndBilling({
+        visit,
+        bloodTests: Array.isArray(rx.bloodTests) ? rx.bloodTests : [],
+        enabled: Boolean(rx.laboratoryRequired || (rx.followupRequired && bt?.enabled)),
+        dueDate: bt?.dueDate || visit.date || new Date().toISOString().slice(0, 10),
+        isSettled: true,
+        sourceSection: "LABORATORY",
+        syncBilling: false,
+      });
+      if (rx.followupRequired && rx.followUpEntries) {
+        rx.followUpEntries = await bookFollowUpAppointments(visit, rx.followUpEntries);
+        visit.markModified("prescriptionData");
+        await visit.save();
+      }
+    } catch (orderErr) {
+      console.warn("[finalizeVisitAndBillFn] Could not release lab orders / follow-up appointments:", orderErr);
+    }
 
     // Auto-create Billing Reminder for pending dues
     if (balanceDue > 0 && effectiveDueDate) {
@@ -1530,7 +1664,7 @@ export const finalizeVisitAndBillFn = createServerFn({ method: "POST" })
     }
 
     // 5. Auto-sync Next Visit Date to Appointments Queue
-    if (data.nextVisitDate) {
+    if (data.nextVisitDate && !(visit.prescriptionData as any)?.followUpEntries) {
       try {
         const nextToken = Math.floor(100 + Math.random() * 900);
         await ErpRow.findOneAndUpdate(

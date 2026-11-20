@@ -71,6 +71,51 @@ export const deleteRowFn = createServerFn({ method: "POST" })
     return { success: true };
   }));
 
+// ─── updateRowFn ─────────────────────────────────────────────────────────────
+
+export const updateRowFn = createServerFn({ method: "POST" })
+  .validator((raw: unknown) =>
+    z.object({
+      moduleId: z.string(),
+      index:    z.number().int().min(0).optional(),
+      match:    z.record(z.unknown()).optional(),
+      row:      z.record(z.unknown()),
+    }).parse(raw)
+  )
+  .handler(tenantScoped(async ({ data }): Promise<{ success: boolean }> => {
+    await connectDB();
+
+    // Match by specific field in data (e.g. { code: "TST-001" })
+    if (data.match && Object.keys(data.match).length > 0) {
+      const filter: Record<string, any> = { moduleId: data.moduleId };
+      for (const [k, v] of Object.entries(data.match)) {
+        filter[`data.${k}`] = v;
+      }
+      const doc = await ErpRow.findOne(filter);
+      if (doc) {
+        doc.data = data.row;
+        doc.markModified("data");
+        await doc.save();
+        return { success: true };
+      }
+    }
+
+    // Fallback: match by index in newest-first sorted list
+    if (data.index !== undefined) {
+      const docs = await ErpRow.find({ moduleId: data.moduleId })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const target = docs[data.index];
+      if (!target) return { success: false };
+
+      await ErpRow.updateOne({ _id: target._id }, { $set: { data: data.row } });
+      return { success: true };
+    }
+
+    return { success: false };
+  }));
+
 // ─── resetRowsFn ─────────────────────────────────────────────────────────────
 
 export const resetRowsFn = createServerFn({ method: "POST" })

@@ -848,6 +848,16 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
     toast.success("Accessory removed from prescription & bill");
   };
 
+  const DEFAULT_LAB_PRICES: Record<string, number> = {
+    "CBC (Complete Blood Count)": 650,
+    "Liver Function Test (LFT)": 950,
+    "Kidney Function Test (KFT / RFT)": 900,
+    "Electrolyte Panel (Na/K/Cl)": 550,
+    "Thyroid Profile (Total T4)": 850,
+    "Urinalysis Routine & Microscopy": 400,
+    "Fecal Examination (Floatation & Smear)": 350,
+  };
+
   const handleAddBloodTest = () => {
     if (!newBloodTestType) return;
     const test = {
@@ -855,6 +865,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
       testType: newBloodTestType,
       status: "Ordered",
     };
+    const price = DEFAULT_LAB_PRICES[newBloodTestType] || 450;
     setBloodTests((prev) => [...prev, test]);
     setLines((prev) => [
       ...prev,
@@ -863,7 +874,7 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
         lineType: "Diagnostic",
         name: `[Blood Test] ${test.testType}`,
         quantity: 1,
-        unitPrice: 450,
+        unitPrice: price,
         discountPercent: 0,
         gstRate: 18,
       },
@@ -3094,9 +3105,10 @@ export function VisitWorkspaceModal({ open, onClose, visit, onVisitFinalized, in
         </div>
 
         {/* Prescription Print Modal */}
-        {showRxPrint && finalizedVisit && (
+        {showRxPrint && (finalizedVisit || activeVisit || visit) && (
           <PrescriptionPrintView
-            visit={finalizedVisit}
+            // before billing is completed, preview the saved draft of the consultation
+            visit={finalizedVisit || { ...(activeVisit || visit), date: visitDate || (activeVisit || visit)?.date, doctorName: (activeVisit || visit)?.doctorName || activeDoctorName, prescriptionData: prescriptionData || (activeVisit || visit)?.prescriptionData }}
             open={showRxPrint}
             onClose={() => setShowRxPrint(false)}
           />
