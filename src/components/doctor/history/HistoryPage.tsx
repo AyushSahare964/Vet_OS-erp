@@ -27,7 +27,6 @@ export function HistoryPage({ pet, section, p360 }: { pet: Pet; section: Section
     const from = Date.now() - Number(range) * 86_400_000;
     return { ...g, metrics: g.metrics.map((m) => ({ ...m, points: m.points.filter((p) => p.date.getTime() >= from) })) };
   }, [pet, section, p360, range]);
-  const [metricKey, setMetricKey] = useState(graphs.def);
   const [selections, setSelections] = useState<Record<string, ChartSelection>>({});
   const [bigKey, setBigKey] = useState<string | null>(null);
   const [bill, setBill] = useState<string | null>(null);
@@ -178,11 +177,9 @@ export function HistoryPage({ pet, section, p360 }: { pet: Pet; section: Section
           range={range}
           onRange={setRange}
           data={graphs}
-          metricKey={metricKey}
-          onMetric={setMetricKey}
-          selection={selectionOf(metricKey)}
-          onSelection={setSelectionOf(metricKey)}
-          onBigView={() => setBigKey(metricKey)}
+          selectionOf={selectionOf}
+          onSelection={(key, s) => setSelectionOf(key)(s)}
+          onBigView={setBigKey}
         />
       </div>
 

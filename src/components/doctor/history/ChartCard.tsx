@@ -24,6 +24,7 @@ export interface ChartSelection {
 interface ChartCardProps {
   metric: Metric;
   big?: boolean;
+  wide?: boolean;
   selection: ChartSelection;
   onSelection: (s: ChartSelection) => void;
   onBigView?: () => void;
@@ -35,6 +36,7 @@ interface ChartCardProps {
 export function ChartCard({
   metric: m,
   big = false,
+  wide = false,
   selection,
   onSelection,
   onBigView,
@@ -136,6 +138,7 @@ export function ChartCard({
         points={pts}
         zones={zs}
         big={big}
+        wide={wide}
         selected={selI}
         selectedZone={selZ}
         onSelect={pickPoint}

@@ -38,7 +38,9 @@ export function PatientPage({ pet, p360 }: PatientPageProps) {
   // Start Consultation: same behaviour as "Admit" on the Clinic Dashboard
   // (ClinicDashboard.handleAdmitPetDirectly): reopen the pet's active visit if there is one,
   // otherwise open the workspace with a new admitted-visit draft.
-  const { currentUser, role } = useErp();
+  const { currentUser, role, roleId } = useErp();
+  // Starting a consultation is a doctor/admin action; reception can view the file but not start one.
+  const canStart = roleId === "doctor" || roleId === "admin";
   const [workspaceVisit, setWorkspaceVisit] = useState<any | null>(null);
   const activeDoctorName = vetNameOf(currentUser);
 
@@ -101,7 +103,7 @@ export function PatientPage({ pet, p360 }: PatientPageProps) {
             </div>
             <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
               <h2>{pet.name}</h2>
-              {!isWalkIn && p360?.pet && (
+              {!isWalkIn && p360?.pet && canStart && (
                 <button
                   type="button"
                   onClick={startConsultation}

@@ -950,9 +950,11 @@ body:has(.vd-main.in-detail)::-webkit-scrollbar {
   font-size: 14px;
 }
 .vd .big-layer {
-  position: absolute;
+  /* fixed (not absolute): the page scrolls inside .vd, so an absolute layer was as tall as the whole
+     scrolled content and centred the graph far below the visible screen */
+  position: fixed;
   inset: 0;
-  z-index: 45;
+  z-index: 90;
   display: grid;
   place-items: center;
   background: rgba(0, 29, 57, 0.55);
@@ -1566,4 +1568,81 @@ body:has(.vd-main.in-detail)::-webkit-scrollbar {
 }
 .vd .g-chart:not(.big) .gc-big {
   font-size: 28px;
+}
+
+/* Graph header: the change pill and the Big view button must never squeeze into a tall oval.
+   Keep their text on one line, and let the header wrap instead of squashing its children. */
+.vd .gc-top { flex-wrap: wrap; }
+.vd .gc-main { flex: 1 1 14rem; min-width: 0; }
+.vd .gc-pill,
+.vd .g-icon {
+  white-space: nowrap;
+  width: auto;
+  min-width: max-content;
+  flex: none;
+}
+.vd .gc-pill { max-width: 100%; }
+
+/* Stacked graphs (weight, temperature...) in the Health Trends panel */
+.vd .g-stack { display: flex; flex-direction: column; gap: 14px; }
+.vd .g-stack-item { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px 6px; background: #fff; }
+.vd .g-stack-title { margin: 0 0 4px; font: 700 14px var(--font-display); color: var(--brand-deep); }
+.vd .g-stack-title small { font: 500 12px var(--font-body); color: var(--muted); }
+.vd .g-stack-item .g-chart:not(.big) > svg { max-height: 170px; }
+
+/* The chart rules above target "svg" and were also stretching the tiny icons inside the change pill and
+   the Big view button (width:100%), which is what squashed their text. Keep icons icon-sized. */
+.vd .g-chart .gc-pill svg,
+.vd .g-chart .g-icon svg,
+.vd .g-chart:not(.big) .gc-pill svg,
+.vd .g-chart:not(.big) .g-icon svg {
+  width: 15px;
+  height: 15px;
+  max-height: none;
+  margin: 0;
+  flex: none;
+}
+
+/* ── Compact stacked graphs: weight + temperature share the panel height, no nested card look ── */
+@media (min-width: 901px) {
+  .vd .g-stack { gap: 6px; }
+  .vd .g-stack-item { border: 0; padding: 0; background: transparent; }
+  .vd .g-stack-title { font-size: 13px; margin: 2px 2px 3px; }
+  .vd .g-stack-item .g-chart {
+    margin: 0;
+    padding: 6px 12px 2px;
+    border-radius: 14px;
+    box-shadow: none;
+    background: #fbfdff;
+  }
+  .vd .g-stack-item .gc-top { align-items: center; flex-wrap: nowrap; gap: 8px; }
+  .vd .g-stack-item .gc-main { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; flex: 1 1 auto; }
+  .vd .g-stack-item .gc-big { font-size: 26px; margin: 0; }
+  .vd .g-stack-item .gc-big small { font-size: 12px; margin-left: 3px; }
+  .vd .g-stack-item .gc-meta { margin-top: 0; gap: 2px 8px; }
+  .vd .g-stack-item .gc-pill { font-size: 11.5px; padding: 2px 9px 2px 8px; }
+  .vd .g-stack-item .gc-date { font-size: 11px; }
+  .vd .g-stack-item .gc-side { flex-direction: row; align-items: center; gap: 6px; }
+  .vd .g-stack-item .g-chart .chip { font-size: 11.5px; padding: 2px 9px; }
+  .vd .g-stack-item .g-icon { font-size: 0; padding: 5px; gap: 0; }
+  .vd .g-stack-item .zlegend { margin: 4px 0 0; gap: 5px; }
+  .vd .g-stack-item .zchip { font-size: 11.5px; padding: 2px 9px; }
+  .vd .g-stack-item .zhint { display: none; }
+  .vd .g-stack-item .g-chart:not(.big) > svg { max-height: clamp(110px, calc((100dvh - 400px) / 2), 270px); }
+}
+
+/* Fit the two stacked graphs INSIDE the panel at any window height: the panel gets a definite height, the graphs
+   share it equally, and each plot scales to whatever room its card has (instead of a guessed max-height). */
+@media (min-width: 901px) {
+  .vd .g-panel {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - 150px);
+    max-height: none;
+    overflow: hidden;
+  }
+  .vd .g-panel .g-stack { flex: 1 1 0; min-height: 0; }
+  .vd .g-stack-item { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  .vd .g-stack-item .g-chart { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  .vd .g-stack-item .g-chart:not(.big) > svg { max-height: none; height: auto; flex: 1 1 0; min-height: 60px; width: 100%; }
 }

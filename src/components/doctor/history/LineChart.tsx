@@ -20,6 +20,8 @@ interface LineChartProps {
   points: Point[];
   zones: ZoneInfo[];
   big: boolean;
+  /** Wider, shorter plot for the stacked side panel (uses the panel width instead of a letterboxed square). */
+  wide?: boolean;
   selected: number;
   selectedZone: Zone | null;
   onSelect: (i: number) => void;
@@ -35,6 +37,7 @@ export function LineChart({
   points: pts,
   zones: zs,
   big,
+  wide = false,
   selected: selI,
   selectedZone: selZ,
   onSelect,
@@ -42,12 +45,12 @@ export function LineChart({
   const uid = useId().replace(/:/g, "");
   const k = big ? 1.25 : 1;
   const status = m.special === "status";
-  const W = big ? 980 : 440;
-  const H = big ? 440 : 284;
+  const W = big ? 980 : wide ? 640 : 440;
+  const H = big ? 440 : wide ? 250 : 284;
   const L = big ? (status ? 98 : 74) : status ? 74 : 50;
   const R = big ? 28 : 14;
-  const T = big ? 82 : 58;
-  const B = big ? 70 : 54;
+  const T = big ? 82 : wide ? 52 : 58;
+  const B = big ? 70 : wide ? 48 : 54;
   const base = H - B;
   const vals = pts.map((q) => q.v);
   const ranged = !status && m.lo != null && m.hi != null;
