@@ -156,7 +156,7 @@ export function LaboratoryOrderSection({
     onChange({
       ...laboratory,
       enabled: true,
-      bloodTests: [...laboratory.bloodTests, newItem],
+      bloodTests: [newItem, ...laboratory.bloodTests],
     });
 
     setTestSearch("");
@@ -185,7 +185,7 @@ export function LaboratoryOrderSection({
     onChange({
       ...laboratory,
       enabled: true,
-      bloodTests: [...laboratory.bloodTests, newItem],
+      bloodTests: [newItem, ...laboratory.bloodTests],
     });
 
     setTestSearch("");

@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getItemsFn } from "@/lib/mongodb/serverFns/inventory";
+import { moveFocusFrom } from "@/lib/useKeyboardFormNav";
 import { useInventory } from "@/components/erp/inventory/useInventoryStore";
 
-export type CatalogueType = "medicine" | "injection" | "food" | "accessory";
+export type CatalogueType = "medicine" | "injection" | "food" | "accessory" | "consumable";
 
 export interface CatalogueSearchProps {
   type: CatalogueType;
@@ -90,6 +91,10 @@ export function filterByCatalogueType(items: any[], type: CatalogueType): any[] 
       );
     }
 
+    if (type === "consumable") {
+      return pType === "CONSUMABLE" || cat === "consumable" || cat === "consumables";
+    }
+
     return false;
   });
 }
@@ -134,7 +139,7 @@ export function CatalogueSearch({
             ? await getItemsFn({ data: { status: "Active" } })
             : await getItemsFn({
                 data: {
-                  type: type === "medicine" ? "MEDICINE" : type === "food" ? "FOOD" : "ACCESSORY",
+                  type: type === "medicine" ? "MEDICINE" : type === "food" ? "FOOD" : type === "consumable" ? "CONSUMABLE" : "ACCESSORY",
                   status: "Active",
                 },
               });
@@ -206,6 +211,15 @@ export function CatalogueSearch({
     });
   }, [availableItems, debouncedQuery, excludeCodes]);
 
+  // Keyboard: highlighted row in the dropdown (ArrowUp/Down move it, Enter picks it)
+  const [active, setActive] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => setActive(0), [debouncedQuery, type]);
+  useEffect(() => {
+    listRef.current?.querySelector<HTMLElement>('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [active, isOpen]);
+  const shown = Math.min(filteredResults.length, 20);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -232,7 +246,7 @@ export function CatalogueSearch({
     handleSelectItem({
       name: trimmed,
       unitPrice: 0, // typed-in item: staff enter the real price (an invented one would be billed)
-      unit: type === "food" ? "Kg" : type === "accessory" ? "Piece" : "Tablet",
+      unit: type === "food" ? "Kg" : type === "accessory" || type === "consumable" ? "Piece" : "Tablet",
     });
   };
 
@@ -241,6 +255,8 @@ export function CatalogueSearch({
       ? "Search medicine by name, generic, or brand..."
       : type === "food"
       ? "Search food item by brand, formula, or pack..."
+      : type === "consumable"
+      ? "Search consumable by name or category..."
       : "Search accessory by name or category...";
 
   return (
@@ -255,16 +271,36 @@ export function CatalogueSearch({
             setIsOpen(true);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            // List closed (e.g. right after picking an item): arrows/Enter fall through to the form-wide
+            // keyboard navigation so the user can move on to the line's fields.
+            if ((e.key === "ArrowDown" || e.key === "ArrowUp") && shown > 0 && !isOpen && query.trim()) {
+              e.preventDefault();
+              setIsOpen(true);
+            } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && shown > 0 && isOpen) {
+              e.preventDefault();
+              const down = e.key === "ArrowDown";
+              if ((down && active >= shown - 1) || (!down && active <= 0)) {
+                // Past either end of the list: close it and carry on to the next / previous field.
+                setIsOpen(false);
+                moveFocusFrom(e.currentTarget, !down, false);
+              } else {
+                setActive((a) => a + (down ? 1 : -1));
+              }
+            } else if (e.key === "Escape" && isOpen) {
+              setIsOpen(false);
+            } else if (e.key === "Enter" && (isOpen || query.trim())) {
               e.preventDefault();
               if (filteredResults.length > 0) {
-                handleSelectItem(filteredResults[0]);
+                handleSelectItem(filteredResults[Math.min(active, shown - 1)] ?? filteredResults[0]);
               } else if (query.trim()) {
                 handleAddCustom();
               }
             }
           }}
-          onFocus={() => setIsOpen(true)}
+          onClick={() => setIsOpen(true)}
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-autocomplete="list"
           placeholder={placeholder || defaultPlaceholder}
           className="pl-9 pr-9 h-10 bg-background text-sm rounded-lg border-border focus-visible:ring-2 focus-visible:ring-primary/20"
         />
@@ -301,8 +337,8 @@ export function CatalogueSearch({
               )}
             </div>
           ) : (
-            <div className="divide-y divide-border/30">
-              {filteredResults.slice(0, 20).map((item) => {
+            <div ref={listRef} className="divide-y divide-border/30">
+              {filteredResults.slice(0, 20).map((item, idx) => {
                 const itemCode = item.itemCode || item.id;
                 const price = item.defaultSalePrice ?? item.mrp ?? 0;
                 const stock = item.currentStock ?? 0;
@@ -312,7 +348,12 @@ export function CatalogueSearch({
                     key={itemCode || item.name}
                     type="button"
                     onClick={() => handleSelectItem(item)}
-                    className="w-full flex items-center justify-between p-2.5 hover:bg-muted/60 transition-colors text-left text-xs rounded-md group"
+                    data-active={idx === active}
+                    tabIndex={-1}
+                    className={cn(
+                      "w-full flex items-center justify-between p-2.5 hover:bg-muted/60 transition-colors text-left text-xs rounded-md group",
+                      idx === active && "bg-muted/80 ring-1 ring-primary/30"
+                    )}
                   >
                     <div className="flex items-start gap-2.5 min-w-0 pr-3">
                       <div className="size-7 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">

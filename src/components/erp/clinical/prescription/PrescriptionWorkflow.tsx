@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Package,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,7 +109,8 @@ function serializeSectionState(sectionKey: string, data: any): string {
     sectionKey === "INJECTABLE" ||
     sectionKey === "ANIMAL_FOOD" ||
     sectionKey === "PRESCRIBED_FOOD" ||
-    sectionKey === "ACCESSORY"
+    sectionKey === "ACCESSORY" ||
+    sectionKey === "CONSUMABLE"
   ) {
     const items = Array.isArray(data) ? data : (data?.items || []);
     return JSON.stringify(
@@ -447,8 +449,9 @@ export function PrescriptionWorkflow({
         time: m.time || "Morning & Night",
         quantity: Number(m.quantity) || 1,
         unit: m.unit || "Tablet",
-        unitPrice: Number(m.unitPrice) || 0,
+        unitPrice: m.itemCode ? Number(m.unitPrice) || 0 : 0,
         discountPercent: 0,
+        ...(m.quantityBase !== undefined ? { quantityBase: Number(m.quantityBase) } : {}),
         note: m.note || m.remarks || "",
       }));
     }
@@ -645,6 +648,23 @@ export function PrescriptionWorkflow({
 
   const [accessories, setAccessories] = useState<InventoryItemLine[]>(initialAccessories);
 
+  // Consumables (gloves, syringes, IV sets...) used on the patient and billed from inventory
+  const initialConsumables = useMemo<InventoryItemLine[]>(() => {
+    const raw = initialRx.consumables || [];
+    return raw.map((c: any, idx: number) => ({
+      id: c.id || `con-${idx}-${visit?.visitId || "rx"}`,
+      itemCode: c.itemCode,
+      name: c.name,
+      category: c.category,
+      quantity: Number(c.quantity) || 1,
+      unit: c.unit || "Piece",
+      unitPrice: Number(c.unitPrice) || 0,
+      discountPercent: Number(c.discountPercent || 0),
+    }));
+  }, [visit?.visitId, initialRx]);
+
+  const [consumables, setConsumables] = useState<InventoryItemLine[]>(initialConsumables);
+
   // ── Snapshots for Dirty Detection ─────────────────────────────────────────
   const [lastSaved, setLastSaved] = useState<Record<string, string>>(() => ({
     VITALS: serializeSectionState("VITALS", {
@@ -675,6 +695,7 @@ export function PrescriptionWorkflow({
     ANIMAL_FOOD: serializeSectionState("ANIMAL_FOOD", initialAnimalFood),
     PRESCRIBED_FOOD: serializeSectionState("PRESCRIBED_FOOD", initialPrescribedFood),
     ACCESSORY: serializeSectionState("ACCESSORY", initialAccessories),
+    CONSUMABLE: serializeSectionState("CONSUMABLE", initialConsumables),
   }));
 
   const [sectionStatus, setSectionStatus] = useState<Record<string, SaveStatus>>({});
@@ -753,6 +774,11 @@ export function PrescriptionWorkflow({
     [accessories, lastSaved]
   );
 
+  const isConsumableDirty = useMemo(
+    () => serializeSectionState("CONSUMABLE", consumables) !== lastSaved["CONSUMABLE"],
+    [consumables, lastSaved]
+  );
+
   const hasAnyDirtySection =
     isVitalsDirty ||
     isHistoryDirty ||
@@ -766,7 +792,8 @@ export function PrescriptionWorkflow({
     isLaboratoryDirty ||
     isAnimalFoodDirty ||
     isPrescribedFoodDirty ||
-    isAccessoryDirty;
+    isAccessoryDirty ||
+    isConsumableDirty;
 
   // Jump Bar Section Definitions
   const jumpSections: SectionJumpItem[] = [
@@ -774,7 +801,7 @@ export function PrescriptionWorkflow({
     { id: "sec-history", label: "1. History", isDirty: isHistoryDirty },
     { id: "sec-symptoms", label: "2. Symptoms", isDirty: isSymptomsDirty },
     { id: "sec-findings", label: "3. Findings", isDirty: isFindingsDirty },
-    { id: "sec-treatment", label: "4. Treatment", isDirty: isImmediateDirty || isPrescribedDirty || isInjectableDirty },
+    { id: "sec-treatment", label: "4. Treatment", isDirty: isImmediateDirty || isPrescribedDirty || isInjectableDirty || isConsumableDirty },
     { id: "sec-fee", label: "5. Fee", isDirty: isFeeDirty },
     { id: "sec-followup", label: "6. Follow-up", isDirty: isFollowUpDirty },
     { id: "sec-laboratory", label: "7. Laboratory", isDirty: isLaboratoryDirty },
@@ -799,6 +826,7 @@ export function PrescriptionWorkflow({
     isAnimalFoodDirty,
     isPrescribedFoodDirty,
     isAccessoryDirty,
+    isConsumableDirty,
   ]);
 
   // ── Unified Section Save Handler (§1.3, §5.2) ─────────────────────────────
@@ -855,6 +883,7 @@ export function PrescriptionWorkflow({
         ANIMAL_FOOD: "Animal Food",
         PRESCRIBED_FOOD: "Prescribed Diet",
         ACCESSORY: "Accessories",
+        CONSUMABLE: "Consumables",
       };
       toast.success(`${sectionFriendlyNames[sectionKey] || sectionKey} saved successfully!`);
     } catch (err: any) {
@@ -919,6 +948,8 @@ export function PrescriptionWorkflow({
     executeSaveSection("PRESCRIBED_FOOD", { items: prescribedFood });
   const handleSaveAccessories = () =>
     executeSaveSection("ACCESSORY", { items: accessories });
+  const handleSaveConsumables = () =>
+    executeSaveSection("CONSUMABLE", { items: consumables });
 
   // Save All Draft (§5.7, §13.2)
   const handleSaveAllDraft = async () => {
@@ -938,6 +969,7 @@ export function PrescriptionWorkflow({
       if (isAnimalFoodDirty) await handleSaveAnimalFood();
       if (isPrescribedFoodDirty) await handleSavePrescribedFood();
       if (isAccessoryDirty) await handleSaveAccessories();
+      if (isConsumableDirty) await handleSaveConsumables();
 
       toast.success("All prescription sections saved successfully as draft!");
     } catch (e: any) {
@@ -993,8 +1025,23 @@ export function PrescriptionWorkflow({
       });
     }
 
-    // Prescribed medicines (take-home prescriptions) are part of the medical Rx sheet,
-    // not clinic billing lines. Only immediate clinic dispensations/services are billed.
+    // Prescribed medicines: inventory-sourced ones (itemCode) are sold and billed; outside-pharmacy ones are advice only.
+    for (const m of prescribedMedicines) {
+      if (!m.itemCode) continue;
+      linesList.push({
+        id: m.id || `rx-pm-${Math.random()}`,
+        lineType: "Pharmacy",
+        itemCode: m.itemCode,
+        name: m.name || (m as any).medicineName || "Prescribed Medicine",
+        dosageInstructions: m.dosageInstructions || (m as any).dosage || (m as any).instructions,
+        quantity: Number(m.quantity) || 1,
+        unitPrice: Number(m.unitPrice) || 0,
+        discountPercent: Number(m.discountPercent) || 0,
+        gstRate: visit?.billType === "GST" ? 12 : 0,
+        sourceType: "RX_ITEM",
+        rxSection: "PRESCRIBED_MED",
+      });
+    }
 
     // Injectables
     for (const inj of injectables) {
@@ -1058,6 +1105,22 @@ export function PrescriptionWorkflow({
         gstRate: visit?.billType === "GST" ? 18 : 0,
         sourceType: "RX_ITEM",
         rxSection: "ACCESSORY",
+      });
+    }
+
+    // Consumables
+    for (const c of consumables) {
+      linesList.push({
+        id: c.id || `rx-con-${Math.random()}`,
+        lineType: "Pharmacy",
+        itemCode: c.itemCode,
+        name: c.name,
+        quantity: Number(c.quantity) || 1,
+        unitPrice: Number(c.unitPrice) || 0,
+        discountPercent: Number(c.discountPercent) || 0,
+        gstRate: visit?.billType === "GST" ? 12 : 0,
+        sourceType: "RX_ITEM",
+        rxSection: "CONSUMABLE",
       });
     }
 
@@ -1138,6 +1201,7 @@ export function PrescriptionWorkflow({
       animalFood: animalFood as any,
       prescribedFood: prescribedFood as any,
       accessories: accessories as any,
+      consumables: consumables as any,
       version,
     };
 
@@ -1167,6 +1231,7 @@ export function PrescriptionWorkflow({
         if (isAnimalFoodDirty) saveHandlers.push(handleSaveAnimalFood);
         if (isPrescribedFoodDirty) saveHandlers.push(handleSavePrescribedFood);
         if (isAccessoryDirty) saveHandlers.push(handleSaveAccessories);
+        if (isConsumableDirty) saveHandlers.push(handleSaveConsumables);
 
         onBackgroundSyncStateChange?.(true);
         (async () => {
@@ -1676,9 +1741,15 @@ export function PrescriptionWorkflow({
                     onClick={() => {
                       const next = patientTempUnit === "°C" ? "°F" : "°C";
                       setPatientTempUnit(next);
+                      // Convert the typed value so 38.5 °C becomes 101.3 °F (and back), rounded to 1 decimal.
+                      const n = Number(patientTemp);
+                      const converted = patientTemp !== "" && Number.isFinite(n)
+                        ? String(Math.round((next === "°F" ? n * 9 / 5 + 32 : (n - 32) * 5 / 9) * 10) / 10)
+                        : patientTemp;
+                      setPatientTemp(converted);
                       onPrescriptionDataChange?.({
                         ...initialRx,
-                        bodyTemperature: patientTemp ? Number(patientTemp) : undefined,
+                        bodyTemperature: converted ? Number(converted) : undefined,
                         temperatureUnit: next,
                       });
                     }}
@@ -2214,6 +2285,26 @@ export function PrescriptionWorkflow({
               allowCustomAdd={false}
               isLocked={isSettled}
             />}
+
+            {/* Subsection D: Consumables (gloves, syringes, IV sets...) used on the patient and billed from inventory */}
+            {!advisedMode && <InventoryItemSection
+              id="sec-consumables"
+              section="CONSUMABLE"
+              title="Consumables"
+              subtitle="Gloves, gauze, syringes, IV sets and other items used on the patient"
+              icon={<Package className="size-4 text-teal-600" />}
+              catalogueType="consumable"
+              items={consumables}
+              onChange={setConsumables}
+              onSave={handleSaveConsumables}
+              status={sectionStatus["CONSUMABLE"]}
+              lastSavedAt={sectionSavedAt["CONSUMABLE"]}
+              isDirty={isConsumableDirty}
+              saveLabel="Save Consumables ✓"
+              catalogItems={catalogItems}
+              allowCustomAdd={false}
+              isLocked={isSettled}
+            />}
           </div>
 
           {/* 6. Consultation Fee (§7, Phase 4) */}
@@ -2332,6 +2423,7 @@ export function PrescriptionWorkflow({
             animalFood={animalFood}
             prescribedFood={prescribedFood}
             accessories={accessories}
+            consumables={consumables}
             laboratoryTests={laboratory.enabled ? laboratory.bloodTests : []}
             hasUnsavedChanges={hasAnyDirtySection}
             isSavingAll={isSavingAll}

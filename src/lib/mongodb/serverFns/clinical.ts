@@ -469,6 +469,7 @@ const SectionSaveInputZ = z.object({
     "ANIMAL_FOOD",
     "PRESCRIBED_FOOD",
     "ACCESSORY",
+    "CONSUMABLE",
     "FOLLOWUP",
     "LABORATORY",
   ]),
@@ -928,20 +929,25 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
       case "INJECTABLE":
       case "ANIMAL_FOOD":
       case "PRESCRIBED_FOOD":
+      case "CONSUMABLE":
       case "ACCESSORY": {
         const items = Array.isArray(data.payload?.items)
           ? data.payload.items
           : [];
 
         // Snapshot pre-existing quantities for stock-backed sections, before they're overwritten
-        // below — used to auto-sync InventoryItem.currentStock by the delta. PRESCRIBED_MED is
-        // deliberately excluded: it's take-home advice, never dispensed from clinic stock.
+        // below — used to auto-sync InventoryItem.currentStock by the delta. PRESCRIBED_MED counts only for
+        // inventory-sourced lines saved with quantityBase (older saves never deducted stock, so skip them).
         const STOCK_AFFECTING_SECTIONS: Record<string, any[] | undefined> = {
+          PRESCRIBED_MED: (visit.prescriptionData.prescribedMedicines || []).filter(
+            (m: any) => m.itemCode && m.quantityBase !== undefined
+          ),
           IMMEDIATE_MED: visit.prescriptionData.immediateMedicines,
           INJECTABLE: visit.prescriptionData.injectables,
           ANIMAL_FOOD: visit.prescriptionData.animalFood,
           PRESCRIBED_FOOD: visit.prescriptionData.prescribedFood,
           ACCESSORY: visit.prescriptionData.accessories,
+          CONSUMABLE: visit.prescriptionData.consumables,
         };
         const oldItemsForStock =
           data.section in STOCK_AFFECTING_SECTIONS ? STOCK_AFFECTING_SECTIONS[data.section] || [] : null;
@@ -985,7 +991,11 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
             time: it.time || "Morning & Night",
             instructions: it.instructions || it.dosageInstructions || "",
             note: it.note || it.remarks || "",
-            unitPrice: 0, // prescribed (take-home) — clinic never charges for this
+            // Inventory-sourced (has itemCode) take-home meds are sold by the clinic: priced, billed, stock-deducted.
+            // Outside-pharmacy meds (no itemCode) are advice only: never charged.
+            unitPrice: it.itemCode ? Number(it.unitPrice) || 0 : 0,
+            discountPercent: it.itemCode ? Number(it.discountPercent) || 0 : 0,
+            quantityBase: it.itemCode ? (it.quantityBase !== undefined ? Number(it.quantityBase) || 0 : Number(it.quantity) || 1) : undefined,
           }));
         } else if (data.section === "INJECTABLE") {
           visit.prescriptionData.injectables = items.map((it: any) => ({
@@ -1023,6 +1033,16 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
             instructions: it.instructions || "",
             duration: it.duration || "14 days",
           }));
+        } else if (data.section === "CONSUMABLE") {
+          visit.prescriptionData.consumables = items.map((it: any) => ({
+            id: it.id,
+            name: it.name,
+            itemCode: it.itemCode,
+            quantity: Number(it.quantity) || 1,
+            unit: it.unit || "Piece",
+            unitPrice: Number(it.unitPrice) || 0,
+            discountPercent: Number(it.discountPercent) || 0,
+          }));
         } else if (data.section === "ACCESSORY") {
           visit.prescriptionData.accessories = items.map((it: any) => ({
             id: it.id,
@@ -1042,13 +1062,12 @@ export const savePrescriptionSectionFn = createServerFn({ method: "POST" })
         if (!isSettled) {
           visit.items = (visit.items || []).filter(
             (l: any) =>
-              !(l.sourceType === "RX_ITEM" && l.rxSection === data.section) &&
-              l.rxSection !== "PRESCRIBED_MED"
+              !(l.sourceType === "RX_ITEM" && l.rxSection === data.section)
           );
 
-          // Take-home prescribed medicines are part of the medical Rx sheet, not billed in invoice
-          if (data.section !== "PRESCRIBED_MED") {
-            for (const it of items) {
+          {
+            // Outside-pharmacy prescribed meds (no itemCode) are advice only, not billed.
+            for (const it of data.section === "PRESCRIBED_MED" ? items.filter((i: any) => i.itemCode) : items) {
               const qty = Number(it.quantity) || 1;
               const price = Number(it.unitPrice) || 0;
               const disc = Number(it.discountPercent) || 0;

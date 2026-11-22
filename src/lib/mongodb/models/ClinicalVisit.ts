@@ -166,6 +166,7 @@ export interface IPrescriptionData {
   animalFood?: IAnimalFoodItem[] | undefined;
   prescribedFood?: IPrescribedFoodItem[] | undefined;
   accessories?: IAccessoryItem[] | undefined;
+  consumables?: IAccessoryItem[] | undefined;
   savedAt?: string | undefined;
   // ── Versioning & Section-Level Tracking (§1.3, §1.10, §4.1) ──
   version?: number | undefined;

@@ -30,6 +30,7 @@ export interface LiveSummaryPanelProps {
   animalFood: InventoryItemLine[];
   prescribedFood: InventoryItemLine[];
   accessories: InventoryItemLine[];
+  consumables?: InventoryItemLine[];
   laboratoryTests?: Array<{ id: string; name?: string | undefined; testName?: string | undefined; price?: number | undefined }> | undefined;
   hasUnsavedChanges: boolean;
   isSavingAll?: boolean | undefined;
@@ -52,6 +53,7 @@ export function LivePrescriptionSummaryPanel({
   animalFood,
   prescribedFood,
   accessories,
+  consumables = [],
   laboratoryTests = [],
   hasUnsavedChanges,
   isSavingAll = false,
@@ -87,6 +89,7 @@ export function LivePrescriptionSummaryPanel({
   const animalFoodTotal = useMemo(() => sumSection(animalFood), [animalFood]);
   const prescribedFoodTotal = useMemo(() => sumSection(prescribedFood), [prescribedFood]);
   const accessoryTotal = useMemo(() => sumSection(accessories), [accessories]);
+  const consumableTotal = useMemo(() => sumSection(consumables), [consumables]);
   const laboratoryTotal = useMemo(
     () => (laboratoryTests || []).reduce((acc, t) => acc + (Number(t.price) || 0), 0),
     [laboratoryTests]
@@ -100,6 +103,7 @@ export function LivePrescriptionSummaryPanel({
     animalFood.length +
     prescribedFood.length +
     accessories.length +
+    consumables.length +
     (laboratoryTests ? laboratoryTests.length : 0);
 
   const grandTotal =
@@ -110,6 +114,7 @@ export function LivePrescriptionSummaryPanel({
     animalFoodTotal +
     prescribedFoodTotal +
     accessoryTotal +
+    consumableTotal +
     laboratoryTotal;
 
   return (
@@ -325,6 +330,30 @@ export function LivePrescriptionSummaryPanel({
             </div>
             <div className="space-y-1">
               {accessories.map((m) => (
+                <div key={m.id} className="flex items-center justify-between text-xs pl-2">
+                  <span className="truncate max-w-[160px] text-foreground">{m.name}</span>
+                  <span className="font-mono text-muted-foreground">
+                    {m.quantity} · ₹{(m.quantity * m.unitPrice * (1 - (m.discountPercent || 0) / 100)).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Consumables */}
+        {consumables.length > 0 && (
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-2 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+              <span className="flex items-center gap-1">
+                <ShoppingBag className="size-3 text-teal-600" /> Consumables ({consumables.length})
+              </span>
+              <span className="font-mono font-bold text-foreground">
+                ₹{consumableTotal.toFixed(2)}
+              </span>
+            </div>
+            <div className="space-y-1">
+              {consumables.map((m) => (
                 <div key={m.id} className="flex items-center justify-between text-xs pl-2">
                   <span className="truncate max-w-[160px] text-foreground">{m.name}</span>
                   <span className="font-mono text-muted-foreground">

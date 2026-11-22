@@ -14,6 +14,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { ErpProvider } from "@/lib/erp/store";
 import { Toaster } from "@/components/ui/sonner";
+import { useKeyboardFormNav } from "@/lib/useKeyboardFormNav";
 
 
 function NotFoundComponent() {
@@ -123,6 +124,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useKeyboardFormNav();
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -9,6 +9,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import crypto from "node:crypto";
 import { connectDB, tenantScoped } from "@/lib/mongodb/client";
+import { getTenantContext } from "@/lib/mongodb/tenantContext";
 import { User, type ApprovalStatus } from "@/lib/mongodb/models/User";
 import { RegistrationOTP } from "@/lib/mongodb/models/RegistrationOTP";
 import { RefreshToken } from "@/lib/mongodb/models/RefreshToken";
@@ -790,8 +791,12 @@ export const clearAndReseedFn = createServerFn({ method: "POST" })
 export const listApprovedDoctorsFn = createServerFn({ method: "GET" })
   .handler(tenantScoped(async (): Promise<Array<{ id: string; name: string; specialty?: string; licenseNumber?: string }>> => {
     await connectDB();
+    // Fail closed: the scope plugin runs unscoped when no tenant resolves, which would list every clinic's doctors.
+    const tenantId = getTenantContext()?.tenantId;
+    if (!tenantId) return [];
     try {
       const doctors = await User.find({
+        tenantId,
         roleId: { $in: ["doctor", "admin"] },
         approvalStatus: "approved",
         isSystemAccount: { $ne: true },

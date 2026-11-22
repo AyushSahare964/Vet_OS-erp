@@ -75,11 +75,12 @@ export interface InventoryItemSectionProps {
     | "INJECTABLE"
     | "ANIMAL_FOOD"
     | "PRESCRIBED_FOOD"
-    | "ACCESSORY";
+    | "ACCESSORY"
+    | "CONSUMABLE";
   title: string;
   subtitle?: string | undefined;
   icon?: React.ReactNode | undefined;
-  catalogueType: "medicine" | "injection" | "food" | "accessory";
+  catalogueType: "medicine" | "injection" | "food" | "accessory" | "consumable";
   items: InventoryItemLine[];
   onChange: (items: InventoryItemLine[]) => void;
   onSave: () => Promise<void>;
@@ -258,7 +259,7 @@ export function InventoryItemSection({
 
     const defaultUnit =
       rawItem.unit ||
-      (catalogueType === "food" ? "Kg" : catalogueType === "accessory" ? "Piece" : catalogueType === "injection" ? "Vial" : "Tablet");
+      (catalogueType === "food" ? "Kg" : catalogueType === "accessory" || catalogueType === "consumable" ? "Piece" : catalogueType === "injection" ? "Vial" : "Tablet");
 
     const hierarchy: PackagingHierarchy = rawItem.packagingHierarchy ?? getDefaultHierarchy(rawItem.unit || defaultUnit);
     const dispensingUnit = hierarchy.baseUnit || defaultUnit;
@@ -288,7 +289,7 @@ export function InventoryItemSection({
         dispensingUnit,
         packagingHierarchy: hierarchy,
         baseSalePrice: fullPrice,
-        unitPrice: 0,
+        unitPrice: hierarchy ? resolveUnitPrice(fullPrice, dispensingUnit, hierarchy) : fullPrice,
         discountPercent: 0,
         frequency: defaultFreq,
         duration: defaultDur,
@@ -299,7 +300,7 @@ export function InventoryItemSection({
         availableStock: rawItem.currentStock,
       };
       newLine.dosageInstructions = buildPrescriptionDirection(newLine);
-      onChange([...items, newLine]);
+      onChange([newLine, ...items]);
       return;
     }
 
@@ -341,7 +342,7 @@ export function InventoryItemSection({
       gstRate: rawItem.gstRate ?? (catalogueType === "medicine" || catalogueType === "injection" ? 12 : 18),
     };
 
-    onChange([...items, newLine]);
+    onChange([newLine, ...items]);
   };
 
   const handleUpdateLine = (lineId: string, field: keyof InventoryItemLine, value: any) => {
@@ -420,7 +421,7 @@ export function InventoryItemSection({
   };
 
   // Inline add handler for Prescribed Medicine — free-text or chosen name
-  const handleAddPrescribedWithName = (nameToAdd: string) => {
+  const handleAddPrescribedWithName = (nameToAdd: string, meta?: any) => {
     const trimmed = nameToAdd.trim();
     if (!trimmed) return;
 
@@ -437,10 +438,14 @@ export function InventoryItemSection({
       id: generateStableId("prx"),
       name: trimmed,
       medicineName: trimmed,
+      // Only descriptive info from the inventory entry; no itemCode, so it stays an unbilled outside medicine.
+      brand: meta?.brand,
+      genericName: meta?.genericName,
+      strength: meta?.medicineDetails?.strength,
       dose: defaultDose,
       quantity: defaultQty,
       unit: defaultUnit,
-      unitPrice: 0, // prescribed (take-home) — clinic is not charging for this
+      unitPrice: 0, // outside pharmacy — clinic is not charging for this
       discountPercent: 0,
       frequency: defaultFreq,
       duration: defaultDur,
@@ -450,7 +455,7 @@ export function InventoryItemSection({
       note: "",
     };
     newLine.dosageInstructions = buildPrescriptionDirection(newLine);
-    onChange([...items, newLine]);
+    onChange([newLine, ...items]);
     setPrescribedAddName("");
   };
 
@@ -505,34 +510,15 @@ export function InventoryItemSection({
           )}
           {section === "PRESCRIBED_MED" && medSource === "outside" ? (
             <div className="space-y-2">
-              {/* Free-text input with button */}
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    type="text"
-                    value={prescribedAddName}
-                    onChange={(e) => setPrescribedAddName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && prescribedAddName.trim()) {
-                        handleAddPrescribedWithName(prescribedAddName);
-                      }
-                    }}
-                    placeholder="Type medicine name (e.g. Amoxicillin, Meloxicam, Cefpet) and press Add..."
-                    className="h-9 text-xs bg-background pl-8"
-                  />
-                  <Pill className="size-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!prescribedAddName.trim()}
-                  onClick={() => handleAddPrescribedWithName(prescribedAddName)}
-                  className="h-9 text-xs font-bold px-3 text-primary border-primary/30 hover:bg-primary hover:text-primary-foreground shrink-0"
-                >
-                  <Plus className="size-3.5 mr-1" /> Add Medicine
-                </Button>
-              </div>
+              {/* Search every inventory medicine by name (or type a free-text one). Added as an outside medicine: never charged. */}
+              <CatalogueSearch
+                type="medicine"
+                placeholder="Search any medicine (inventory list) or type a new name..."
+                onSelect={(m: any) => handleAddPrescribedWithName(m.name || "", m)}
+                catalogItems={catalogItems}
+                autoClearOnSelect={true}
+                allowCustomAdd={true}
+              />
 
               {/* Popular Medicine Quick Chips */}
               <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
@@ -567,6 +553,8 @@ export function InventoryItemSection({
                     ? "Search food items by name, brand, formula, or bag size..."
                     : catalogueType === "accessory"
                     ? "Search accessories by name, category, or type..."
+                    : catalogueType === "consumable"
+                    ? "Search consumables (gloves, syringes, IV sets...) by name or category..."
                     : section === "INJECTABLE"
                     ? "Search injectable medicines, vaccines, or vials..."
                     : "Search medicines by brand, generic name, or composition..."
@@ -648,6 +636,33 @@ export function InventoryItemSection({
                     <div className="flex items-center gap-1 text-[11px] bg-blue-100/70 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 px-2 py-0.5 rounded font-mono font-semibold">
                       <span>Total: {it.quantity} {it.unit}</span>
                     </div>
+                    {/* Inventory meds are charged (editable price per unit); outside-pharmacy meds are never charged. */}
+                    {it.itemCode ? (
+                      <div className="flex items-center gap-1 text-[11px]">
+                        <span className="text-muted-foreground">₹ / {it.unit}</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="any"
+                          disabled={isLocked}
+                          value={it.unitPrice}
+                          onChange={(e) => handleUpdateLine(it.id, "unitPrice", e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)))}
+                          className="h-7 w-20 text-xs font-mono text-right bg-background"
+                        />
+                        <span className="font-mono font-bold">
+                          = ₹{calcLineItem({
+                            quantity: Number(it.quantity) || 1,
+                            unitPrice: Number(it.unitPrice) || 0,
+                            discountType: undefined,
+                            discountValue: 0,
+                            gstRate: 0,
+                            applyGst: false,
+                          }).lineTotal.toFixed(2)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground italic">Not charged</span>
+                    )}
                     {!isLocked && (
                       <button
                         type="button"
@@ -970,7 +985,7 @@ export function InventoryItemSection({
                   </>
                 )}
                 {showDiscount && <th className="px-2 py-2 text-center w-16">Disc %</th>}
-                {showPrice && catalogueType === "injection" && <th className="px-2 py-2 text-center w-28">Price (₹)</th>}
+                {showPrice && <th className="px-2 py-2 text-center w-28">Price (₹)</th>}
                 {showPrice && <th className="px-3 py-2 text-right w-24">Net (₹)</th>}
                 {!isLocked && <th className="px-2 py-2 w-10"></th>}
               </tr>
@@ -1238,8 +1253,8 @@ export function InventoryItemSection({
                       </td>
                     )}
 
-                    {/* Injections: price is entered on the spot (per selected unit), not fixed from the catalogue */}
-                    {showPrice && catalogueType === "injection" && (
+                    {/* Editable price per selected unit (typed manually, not fixed from the catalogue) */}
+                    {showPrice && (
                       <td className="px-2 py-2 align-top text-center">
                         <Input
                           type="number"
